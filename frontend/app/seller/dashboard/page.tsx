@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Eye, Clock, LogOut, Plus, FileText, Download } from 'lucide-react'
+import { Eye, Clock, LogOut, Plus, FileText, Download, Menu } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,6 +16,7 @@ import SellerProtectedRoute from "@/components/seller/protected-route"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import Classifier from "@/components/seller/Classifier";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 // Updated interfaces to match API structure
 interface SellerProfile {
@@ -91,7 +92,7 @@ interface Deal {
 // Helper function to get the complete profile picture URL
 function getProfilePictureUrl(path: string | null) {
   if (!path) return null
-  const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+  const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
   const formattedPath = path.replace(/\\/g, "/")
   return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.slice(1) : formattedPath}`
 }
@@ -114,7 +115,7 @@ function DealCard({
   // Helper functions
   const handleDocumentUpload = async (dealId: string) => {
     const token = localStorage.getItem("token")
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
     const response = await fetch(`${apiUrl}/deals/${dealId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -166,7 +167,7 @@ function DealCard({
 
     try {
       const token = localStorage.getItem("token")
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
       const response = await fetch(`${apiUrl}/deals/${deal._id}/upload-documents`, {
         method: "POST",
@@ -204,7 +205,7 @@ function DealCard({
   }
 
   const downloadDocument = (doc: DealDocument) => {
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
     // Create a download link
     const link = document.createElement("a")
@@ -218,11 +219,11 @@ function DealCard({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-medium text-[#3aafa9]">{deal.title}</h2>
+      <div className="p-3 sm:p-4 border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h2 className="text-lg sm:text-xl font-medium text-[#3aafa9] break-words">{deal.title}</h2>
           {deal.isPublic ? (
-            <span className="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 w-fit">
               Marketplace
             </span>
           ) : null}
@@ -230,9 +231,9 @@ function DealCard({
       </div>
 
       {/* Overview Section */}
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-lg font-medium mb-3">Overview</h3>
-        <div className="space-y-1 text-sm">
+      <div className="p-3 sm:p-4 border-b border-gray-200">
+        <h3 className="text-base sm:text-lg font-medium mb-2 sm:mb-3">Overview</h3>
+        <div className="space-y-1 text-xs sm:text-sm">
           {/* <div>
             <span className="text-gray-500">Company Description: </span>
             <span>{deal.companyDescription}</span>
@@ -257,9 +258,9 @@ function DealCard({
       </div>
 
       {/* Financial Section */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-3 sm:p-4 border-b border-gray-200">
         {/* <h3 className="text-lg font-medium mb-3">Financial</h3> */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-sm">
           <div>
             <span className="text-gray-500">Trailing 12-Month Revenue: </span>
             <span>
@@ -312,18 +313,18 @@ function DealCard({
     
 
       {/* Action Buttons */}
-      <div className="flex p-4 gap-2">
+      <div className="flex flex-wrap p-3 sm:p-4 gap-2">
         <Button
           variant="outline"
           onClick={() => router.push(`/seller/edit-deal?id=${deal._id}`)}
-          className="flex-1 py-2 border border-gray-400 text-gray-600"
+          className="flex-1 min-w-[80px] py-2 text-xs sm:text-sm border border-gray-400 text-gray-600"
         >
           Edit
         </Button>
         {deal.status === "active" && (
           <Button
             variant="outline"
-            className="flex-1 py-2 bg-green-50 text-green-600 border border-green-200"
+            className="flex-1 min-w-[100px] py-2 text-xs sm:text-sm bg-green-50 text-green-600 border border-green-200"
             onClick={() => handleCompleteDealClick(deal)}
           >
             Complete Deal
@@ -331,13 +332,13 @@ function DealCard({
         )}
         <Button
           variant="outline"
-          className="flex-1 py-2 bg-red-50 text-red-500 border border-red-200"
+          className="flex-1 min-w-[90px] py-2 text-xs sm:text-sm bg-red-50 text-red-500 border border-red-200"
           onClick={() => handleOffMarketClick(deal)}
         >
           Off Market
         </Button>
         <Button
-          className="flex-1 py-2 bg-[#3aafa9] text-white"
+          className="flex-1 min-w-[80px] py-2 text-xs sm:text-sm bg-[#3aafa9] text-white"
           onClick={() => router.push(`/seller/deal?id=${deal._id}`)}
         >
           Activity
@@ -376,6 +377,7 @@ export default function SellerDashboardPage() {
   const [buyerActivity, setBuyerActivity] = useState<any[]>([])
   const [selectedWinningBuyer, setSelectedWinningBuyer] = useState<string>("")
   const [buyerActivityLoading, setBuyerActivityLoading] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const activeBuyerOptions = buyerActivity.filter((buyer) => buyer?.status === "active")
 
   const searchParams = useSearchParams()
@@ -388,7 +390,7 @@ export default function SellerDashboardPage() {
     const fetchSellerProfile = async () => {
       try {
         const token = localStorage.getItem("token")
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
         const response = await fetch(`${apiUrl}/sellers/profile`, {
           headers: {
@@ -421,7 +423,7 @@ export default function SellerDashboardPage() {
       try {
         setLoading(true)
         const token = localStorage.getItem("token")
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
         if (!token) {
           router.push("/seller/login?error=no_token")
@@ -479,7 +481,7 @@ export default function SellerDashboardPage() {
     if (profileName.trim()) {
       try {
         const token = localStorage.getItem("token")
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
         const response = await fetch(`${apiUrl}/sellers/${sellerProfile?._id}`, {
           method: "PATCH",
@@ -545,7 +547,7 @@ export default function SellerDashboardPage() {
         if (selectedDealForOffMarket) {
           try {
             const token = localStorage.getItem("token")
-            const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+            const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
             const response = await fetch(`${apiUrl}/deals/${selectedDealForOffMarket._id}/close-deal`, {
               method: "POST",
               headers: {
@@ -604,7 +606,7 @@ export default function SellerDashboardPage() {
 
     try {
       const token = localStorage.getItem("token")
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
       // Close the deal with the selected buyer
       const closeResponse = await fetch(`${apiUrl}/deals/${selectedDealForCompletion._id}/close`, {
@@ -666,7 +668,7 @@ export default function SellerDashboardPage() {
 
     try {
       const token = localStorage.getItem("token")
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
       // Prepare winningBuyerId: only send if buyerFromCIM is true
       const body: any = {
@@ -723,7 +725,7 @@ export default function SellerDashboardPage() {
 
     try {
       const token = localStorage.getItem("token")
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
       const body: any = {}
       if (offMarketData.transactionValue) {
@@ -764,7 +766,7 @@ export default function SellerDashboardPage() {
   const fetchDealStatusSummary = async (dealId: string) => {
     try {
       const token = localStorage.getItem("token")
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
       const response = await fetch(`${apiUrl}/deals/${dealId}/status-summary`, {
         headers: {
@@ -866,88 +868,113 @@ export default function SellerDashboardPage() {
     return num.toLocaleString()
   }
 
+  // Navigation component to avoid duplication
+  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <>
+      <div className="mb-8">
+        <Link href="/seller/dashboard" onClick={onNavigate}>
+          <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
+        </Link>
+      </div>
+
+      <nav className="flex-1 space-y-6">
+        <Button
+          variant="secondary"
+          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
+          onClick={onNavigate}
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>MyDeals</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          onClick={() => {
+            onNavigate?.()
+            router.push("/seller/view-profile")
+          }}
+        >
+          <Eye className="h-5 w-5" />
+          <span>View Profile</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          onClick={() => {
+            onNavigate?.()
+            router.push("/seller/history")
+          }}
+        >
+          <Clock className="h-5 w-5" />
+          <span>Off Market</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
+          onClick={() => {
+            onNavigate?.()
+            handleLogout()
+          }}
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Sign Out</span>
+        </Button>
+      </nav>
+    </>
+  )
+
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-          <div className="mb-8">
-            <Link href="/seller/dashboard">
-              <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
-            </Link>
-          </div>
-
-          <nav className="flex-1 space-y-6">
-            <Button
-              variant="secondary"
-              className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>MyDeals</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/seller/view-profile")}
-            >
-              <Eye className="h-5 w-5" />
-              <span>View Profile</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/seller/history")}
-            >
-              <Clock className="h-5 w-5" />
-              <span>Off Market</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-              <span>Sign Out</span>
-            </Button>
-          </nav>
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex w-64 bg-white border-r border-gray-200 p-6 flex-col">
+          <NavigationContent />
         </div>
 
         {/* Main content */}
-        <div className="flex-1 space-y-4 p-4">
+        <div className="flex-1 space-y-4 p-3 sm:p-4">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 p-3 px-6 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-800">Active Deals</h1>
+          <header className="bg-white border-b border-gray-200 p-3 sm:px-6 flex justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+              {/* Mobile Menu Button */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                  <SheetHeader>
+                    <SheetTitle>Menu</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-8">
+                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Active Deals</h1>
+            </div>
 
-            <div className="flex items-center justify-start gap-60">
-              {/* <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <Input
-                  type="search"
-                  placeholder="Search here..."
-                  className="pl-10 w-80 bg-gray-100 border-0"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div> */}
-
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="font-medium flex items-center">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="text-right hidden sm:block">
+                  <div className="font-medium text-sm sm:text-base">
                     {userProfile?.fullName || sellerProfile?.fullName || "User"}
                   </div>
                 </div>
-                <div className="relative h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
+                <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
                   {sellerProfile?.profilePicture ? (
                     <img
                       src={
@@ -970,19 +997,19 @@ export default function SellerDashboardPage() {
           <div className="space-y-4 mt-6">
             {/* Deals Section */}
             <div className="bg-white rounded-lg shadow">
-              <div className="p-6 flex justify-between items-center">
-                <div className="relative w-2/3">
+              <div className="p-3 sm:p-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                <div className="relative w-full sm:w-2/3">
                   <Input
                     type="text"
                     placeholder="Search deal with Title"
-                    className="border-gray-300"
+                    className="border-gray-300 text-sm sm:text-base"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <Button
                   variant="default"
-                  className="bg-[#3aafa9] hover:bg-[#2a9d8f]"
+                  className="bg-[#3aafa9] hover:bg-[#2a9d8f] w-full sm:w-auto text-sm sm:text-base"
                   onClick={() => router.push("/seller/seller-form")}
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -990,9 +1017,9 @@ export default function SellerDashboardPage() {
                 </Button>
               </div>
 
-              <div className="p-6">
+              <div className="p-3 sm:p-6">
                 {loading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     {[1, 2].map((i) => (
                       <div key={i} className="bg-white rounded-lg shadow p-6">
                         <Skeleton className="h-6 w-3/4 mb-2" />
@@ -1019,7 +1046,7 @@ export default function SellerDashboardPage() {
                     <Button onClick={() => router.push("/seller/seller-form")}>Create Your First Deal</Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     {filteredDeals.map((deal) => (
                       <DealCard
                         key={deal._id}

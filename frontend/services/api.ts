@@ -4,7 +4,7 @@ const getApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   if (!apiUrl) {
     console.warn("NEXT_PUBLIC_API_URL not set, using default backend URL")
-    return "http://localhost:5001" // Default backend URL
+    return "https://cim-backend.vercel.app" // Default backend URL
   }
   console.log("Using API URL:", apiUrl)
   return apiUrl

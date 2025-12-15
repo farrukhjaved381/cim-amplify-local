@@ -95,7 +95,7 @@ export default function RegistrationPendingVerificationPage() {
 
     setIsResending(true);
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
       const response = await fetch(`${apiUrl}/auth/resend-verification`, {
         method: "POST",
         headers: {

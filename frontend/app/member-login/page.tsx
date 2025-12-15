@@ -478,7 +478,7 @@ export default function SelectRolePage() {
       `}</style>
       {/* Header */}
      <Header/>
-    <div className="flex h-screen bg-[#C6D6D6] overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-[#C6D6D6] overflow-auto md:overflow-hidden">
       {/* Left side with chart graphic */}
 
       <div className="hidden md:flex md:w-1/2 items-center justify-center relative">
@@ -493,30 +493,30 @@ export default function SelectRolePage() {
       </div>
 
       {/* Right side with content */}
-      <div className="w-full md:w-2/3 bg-white rounded-l-[40px] flex items-center justify-center p-8">
-        <div className="w-full max-w-lg space-y-8 items-center justify-center flex flex-col">
-          <h1 className="text-3xl md:text-4xl lg:text-4xl font-bold text-black text-center leading-tight">
+      <div className="w-full md:w-2/3 bg-white md:rounded-l-[40px] flex items-center justify-center p-4 sm:p-6 md:p-8 min-h-screen md:min-h-0">
+        <div className="w-full max-w-lg space-y-6 sm:space-y-8 items-center justify-center flex flex-col py-8 md:py-0">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-4xl font-bold text-black text-center leading-tight px-4">
           Let's do some deals!
           </h1>
 
-          <p className="text-[#667085] text-lg text-center md:text-center">
+          <p className="text-[#667085] text-base sm:text-lg text-center px-4">
             Streamline your deal flow process with our platform. Connect with qualified buyers or find the perfect
             investment opportunity.
           </p>
 
-          <div className="flex flex-col w-full max-w-md space-y- gap-4 pt-7">
+          <div className="flex flex-col w-full max-w-md space-y-4 pt-4 sm:pt-7 px-4">
             <a
               href="/seller/login"
               target="_self"
               rel="noopener noreferrer"
-              className="bg-[#3aafa9] hover:bg-white text-white hover:text-[#2a9d8f] hover:border-[#2a9d8f] border font-medium py-4 px-6 rounded-full text-center transition-colors"
+              className="bg-[#3aafa9] hover:bg-white text-white hover:text-[#2a9d8f] hover:border-[#2a9d8f] border font-medium py-3 sm:py-4 px-6 rounded-full text-center transition-colors text-sm sm:text-base"
             >
               Advisor Login
             </a>
             <a
               href="/buyer/register"
               onClick={handleBuyerProfileClick}
-             className="bg-[#3aafa9] hover:bg-white text-white hover:text-[#2a9d8f] hover:border-[#2a9d8f] border font-medium py-4 px-6 rounded-full text-center transition-colors" >
+             className="bg-[#3aafa9] hover:bg-white text-white hover:text-[#2a9d8f] hover:border-[#2a9d8f] border font-medium py-3 sm:py-4 px-6 rounded-full text-center transition-colors text-sm sm:text-base" >
               Buyer Login
             </a>
             {/* <Link

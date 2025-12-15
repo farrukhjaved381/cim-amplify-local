@@ -165,7 +165,7 @@ export default function DealsPage() {
       }
 
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
 
       // Map status to API endpoint
@@ -364,7 +364,7 @@ export default function DealsPage() {
       const token = localStorage.getItem("token");
       const currentBuyerId = localStorage.getItem("userId");
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
 
       console.log("Token exists:", !!token);
@@ -596,7 +596,7 @@ export default function DealsPage() {
         return;
       }
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
 
       const response = await fetch(`${apiUrl}/company-profiles/my-profile`, {
@@ -638,7 +638,7 @@ export default function DealsPage() {
       }
 
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
 
       const response = await fetch(`${apiUrl}/buyers/profile`, {
@@ -688,7 +688,7 @@ export default function DealsPage() {
       if (!token) return;
 
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
 
       // Option 2: Use deal ID to get seller info (recommended)
@@ -790,7 +790,7 @@ export default function DealsPage() {
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
 
     if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -838,7 +838,7 @@ export default function DealsPage() {
   // Update fetchSellerInfo to store companyName and website
   const fetchSellerInfo = async (sellerId: string) => {
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
       const response = await fetch(`${apiUrl}/sellers/public/${sellerId}`);
       if (!response.ok) throw new Error("Failed to fetch seller info");
@@ -881,7 +881,7 @@ export default function DealsPage() {
 
       setSellerInfoLoading(true);
       const token = localStorage.getItem("token");
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
       for (const sellerId of uniqueSellerIds) {
         try {
@@ -944,37 +944,34 @@ export default function DealsPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center space-x-10 pt-3 pb-1">
-            <Link href="/deals">
-              <div className="flex items-center">
-                <img src="/logo.svg" alt="CIM Amplify" className="h-10" />
-              </div>
+      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 gap-3 sm:gap-0">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center w-full sm:w-auto space-y-3 sm:space-y-0 sm:space-x-4 md:space-x-10 pt-0 sm:pt-3 pb-0 sm:pb-1">
+            <Link href="/deals" className="flex items-center">
+              <img src="/logo.svg" alt="CIM Amplify" className="h-8 sm:h-10" />
             </Link>
-            <h1 className="text-2xl font-semibold text-gray-800">
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">
               {activeTitle}
             </h1>
-            <div className="relative mx-4 ">
-              <div className="flex items-center rounded-xl bg-[#3AAFA914] px-3 py-4 ">
-                <Search className="ml-2  text-[#3AAFA9] mr-3 font-bold" />
+            <div className="relative w-full sm:w-auto">
+              <div className="flex items-center rounded-xl bg-[#3AAFA914] px-3 py-2 sm:py-4 w-full sm:w-auto">
+                <Search className="ml-2 text-[#3AAFA9] mr-3 font-bold h-4 w-4 sm:h-5 sm:w-5" />
                 <input
                   type="text"
                   placeholder="Search deals..."
-                  className="bg-transparent text-sm focus:outline-none w-72 "
+                  className="bg-transparent text-sm focus:outline-none w-full sm:w-72"
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4 w-full sm:w-auto justify-end">
             <div className="flex items-center">
-              <div className="mr-2 text-right">
+              <div className="mr-2 text-right hidden sm:block">
                 <div className="text-sm font-medium">
                   {buyerProfile?.fullName || "User"}
                 </div>
-                {/* <div className="text-xs text-gray-500">{buyerProfile?.companyName || "Company"}</div> */}
               </div>
               <div className="relative">
                 {buyerProfile?.profilePicture ? (
@@ -1002,9 +999,9 @@ export default function DealsPage() {
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex flex-col md:flex-row">
         {/* Sidebar */}
-        <aside className="w-56 border-r border-gray-200 bg-white">
+        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white">
           <nav className="flex flex-col p-4">
             <Link
               href="/buyer/deals"
@@ -1037,6 +1034,40 @@ export default function DealsPage() {
           </nav>
         </aside>
 
+        {/* Mobile Navigation */}
+        <div className="md:hidden border-b border-gray-200 bg-white">
+          <nav className="flex overflow-x-auto p-2 space-x-2">
+            <Link
+              href="/buyer/deals"
+              className="flex items-center rounded-md bg-teal-500 px-3 py-2 text-white text-sm whitespace-nowrap"
+            >
+              <Briefcase className="mr-2 h-4 w-4" />
+              <span>Deals</span>
+            </Link>
+            <Link
+              href="/buyer/marketplace"
+              className="flex items-center rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 text-sm whitespace-nowrap"
+            >
+              <Store className="mr-2 h-4 w-4" />
+              <span>MarketPlace</span>
+            </Link>
+            <Link
+              href="/buyer/company-profile"
+              className="flex items-center rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 text-sm whitespace-nowrap"
+            >
+              <Eye className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex items-center rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 text-sm whitespace-nowrap"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign Out</span>
+            </button>
+          </nav>
+        </div>
+
 
 
 
@@ -1045,7 +1076,7 @@ export default function DealsPage() {
 
 
         {/* Main content */}
-        <main className="flex-1 bg-gray-50 p-6">
+        <main className="flex-1 bg-gray-50 p-4 sm:p-6">
           {profileSubmitted && (
             <div className="mb-6 rounded-md bg-green-50 p-4 text-green-800 border border-green-200">
               <div className="flex">

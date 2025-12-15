@@ -1,10 +1,21 @@
+"use client";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Link } from "lucide-react";
+import { Menu } from "lucide-react";
+import { useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export default function Header() {
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
@@ -402,7 +413,7 @@ export default function Header() {
         }
       `}</style>
       <header className="">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <a
               className="logo-container cursor-pointer"
@@ -415,7 +426,7 @@ export default function Header() {
                 alt="CIM Amplify Logo"
                 width={150}
                 height={50}
-                className="h-auto"
+                className="h-auto w-[120px] sm:w-[150px]"
               />
             </a>
 
@@ -451,6 +462,66 @@ export default function Header() {
                               Member Login
                             </Button>
             </nav>
+
+            {/* Mobile Menu */}
+            <div className="md:hidden flex items-center gap-2">
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-gray-600 hover:text-gray-900"
+                  >
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+                  <SheetHeader>
+                    <SheetTitle className="text-left">Menu</SheetTitle>
+                  </SheetHeader>
+                  <nav className="flex flex-col gap-4 mt-8">
+                    <a
+                      href="https://cimamplify.com/#Benefits"
+                      className="text-gray-600 hover:text-teal-500 transition-colors py-2 border-b"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Benefits
+                    </a>
+                    <a
+                      href="https://cimamplify.com/#How%20it%20Works"
+                      className="text-gray-600 hover:text-teal-500 transition-colors py-2 border-b"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      How it Works
+                    </a>
+                    <a
+                      href="https://cimamplify.com/#Guidelines"
+                      className="text-gray-600 hover:text-teal-500 transition-colors py-2 border-b"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Guidelines
+                    </a>
+                    <a
+                      href="https://cimamplify.com/#FAQs"
+                      className="text-gray-600 hover:text-teal-500 transition-colors py-2 border-b"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      FAQs
+                    </a>
+                    <Button
+                      className="w-full mt-4 text-white bg-gradient-to-r from-teal-500 to-primary hover:from-primary hover:to-teal-700 transition-all duration-300"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        router.push("/member-login");
+                      }}
+                    >
+                      Member Login
+                    </Button>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
         </div>
       </header>

@@ -97,7 +97,7 @@ export default function BuyersManagementDashboard() {
       try {
         const token = localStorage.getItem("token");
         if (!token) throw new Error("No authentication token found");
-        const res = await fetch("http://localhost:5001/admin/profile", {
+        const res = await fetch("https://cim-backend.vercel.app/admin/profile", {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error("Failed to fetch admin profile");

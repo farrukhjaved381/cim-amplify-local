@@ -689,12 +689,12 @@ export default function Component() {
     <Header/>
 
       {/* Hero Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-6 text-center">
+      <section className="py-8 sm:py-12 md:py-16 bg-gray-50">
+        <div className="container mx-auto px-4 sm:px-6 text-center">
           <h1
             data-animate
             id="hero-title"
-            className={`text-4xl md:text-5xl font-bold text-gray-900 mb-6 ${
+            className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 sm:mb-6 px-2 ${
               isVisible["hero-title"] ? "animate-fadeInUp animate-in" : ""
             }`}
           >
@@ -703,7 +703,7 @@ export default function Component() {
           <p
             data-animate
             id="hero-subtitle"
-            className={`text-xl text-gray-600 mb-8 max-w-4xl mx-auto ${
+            className={`text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-4xl mx-auto px-2 ${
               isVisible["hero-subtitle"]
                 ? "animate-fadeInUp animate-delay-200 animate-in"
                 : ""
@@ -718,27 +718,27 @@ export default function Component() {
 
       {/* Benefits Section */}
       {/* Benefits Section */}
-      <section id="benefits" className="py-16">
-        <div className="container mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12">
+      <section id="benefits" className="py-8 sm:py-12 md:py-16">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12">
             {/* Buyer Benefits */}
             <div
               data-animate
               id="buyer-benefits"
-              className={`bg-white rounded-lg shadow-lg p-8 border border-gray-200 ${
+              className={`bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8 border border-gray-200 ${
                 isVisible["buyer-benefits"]
                   ? "animate-slideInLeft animate-in"
                   : ""
               }`}
             >
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 Buyer Benefits
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
                 Forget sifting through irrelevant opportunities — we send you
                 what fits.
               </p>
-              <ul className="space-y-4">
+              <ul className="space-y-3 sm:space-y-4">
                 {[
                   "Exclusive deals — we reward Advisors who post exclusively with us",
                   "0.5% (50 basis points) fee. By far the lowest in the industry",
@@ -747,9 +747,9 @@ export default function Component() {
                   "We get out of the way – no requirement to communicate through the platform",
                   "Deal management platform – see all your deals in one place",
                 ].map((benefit, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-teal-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700">{benefit}</span>
+                  <li key={index} className="flex items-start gap-2 sm:gap-3">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-teal-500 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm sm:text-base text-gray-700">{benefit}</span>
                   </li>
                 ))}
               </ul>
@@ -757,7 +757,7 @@ export default function Component() {
                 onClick={() => {
                   router.push("/buyer/register");
                 }}
-                className="mt-6 bg-teal-500 hover:bg-primary transition-colors text-white"
+                className="mt-4 sm:mt-6 w-full sm:w-auto bg-teal-500 hover:bg-primary transition-colors text-white text-sm sm:text-base"
               >
                 Create a Free Buyer Profile
               </Button>
@@ -767,19 +767,19 @@ export default function Component() {
             <div
               data-animate
               id="advisor-benefits"
-              className={`bg-white rounded-lg shadow-lg p-8 border border-gray-200 ${
+              className={`bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8 border border-gray-200 ${
                 isVisible["advisor-benefits"]
                   ? "animate-slideInRight animate-in"
                   : ""
               }`}
             >
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 Advisor Benefits
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
                 Put your deals in front of serious, qualified buyers
               </p>
-              <ul className="space-y-4">
+              <ul className="space-y-3 sm:space-y-4">
                 {[
                   "Seller Rewards – You are our oxygen and we appreciate you. Every deal is worth at least an Amazon gift card. Much more if your buyer comes from CIM Amplify and you use us exclusively",
                   'No tire kickers! Set "Ability to Close" filters for every deal',
@@ -787,9 +787,9 @@ export default function Component() {
                   "We get out of the way – no requirement to communicate through the platform",
                   "Deal management platform to see buyer matches and activity in one place",
                 ].map((benefit, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-teal-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700">{benefit}</span>
+                  <li key={index} className="flex items-start gap-2 sm:gap-3">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-teal-500 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm sm:text-base text-gray-700">{benefit}</span>
                   </li>
                 ))}
               </ul>
@@ -797,7 +797,7 @@ export default function Component() {
                 href="https://cimamplify.com/Advisor%20Registration"
                 target="_self"
                 rel="noopener noreferrer"
-                className="mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-6 py-3 inline-block text-center font-medium"
+                className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base w-full sm:w-auto"
               >
                 Add A Deal
               </a>
@@ -807,12 +807,12 @@ export default function Component() {
       </section>
 
       {/* Marketplace Stats */}
-      <section id="marketplace" className="py-16 bg-gray-50">
-        <div className="container mx-auto px-6 text-center">
+      <section id="marketplace" className="py-8 sm:py-12 md:py-16 bg-gray-50">
+        <div className="container mx-auto px-4 sm:px-6 text-center">
           <h2
             data-animate
             id="marketplace-title"
-            className={`text-3xl font-bold text-gray-900 mb-12 ${
+            className={`text-2xl sm:text-3xl font-bold text-gray-900 mb-8 sm:mb-12 ${
               isVisible["marketplace-title"]
                 ? "animate-fadeInUp animate-in"
                 : ""
@@ -821,22 +821,22 @@ export default function Component() {
             CIM Amplify at a Glance
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
             {stats.map((stat, index) => (
               <div
                 key={index}
                 data-animate
                 id={`stat-${index}`}
-                className={`bg-white rounded-lg shadow-lg p-6 border border-gray-200 text-center gpu-accelerated ${
+                className={`bg-white rounded-lg shadow-lg p-4 sm:p-6 border border-gray-200 text-center gpu-accelerated ${
                   isVisible[`stat-${index}`]
                     ? ` animate-in animate-delay-${index * 100} animate-in`
                     : ""
                 }`}
               >
-                <div className="text-3xl md:text-4xl font-bold mb-2 text-primary">
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-primary">
                   {stat.value}
                 </div>
-                <div className="text-gray-600 font-medium">{stat.label}</div>
+                <div className="text-xs sm:text-sm md:text-base text-gray-600 font-medium">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -847,28 +847,28 @@ export default function Component() {
       {/* How It Works */}
       {/* How It Works */}
       {/* How It Works */}
-      <section id="how-it-works" className="py-16 bg-[#FFFFFF]">
-        <div className="container mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-16">
+      <section id="how-it-works" className="py-8 sm:py-12 md:py-16 bg-[#FFFFFF]">
+        <div className="container mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12 md:mb-16">
             How It Works
           </h2>
-          <div className="space-y-20">
+          <div className="space-y-12 sm:space-y-16 md:space-y-20">
             {/* Step 1 */}
             <div className="relative">
-              <div className="mb-12">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-teal-500 to-primary text-white font-bold text-lg mb-4 shadow-lg">
+              <div className="mb-8 sm:mb-12">
+                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-teal-500 to-primary text-white font-bold text-base sm:text-lg mb-4 shadow-lg">
                   1
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
                   Add A Deal
                 </h3>
-                <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 max-w-2xl mx-auto px-2">
                   M&A Advisors choose a reward level based on exclusivity with
                   CIM Amplify and add deal metrics.
                 </p>
               </div>
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                <div className="rounded-lg p-8 flex items-center justify-center h-64">
+              <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
+                <div className="rounded-lg p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-[200px] sm:min-h-[250px] md:h-64">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-primary/20 rounded-lg blur-lg group-hover:blur-xl transition-all duration-300"></div>
                     <Image
@@ -876,11 +876,11 @@ export default function Component() {
                       alt="CIM Amplify Add Deal"
                       width={350}
                       height={250}
-                      className="h-auto relative z-10 transform group-hover:scale-105 transition-all duration-300"
+                      className="w-full h-auto max-w-[280px] sm:max-w-[350px] relative z-10 transform group-hover:scale-105 transition-all duration-300"
                     />
                   </div>
                 </div>
-                <div className="rounded-lg p-8 flex items-center justify-center h-94">
+                <div className="rounded-lg p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-[200px] sm:min-h-[300px] md:h-94">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-primary/20 rounded-lg blur-lg group-hover:blur-xl transition-all duration-300"></div>
                     <Image
@@ -888,7 +888,7 @@ export default function Component() {
                       alt="CIM Amplify Deal Tiers"
                       width={550}
                       height={450}
-                      className="h-auto relative z-10 transform group-hover:scale-105 transition-all duration-300"
+                      className="w-full h-auto max-w-full sm:max-w-[550px] relative z-10 transform group-hover:scale-105 transition-all duration-300"
                     />
                   </div>
                 </div>
@@ -897,27 +897,27 @@ export default function Component() {
                 href="https://cimamplify.com/Advisor%20Registration"
                 target="_self"
                 rel="noopener noreferrer"
-                className="bg-teal-500 hover:bg-primary transition-colors text-white rounded px-6 py-3 inline-block text-center font-medium"
+                className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base"
               >
                 Add a Deal
               </a>
             </div>
             {/* Step 2 */}
             <div className="relative">
-              <div className="mb-12">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-teal-500 to-primary text-white font-bold text-lg mb-4 shadow-lg">
+              <div className="mb-8 sm:mb-12">
+                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-teal-500 to-primary text-white font-bold text-base sm:text-lg mb-4 shadow-lg">
                   2
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
                   Intelligent Buyer Matching
                 </h3>
-                <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 max-w-2xl mx-auto px-2">
                   CIM Amplify provides a list of buyers. Advisors select which
                   buyers to engage.
                 </p>
               </div>
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                <div className="rounded-lg p-8 flex items-center justify-center h-94">
+              <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
+                <div className="rounded-lg p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-[200px] sm:min-h-[300px] md:h-94">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-primary/20 rounded-lg blur-lg group-hover:blur-xl transition-all duration-300"></div>
                     <Image
@@ -925,11 +925,11 @@ export default function Component() {
                       alt="CIM Amplify Buyer Matching"
                       width={550}
                       height={450}
-                      className="h-auto relative z-10 transform group-hover:scale-105 transition-all duration-300"
+                      className="w-full h-auto max-w-full sm:max-w-[550px] relative z-10 transform group-hover:scale-105 transition-all duration-300"
                     />
                   </div>
                 </div>
-                <div className="rounded-lg p-8 flex items-center justify-center h-64">
+                <div className="rounded-lg p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-[200px] sm:min-h-[250px] md:h-64">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-primary/20 rounded-lg blur-lg group-hover:blur-xl transition-all duration-300"></div>
                     <Image
@@ -937,33 +937,33 @@ export default function Component() {
                       alt="CIM Amplify Matching Process"
                       width={350}
                       height={250}
-                      className="h-auto relative z-10 transform group-hover:scale-105 transition-all duration-300"
+                      className="w-full h-auto max-w-[280px] sm:max-w-[350px] relative z-10 transform group-hover:scale-105 transition-all duration-300"
                     />
                   </div>
                 </div>
               </div>
             </div>
             <Button
-              className="bg-teal-500 hover:bg-primary transition-colors text-white"
+              className="bg-teal-500 hover:bg-primary transition-colors text-white w-full sm:w-auto text-sm sm:text-base"
               onClick={() => router.push("/buyer/register")}
             >
               Buyer Registration
             </Button>
             {/* Step 3 */}
             <div className="relative">
-              <div className="mb-12">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-teal-500 to-primary text-white font-bold text-lg mb-4 shadow-lg">
+              <div className="mb-8 sm:mb-12">
+                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-teal-500 to-primary text-white font-bold text-base sm:text-lg mb-4 shadow-lg">
                   3
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
                   Deal Management
                 </h3>
-                <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 max-w-2xl mx-auto px-2">
                   Buyers and Advisors monitor deals via an intuitive platform.
                 </p>
               </div>
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                <div className="rounded-lg p-8 flex items-center justify-center h-64">
+              <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
+                <div className="rounded-lg p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-[200px] sm:min-h-[250px] md:h-64">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-primary/20 rounded-lg blur-lg group-hover:blur-xl transition-all duration-300"></div>
                     <Image
@@ -971,11 +971,11 @@ export default function Component() {
                       alt="CIM Amplify Deal Management"
                       width={350}
                       height={250}
-                      className="h-auto relative z-10 transform group-hover:scale-105 transition-all duration-300"
+                      className="w-full h-auto max-w-[280px] sm:max-w-[350px] relative z-10 transform group-hover:scale-105 transition-all duration-300"
                     />
                   </div>
                 </div>
-                <div className="rounded-lg p-8 flex items-center justify-center h-64">
+                <div className="rounded-lg p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-[200px] sm:min-h-[300px] md:h-64">
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/20 to-primary/20 rounded-lg blur-lg group-hover:blur-xl transition-all duration-300"></div>
                     <Image
@@ -983,24 +983,24 @@ export default function Component() {
                       alt="CIM Amplify Management Dashboard"
                       width={550}
                       height={450}
-                      className="h-auto relative z-10 transform group-hover:scale-105 transition-all duration-300"
+                      className="w-full h-auto max-w-full sm:max-w-[550px] relative z-10 transform group-hover:scale-105 transition-all duration-300"
                     />
                   </div>
                 </div>
               </div>
             </div>
-            <div className="flex gap-4 text-center justify-center">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 text-center justify-center">
               <a
                 href="https://cimamplify.com/Advisor%20Registration"
                 target="_self"
                 rel="noopener noreferrer"
-                className="bg-teal-500 hover:bg-primary transition-colors text-white rounded px-6 py-3 inline-block text-center font-medium"
+                className="bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base w-full sm:w-auto"
               >
                 Add A Deal
               </a>
               <Button
                 variant="outline"
-                className="bg-teal-500 hover:bg-primary transition-colors text-white hover:text-white"
+                className="bg-teal-500 hover:bg-primary transition-colors text-white hover:text-white w-full sm:w-auto text-sm sm:text-base"
                 onClick={() => router.push("/buyer/register")}
               >
                 Join the Buyer's List
@@ -1011,24 +1011,24 @@ export default function Component() {
       </section>
 
       {/* // Updated JSX for the Platform Guidelines section */}
-      <section className="py-16 bg-white" id="guidelines">
-        <div className="container mx-auto px-6">
+      <section className="py-8 sm:py-12 md:py-16 bg-white" id="guidelines">
+        <div className="container mx-auto px-4 sm:px-6">
           <h2
             data-animate
             id="guidelines-title"
-            className={`text-3xl font-bold text-center text-gray-900 mb-16 ${
+            className={`text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12 md:mb-16 ${
               isVisible["guidelines-title"] ? "animate-fadeInUp animate-in" : ""
             }`}
           >
             Platform Guidelines
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
             {platformGuidelines.map((guideline, index) => (
               <div
                 key={index}
                 data-animate
                 id={`guideline-${index}`}
-                className={`bg-[#f9fafb] rounded-lg border border-gray-200 p-8 text-center shadow-sm hover:shadow-md transition-all duration-300 ${
+                className={`bg-[#f9fafb] rounded-lg border border-gray-200 p-4 sm:p-6 md:p-8 text-center shadow-sm hover:shadow-md transition-all duration-300 ${
                   isVisible[`guideline-${index}`]
                     ? `animate-slideInFromBottom animate-delay-${
                         index * 100
@@ -1036,12 +1036,12 @@ export default function Component() {
                     : ""
                 }`}
               >
-                <div className="flex justify-center mb-6">
-                  <div className="w-20 h-20 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100">
+                <div className="flex justify-center mb-4 sm:mb-6">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100">
                     {guideline.icon}
                   </div>
                 </div>
-                <p className="text-gray-700 text-sm leading-relaxed font-medium">
+                <p className="text-gray-700 text-xs sm:text-sm leading-relaxed font-medium">
                   {guideline.title}
                 </p>
               </div>
@@ -1053,12 +1053,12 @@ export default function Component() {
       {/* What Our Members Are Saying */}
       {/* What Our Members Are Saying */}
       {/* What Our Members Are Saying */}
- <section className="py-16 bg-white">
-  <div className="container mx-auto px-6">
+ <section className="py-8 sm:py-12 md:py-16 bg-white">
+  <div className="container mx-auto px-4 sm:px-6">
     <h2
       data-animate
       id="testimonials-title"
-      className={`text-3xl font-bold text-center text-gray-900 mb-16 ${
+      className={`text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12 md:mb-16 ${
         isVisible["testimonials-title"]
           ? "animate-fadeInUp animate-in"
           : ""
@@ -1207,18 +1207,18 @@ export default function Component() {
 </section>
 
       {/* FAQ Section */}
-      <section id="faqs" className="py-16 bg-gray-50">
-        <div className="container mx-auto px-6">
+      <section id="faqs" className="py-8 sm:py-12 md:py-16 bg-gray-50">
+        <div className="container mx-auto px-4 sm:px-6">
           <h2
             data-animate
             id="faq-title"
-            className={`text-3xl font-bold text-center text-gray-900 mb-16 ${
+            className={`text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-12 md:mb-16 ${
               isVisible["faq-title"] ? "animate-fadeInUp animate-in" : ""
             }`}
           >
             Frequently Asked Questions
           </h2>
-          <div className="max-w-4xl mx-auto space-y-4">
+          <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
             {faqs.map((faq, index) => (
               <div
                 key={faq.id}
@@ -1234,16 +1234,16 @@ export default function Component() {
               >
                 <button
                   onClick={() => toggleFAQ(faq.id)}
-                  className="w-full py-6 px-6 flex items-center justify-between text-left hover:bg-gradient-to-r hover:from-teal-50 hover:to-transparent transition-all duration-300 rounded-lg focus-visible:focus"
+                  className="w-full py-4 sm:py-6 px-4 sm:px-6 flex items-center justify-between text-left hover:bg-gradient-to-r hover:from-teal-50 hover:to-transparent transition-all duration-300 rounded-lg focus-visible:focus"
                 >
-                  <h3 className="text-lg font-semibold text-gray-900 pr-8">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 pr-4 sm:pr-8">
                     {faq.question}
                   </h3>
                   <div className="flex-shrink-0 p-1 rounded-full bg-teal-50 transition-all duration-300">
                     {expandedFAQ === faq.id ? (
-                      <Minus className="w-5 h-5 text-primary" />
+                      <Minus className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                     ) : (
-                      <Plus className="w-5 h-5 text-teal-500" />
+                      <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-teal-500" />
                     )}
                   </div>
                 </button>
@@ -1252,7 +1252,7 @@ export default function Component() {
                     expandedFAQ === faq.id ? "expanded" : ""
                   }`}
                 >
-                  <div className="px-6 pb-6 text-gray-600 leading-relaxed">
+                  <div className="px-4 sm:px-6 pb-4 sm:pb-6 text-sm sm:text-base text-gray-600 leading-relaxed">
                     {faq.answer}
                   </div>
                 </div>

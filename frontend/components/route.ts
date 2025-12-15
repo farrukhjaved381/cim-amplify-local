@@ -13,7 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // Get the API URL from environment or use default
-    const apiUrl = process.env.API_URL || "http://localhost:5001"
+    const apiUrl = process.env.API_URL || "https://cim-backend.vercel.app"
 
     // Forward the request to the backend API
     const response = await fetch(`${apiUrl}/deals/${dealId}`, {

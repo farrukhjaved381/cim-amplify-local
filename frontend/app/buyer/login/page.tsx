@@ -97,7 +97,7 @@ export default function BuyerLoginPage() {
       console.log("Login page - Attempting login with:", email);
 
       // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
       // Use fetch directly for more control
       const response = await fetch(`${apiUrl}/auth/login`, {
@@ -186,7 +186,7 @@ export default function BuyerLoginPage() {
   const handleGoogleLogin = () => {
     try {
       // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
       console.log(
         "Login page - Redirecting to Google OAuth:",
         `${apiUrl}/buyers/google`

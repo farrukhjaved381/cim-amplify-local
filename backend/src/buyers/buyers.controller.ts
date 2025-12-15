@@ -130,46 +130,15 @@ export class BuyersController {
   @Post("upload-profile-picture")
   @ApiBearerAuth()
   @ApiConsumes("multipart/form-data")
-  @ApiOperation({ summary: "Upload profile picture" })
-  @ApiResponse({ status: 200, description: "Profile picture uploaded successfully" })
+  @ApiOperation({ summary: "Upload profile picture (Disabled on Vercel - Use Cloudinary)" })
+  @ApiResponse({ status: 501, description: "File uploads not supported on Vercel" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        file: {
-          type: "string",
-          format: "binary",
-        },
-      },
-    },
-  })
-  @UseInterceptors(
-    FileInterceptor("file", {
-      storage: diskStorage({
-        destination: "./uploads/profile-pictures",
-        filename: (req: any, file, cb) => {
-          const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
-          const ext = extname(file.originalname)
-          const userId = req.user?.userId || "unknown"
-          cb(null, `${userId}${uniqueSuffix}${ext}`)
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-          return cb(new Error("Only image files are allowed!"), false)
-        }
-        cb(null, true)
-      },
-      limits: {
-        fileSize: 1024 * 1024 * 5, // 5MB limit
-      },
-    }),
-  )
-  async uploadProfilePicture(@Request() req: any, @UploadedFile() file: any) {
-    const profilePicturePath = file.path
-    const buyer = await this.buyersService.updateProfilePicture(req.user?.userId, profilePicturePath)
-    return { message: "Profile picture uploaded successfully", profilePicture: profilePicturePath }
+  async uploadProfilePicture(@Request() req: any) {
+    return { 
+      error: "File uploads are not supported on Vercel's read-only filesystem",
+      message: "Please use Cloudinary or AWS S3 for file uploads",
+      documentation: "See CLOUDINARY-SETUP.md in the repository"
+    }
   }
 
   // IMPORTANT: Put specific routes BEFORE parameterized routes

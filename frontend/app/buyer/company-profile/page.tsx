@@ -69,7 +69,7 @@ const BUSINESS_MODELS = [
 ];
 
 // Default API URL
-const DEFAULT_API_URL = "http://localhost:5001";
+const DEFAULT_API_URL = "https://cim-backend.vercel.app";
 
 // Type for hierarchical selection
 interface HierarchicalSelection {
@@ -491,7 +491,7 @@ const fetchUserProfile = async () => {
         return;
       }
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
       const response = await fetch(`${apiUrl}/buyers/profile`, {
         headers: {
@@ -1638,7 +1638,7 @@ const fetchUserProfile = async () => {
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;

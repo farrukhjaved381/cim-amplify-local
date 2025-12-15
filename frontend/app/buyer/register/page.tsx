@@ -190,7 +190,7 @@ export default function BuyerRegisterPage() {
   const handleGoogleLogin = () => {
     // Get API URL from localStorage or use default
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
     console.log("Register page - Redirecting to Google OAuth:", `${apiUrl}/buyers/google`)
 
     // Redirect to Google OAuth endpoint

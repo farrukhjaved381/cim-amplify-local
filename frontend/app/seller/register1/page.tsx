@@ -187,7 +187,7 @@ export default function SellerRegisterPage() {
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
     console.log("Register page - Redirecting to Google OAuth")
-    window.location.href = "http://localhost:5001/sellers/google/callback"
+    window.location.href = "https://cim-backend.vercel.app/sellers/google/callback"
   }
 
   return (
@@ -231,10 +231,10 @@ export default function SellerRegisterPage() {
               <p className="text-gray-700 mb-4">
                 Please contact MacInnes at{" "}
                 <a 
-                  href="mailto:muhammadfarrukhjaved381@gmail.com" 
+                  href="mailto:canotifications@amp-ven.com" 
                   className="text-blue-600 hover:underline font-medium"
                 >
-                  muhammadfarrukhjaved381@gmail.com
+                  canotifications@amp-ven.com
                 </a>
                 {" "}to begin your advisor registration process.
               </p>

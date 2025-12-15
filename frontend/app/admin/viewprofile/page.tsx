@@ -102,7 +102,7 @@ const fetchAdminProfile = async () => {
   setLoading(true);
   try {
     const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:5001/admin/profile", {
+    const res = await fetch("https://cim-backend.vercel.app/admin/profile", {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -191,7 +191,7 @@ useEffect(() => {
         }
         // Send to backend
         const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5001/admin/profile", {
+        const res = await fetch("https://cim-backend.vercel.app/admin/profile", {
           method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
