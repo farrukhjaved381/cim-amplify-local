@@ -11,6 +11,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Optimize package imports to reduce chunk loading issues
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
 };
 const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',

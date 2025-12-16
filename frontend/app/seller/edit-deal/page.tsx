@@ -265,7 +265,7 @@ export default function EditDealPageFixed() {
     try {
       const token = localStorage.getItem('token');
       const sellerId = localStorage.getItem('userId');
-      const apiUrl = localStorage.getItem('apiUrl') || 'https://cim-backend.vercel.app';
+      const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
       
       const response = await fetch(`${apiUrl}/sellers/${sellerId}`, {
         method: 'PATCH',
@@ -384,7 +384,7 @@ export default function EditDealPageFixed() {
     try {
       setIsSaving(true);
       const token = localStorage.getItem('token');
-      const apiUrl = localStorage.getItem('apiUrl') || 'https://cim-backend.vercel.app';
+      const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
       if (!token) {
         toast({ title: 'Authentication required', description: 'Please log in again.', variant: 'destructive' });
         router.push('/seller/login');
@@ -504,7 +504,7 @@ export default function EditDealPageFixed() {
     try {
       setIsLoading(true);
       const token = localStorage.getItem("token");
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
     const response = await fetch(`${apiUrl}/deals/${dealId}`, {
       headers: {

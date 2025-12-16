@@ -165,7 +165,7 @@ export default function DealsPage() {
       }
 
 
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
 
       // Map status to API endpoint
@@ -364,7 +364,7 @@ export default function DealsPage() {
       const token = localStorage.getItem("token");
       const currentBuyerId = localStorage.getItem("userId");
 
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
 
       console.log("Token exists:", !!token);
@@ -596,7 +596,7 @@ export default function DealsPage() {
         return;
       }
 
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
 
       const response = await fetch(`${apiUrl}/company-profiles/my-profile`, {
@@ -638,7 +638,7 @@ export default function DealsPage() {
       }
 
 
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
 
       const response = await fetch(`${apiUrl}/buyers/profile`, {
@@ -688,7 +688,7 @@ export default function DealsPage() {
       if (!token) return;
 
 
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
 
       // Option 2: Use deal ID to get seller info (recommended)
@@ -790,7 +790,7 @@ export default function DealsPage() {
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
 
     if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -838,7 +838,7 @@ export default function DealsPage() {
   // Update fetchSellerInfo to store companyName and website
   const fetchSellerInfo = async (sellerId: string) => {
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
       const response = await fetch(`${apiUrl}/sellers/public/${sellerId}`);
       if (!response.ok) throw new Error("Failed to fetch seller info");
@@ -881,7 +881,7 @@ export default function DealsPage() {
 
       setSellerInfoLoading(true);
       const token = localStorage.getItem("token");
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
+      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
       for (const sellerId of uniqueSellerIds) {
         try {

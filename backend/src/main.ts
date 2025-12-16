@@ -15,7 +15,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  let frontendUrl = process.env.FRONTEND_URL || "https://cim-amplify-five.vercel.app"
+  let frontendUrl = process.env.FRONTEND_URL || "http://localhost:5000"
   // Remove trailing slash if present
   if (frontendUrl.endsWith("/")) {
     frontendUrl = frontendUrl.slice(0, -1)
@@ -37,6 +37,8 @@ async function bootstrap() {
   const allowedOrigins = [
     "https://cim-amplify-five.vercel.app",
     process.env.FRONTEND_URL,
+    "http://localhost:5000",
+    "http://localhost:3000", // Keep for backward compatibility
   ].filter(Boolean);
   
   app.enableCors({
@@ -73,8 +75,8 @@ async function bootstrap() {
     .addTag("deal-tracking")
     .addTag("company-profiles")
     .addBearerAuth()
-    .addServer(process.env.BACKEND_URL || 'https://cim-backend.vercel.app', 'Production')
-    .addServer('https://cim-backend.vercel.app', 'Development')
+    .addServer(process.env.BACKEND_URL || 'http://localhost:5001', 'Production')
+    .addServer('http://localhost:5001', 'Development')
     .build()
   const document = SwaggerModule.createDocument(app, config)
   SwaggerModule.setup("api-docs", app, document, {
@@ -89,7 +91,7 @@ async function bootstrap() {
     },
   })
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.PORT || 5001;
   
   // Only listen on port if not in Vercel environment
   if (process.env.VERCEL !== '1') {
@@ -102,6 +104,15 @@ async function bootstrap() {
   
   cachedApp = app;
   return app;
+}
+
+// Call bootstrap when running locally (not in Vercel)
+// This ensures the server starts when running npm run start:dev or npm run start
+if (process.env.VERCEL !== '1' && require.main === module) {
+  bootstrap().catch((error) => {
+    console.error('❌ Error starting server:', error);
+    process.exit(1);
+  });
 }
 
 // Vercel serverless handler

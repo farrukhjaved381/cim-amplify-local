@@ -297,7 +297,7 @@ export class DealsService {
         <p>${buyer.fullName} at ${buyer.companyName} has requested access to <strong>${deal.title}</strong> from the public marketplace.</p>
         <p>To review this request login to your dashboard and click on Activity for this deal.</p>
         <p>
-          <a href="https://cim-amplify-five.vercel.app/seller/dashboard" style="background-color: #3aafa9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+          <a href="http://localhost:5000/seller/dashboard" style="background-color: #3aafa9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
             Open Advisor Dashboard
           </a>
         </p>

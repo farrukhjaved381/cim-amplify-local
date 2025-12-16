@@ -3,8 +3,8 @@ import axios from "axios"
 const getApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   if (!apiUrl) {
-    console.warn("NEXT_PUBLIC_API_URL not set, using default backend URL")
-    return "https://cim-backend.vercel.app" // Default backend URL
+    console.warn("NEXT_PUBLIC_API_URL not set, using default localhost backend URL")
+    return "http://localhost:5001" // Default local backend URL
   }
   console.log("Using API URL:", apiUrl)
   return apiUrl
