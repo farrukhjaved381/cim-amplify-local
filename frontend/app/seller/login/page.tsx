@@ -72,13 +72,7 @@ export default function SellerLoginPage() {
       console.log("Login page - User already logged in, redirecting...");
       router.push("/seller/dashboard");
     } else {
-      // If user is not seller, force logout (optional, safety)
-      if (storedRole && storedRole !== "seller") {
-        localStorage.removeItem("token");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("userRole");
-        logout();
-      }
+      console.log("Login page - No auth or wrong role, stay on login page.");
     }
   }, [searchParams, router, login, isLoggedIn]);
 

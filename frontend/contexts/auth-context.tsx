@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoggedIn(false)
       setUserId(null)
       setUserRole(null)
-      router.push("/")
+      router.push("/member-login")
     } catch (error) {
       console.error("Error during logout:", error)
     }

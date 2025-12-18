@@ -166,24 +166,34 @@ export class DealsController {
   //   }),
   // })
   async create(
-    @Body() body: { dealData: string },
+    @Body() body: { dealData: string } | CreateDealDto,
     @Request() req: RequestWithUser,
     // @UploadedFiles() files?: Express.Multer.File[] // DISABLED FOR VERCEL
   ) {
     if (!req.user?.userId) {
       throw new UnauthorizedException('User not authenticated')
     }
-  
+
     let createDealDto: CreateDealDto
-    try {
-      createDealDto = JSON.parse(body.dealData)
-    } catch {
-      throw new BadRequestException('Invalid JSON in dealData field')
+
+    // Handle both JSON body and FormData with dealData string
+    if ('dealData' in body && typeof body.dealData === 'string') {
+      // FormData approach: dealData is a JSON string
+      try {
+        createDealDto = JSON.parse(body.dealData)
+      } catch {
+        throw new BadRequestException('Invalid JSON in dealData field')
+      }
+    } else if ('title' in body) {
+      // Direct JSON body approach
+      createDealDto = body as CreateDealDto
+    } else {
+      throw new BadRequestException('Invalid request body: expected dealData string or deal object')
     }
-  
+
     // File uploads disabled for Vercel
     const documents = []
-  
+
     // Merge seller and documents into the DTO
     const dealWithSellerAndDocuments: CreateDealDto = {
       ...createDealDto,
@@ -192,7 +202,7 @@ export class DealsController {
       // this will work; if it's just file paths, do: documents.map(doc => doc.path)
       documents,
     }
-  
+
     // Save the deal
     return this.dealsService.create(dealWithSellerAndDocuments)
   }

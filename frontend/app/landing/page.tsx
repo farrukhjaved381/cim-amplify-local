@@ -793,14 +793,12 @@ export default function Component() {
                   </li>
                 ))}
               </ul>
-              <a
-                href="https://cimamplify.com/Advisor%20Registration"
-                target="_self"
-                rel="noopener noreferrer"
+              <Button
+                onClick={() => router.push("/seller/register")}
                 className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base w-full sm:w-auto"
               >
                 Add A Deal
-              </a>
+              </Button>
             </div>
           </div>
         </div>
@@ -893,14 +891,12 @@ export default function Component() {
                   </div>
                 </div>
               </div>
-              <a
-                href="https://cimamplify.com/Advisor%20Registration"
-                target="_self"
-                rel="noopener noreferrer"
+              <Button
+                onClick={() => router.push("/seller/register")}
                 className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base"
               >
                 Add a Deal
-              </a>
+              </Button>
             </div>
             {/* Step 2 */}
             <div className="relative">
@@ -990,14 +986,12 @@ export default function Component() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 text-center justify-center">
-              <a
-                href="https://cimamplify.com/Advisor%20Registration"
-                target="_self"
-                rel="noopener noreferrer"
+              <Button
+                onClick={() => router.push("/seller/register")}
                 className="bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base w-full sm:w-auto"
               >
                 Add A Deal
-              </a>
+              </Button>
               <Button
                 variant="outline"
                 className="bg-teal-500 hover:bg-primary transition-colors text-white hover:text-white w-full sm:w-auto text-sm sm:text-base"

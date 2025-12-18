@@ -777,7 +777,6 @@ export default function SellersManagementDashboard() {
               {modalDeals.map((deal) => (
                 <li key={deal._id} className="py-2 px-1">
                   <div className="font-medium text-gray-900">{deal.title || "Untitled Deal"}</div>
-                  <div className="text-xs text-gray-500">Status: {deal.status || "N/A"}</div>
                   <div className="text-xs text-gray-400">Industry: {deal.industrySector || "N/A"}</div>
                   <div className="text-xs text-gray-400">
                     Last Updated: {deal.timeline?.updatedAt ? new Date(deal.timeline.updatedAt).toLocaleString() : "-"}

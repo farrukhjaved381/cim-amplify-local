@@ -1638,19 +1638,14 @@ const renderGeographySelection = () => {
 
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
-      const multipartFormData = new FormData();
-      multipartFormData.append("dealData", JSON.stringify(dealData));
-
-      formData.documents.forEach((file) => {
-        multipartFormData.append("files", file);
-      });
-
+      // Send as JSON directly (file uploads are disabled on the backend)
       const response = await fetch(`${apiUrl}/deals`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: multipartFormData,
+        body: JSON.stringify(dealData),
       });
 
       if (!response.ok) {

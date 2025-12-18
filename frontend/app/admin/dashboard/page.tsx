@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/auth-context";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 
 
@@ -57,7 +58,7 @@ interface Deal {
   employeeCount?: number;
   seller: string;
   financialDetails?: FinancialDetails;
-  
+
   rewardLevel?: string;
   closedWithBuyer?: string;
   closedWithBuyerCompany?: string;
@@ -72,6 +73,12 @@ interface Deal {
     totalRejected: number;
   };
   createdAt?: string;
+  timeline?: {
+    createdAt?: string;
+    updatedAt?: string;
+    publishedAt?: string;
+    completedAt?: string;
+  };
 }
 
 interface Buyer {
@@ -138,9 +145,10 @@ interface AdminEditDealFormData {
   businessModel: BusinessModel;
   managementPreferences: string;
   buyerFit: BuyerFit;
-  
+
   visibility: string;
   status: string;
+  isPublic: boolean;
 }
 
 const COMPANY_TYPE_OPTIONS = [
@@ -393,6 +401,7 @@ const AdminEditDealForm: React.FC<{
       },
       visibility: deal.visibility || "",
       status: deal.status || "",
+      isPublic: deal.isPublic || false,
     });
   }, [deal]);
 
@@ -469,6 +478,7 @@ const AdminEditDealForm: React.FC<{
         buyerFit: { ...form.buyerFit },
         visibility: form.visibility,
         status: form.status,
+        isPublic: form.isPublic,
       };
       const res = await fetch(`${apiUrl}/deals/${deal._id}`, {
         method: "PATCH",
@@ -776,6 +786,27 @@ const AdminEditDealForm: React.FC<{
             }
           />
         </div>
+      </div>
+
+      {/* Marketplace Toggle Section */}
+      <div className="border-t pt-6 mt-6">
+        <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex flex-col">
+            <Label className="text-base font-semibold text-gray-800">Publish to Marketplace</Label>
+            <p className="text-sm text-gray-600 mt-1">
+              Enable this to make the deal visible in the public marketplace
+            </p>
+          </div>
+          <Switch
+            checked={form.isPublic}
+            onCheckedChange={(checked) => setForm((prev) => prev ? { ...prev, isPublic: checked } : null)}
+          />
+        </div>
+        {form.isPublic && (
+          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+            This deal will be visible in the Marketplace
+          </div>
+        )}
       </div>
 
       {error && <div className="text-red-500 mt-2">{error}</div>}
@@ -1761,7 +1792,44 @@ export default function DealManagementDashboard() {
                             Posted: {new Date(deal.createdAt).toLocaleDateString()}
                           </div>
                         )}
-                        
+
+                        {/* Sale Information Section */}
+                        <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                          <h4 className="font-semibold text-teal-800 mb-2">Sale Information</h4>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Date Taken Off Market:</span>
+                              <span className="font-medium text-gray-800">
+                                {deal.timeline?.completedAt
+                                  ? new Date(deal.timeline.completedAt).toLocaleDateString()
+                                  : deal.timeline?.updatedAt
+                                  ? new Date(deal.timeline.updatedAt).toLocaleDateString()
+                                  : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Transaction Value:</span>
+                              <span className="font-medium text-gray-800">
+                                {deal.financialDetails?.finalSalePrice
+                                  ? `$${deal.financialDetails.finalSalePrice.toLocaleString()}`
+                                  : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Buyer From CIM Amplify:</span>
+                              <span className={`font-medium ${deal.closedWithBuyer ? "text-green-600" : "text-gray-800"}`}>
+                                {deal.closedWithBuyer ? "Yes" : "No"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Buyer Company Name:</span>
+                              <span className="font-medium text-gray-800">
+                                {deal.closedWithBuyerCompany || "N/A"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Display status badges */}
                         {deal.statusSummary && (
                           <div className="flex gap-2 mb-3">
