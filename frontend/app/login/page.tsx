@@ -18,9 +18,52 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({})
+  const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({})
   const { login, isLoggedIn } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Validate email format
+  const validateEmail = (value: string): string | undefined => {
+    if (!value.trim()) return "Email is required"
+    if (!/\S+@\S+\.\S+/.test(value)) return "Please enter a valid email address"
+    return undefined
+  }
+
+  // Validate password
+  const validatePassword = (value: string): string | undefined => {
+    if (!value) return "Password is required"
+    return undefined
+  }
+
+  // Handle email change with validation
+  const handleEmailChange = (value: string) => {
+    setEmail(value)
+    if (touched.email) {
+      setFieldErrors(prev => ({ ...prev, email: validateEmail(value) }))
+    }
+    if (error) setError("")
+  }
+
+  // Handle password change with validation
+  const handlePasswordChange = (value: string) => {
+    setPassword(value)
+    if (touched.password) {
+      setFieldErrors(prev => ({ ...prev, password: validatePassword(value) }))
+    }
+    if (error) setError("")
+  }
+
+  // Handle field blur for validation
+  const handleBlur = (field: "email" | "password") => {
+    setTouched(prev => ({ ...prev, [field]: true }))
+    if (field === "email") {
+      setFieldErrors(prev => ({ ...prev, email: validateEmail(email) }))
+    } else {
+      setFieldErrors(prev => ({ ...prev, password: validatePassword(password) }))
+    }
+  }
 
   // Check for token and userId in URL parameters
   useEffect(() => {
@@ -40,26 +83,22 @@ export default function LoginPage() {
     if (urlToken) {
       const cleanToken = urlToken.trim()
       localStorage.setItem("token", cleanToken)
-      console.log("Login page - Token set from URL:", cleanToken.substring(0, 10) + "...")
     }
 
     if (urlUserId) {
       const cleanUserId = urlUserId.trim()
       localStorage.setItem("userId", cleanUserId)
-      console.log("Login page - User ID set from URL:", cleanUserId)
     }
 
     // If both token and userId are provided, redirect to deals
     if (urlToken && urlUserId) {
-      console.log("Login page - Redirecting to deals with token and userId from URL")
       router.push("/buyer/acquireprofile")
       return
     }
 
     // Check if already logged in
-    const storedToken = localStorage.getItem("token")
+    const storedToken = sessionStorage.getItem('token')
     if (storedToken) {
-      console.log("Login page - Token found in localStorage, redirecting to deals")
       router.push("/buyer/acquireprofile")
     }
   }, [searchParams, router])
@@ -68,18 +107,21 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    // Validate all fields before submission
+    const emailError = validateEmail(email)
+    const passwordError = validatePassword(password)
+
+    setFieldErrors({ email: emailError, password: passwordError })
+    setTouched({ email: true, password: true })
+
+    if (emailError || passwordError) {
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      // Basic validation
-      if (!email.trim()) {
-        throw new Error("Email is required")
-      }
-      if (!password) {
-        throw new Error("Password is required")
-      }
-
-      console.log("Login page - Attempting login with:", email)
 
       // Get API URL from localStorage or use default
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
@@ -99,15 +141,12 @@ export default function LoginPage() {
       }
 
       const data = await response.json()
-      console.log("Login response:", data)
 
       // Store token - adapt this to match your API response format
       if (data.token) {
         localStorage.setItem("token", data.token)
-        console.log("Login page - Login successful, token stored:", data.token.substring(0, 10) + "...")
       } else if (data.access_token) {
         localStorage.setItem("token", data.access_token)
-        console.log("Login page - Login successful, token stored:", data.access_token.substring(0, 10) + "...")
       } else {
         throw new Error("Login response missing token")
       }
@@ -115,12 +154,8 @@ export default function LoginPage() {
       // Store userId - adapt this to match your API response format
       if (data.userId) {
         localStorage.setItem("userId", data.userId)
-        console.log("Login page - Login successful, userId stored:", data.userId)
       } else if (data.user && data.user.id) {
         localStorage.setItem("userId", data.user.id)
-        console.log("Login page - Login successful, userId stored:", data.user.id)
-      } else {
-        console.warn("Login page - Login response missing userId")
       }
 
       toast({
@@ -133,7 +168,6 @@ export default function LoginPage() {
         router.push("/deals")
       }, 1000)
     } catch (err: any) {
-      console.error("Login error:", err)
       setError(err.message || "Login failed. Please check your credentials.")
       toast({
         title: "Login Failed",
@@ -149,8 +183,6 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     // Get API URL from localStorage or use default
     const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
-    console.log("Login page - Redirecting to Google OAuth:", `${apiUrl}/buyers/google`)
-
     // Redirect to Google OAuth endpoint
     window.location.href = `${apiUrl}/buyers/google`
   }
@@ -223,11 +255,15 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={() => handleBlur("email")}
                 placeholder=""
                 required
-                className="w-full py-6"
+                className={`w-full py-6 ${fieldErrors.email && touched.email ? "border-red-300 focus:border-red-500 focus:ring-red-500" : ""}`}
               />
+              {fieldErrors.email && touched.email && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>

@@ -466,7 +466,7 @@ From childhood ventures like newspaper routes and selling books to successfully 
               variants={itemVariants}
               className="text-gray-600 text-lg max-w-3xl mx-auto"
             >
-              In just 9 months, with the help of so many buyers and sellers, we
+              In just 9 months, with the help of so many buyers and advisors, we
               achieved a lot with Version 1.
             </motion.p>
           </motion.div>
@@ -546,7 +546,7 @@ From childhood ventures like newspaper routes and selling books to successfully 
                       <CheckCircle className="w-7 h-7 text-primary" />
                     </div>
                     <h3 className="text-2xl font-bold text-gray-900">
-                      Sellers
+                      Advisors
                     </h3>
                   </motion.div>
                   <motion.div
@@ -671,7 +671,7 @@ From childhood ventures like newspaper routes and selling books to successfully 
                 >
                   <span className="w-2.5 h-2.5 mt-2 rounded-full bg-primary flex-shrink-0" />
                   <p className="text-gray-700 text-lg">
-                    Sellers input deal details and then choose matched buyers
+                    Advisors input deal details and then choose matched buyers
                   </p>
                 </motion.div>
 

@@ -36,6 +36,7 @@ import {
   Users,
   Briefcase,
   Info,
+  Upload,
 } from "lucide-react";
 import { Country, State, City } from "country-state-city";
 import {
@@ -80,6 +81,13 @@ interface SellerFormData {
   minPriorAcquisitions: number;
   minTransactionSize: number;
   documents: File[];
+  ndaDocument?: File | null;
+  existingNdaDocument?: {
+    originalName: string;
+    mimetype: string;
+    size: number;
+    uploadedAt: Date;
+  } | null;
   t12FreeCashFlow?: number;
   t12NetIncome?: number;
   isPublic?: boolean;
@@ -263,8 +271,8 @@ export default function EditDealPageFixed() {
     if (!dontShowAgain) return;
     
     try {
-      const token = localStorage.getItem('token');
-      const sellerId = localStorage.getItem('userId');
+      const token = sessionStorage.getItem('token');
+      const sellerId = sessionStorage.getItem('userId');
       const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
       
       const response = await fetch(`${apiUrl}/sellers/${sellerId}`, {
@@ -279,10 +287,7 @@ export default function EditDealPageFixed() {
       if (!response.ok) {
         throw new Error(`Failed to update preferences: ${response.status}`);
       }
-      
-      console.log('Seller preferences updated successfully');
     } catch (error) {
-      console.error('Failed to update seller preferences:', error);
       toast({
         title: "Warning",
         description: "Failed to save preference. Modal may appear again next time.",
@@ -338,6 +343,8 @@ export default function EditDealPageFixed() {
     minPriorAcquisitions: 0,
     minTransactionSize: 0,
     documents: [],
+    ndaDocument: null,
+    existingNdaDocument: null,
     t12FreeCashFlow: 0,
     t12NetIncome: 0,
     isPublic: false,
@@ -359,6 +366,52 @@ export default function EditDealPageFixed() {
   const [realtimeErrors, setRealtimeErrors] = useState<{
     [key: string]: string;
   }>({});
+
+  // NDA handling
+  const [ndaError, setNdaError] = useState<string | null>(null);
+  const [removeExistingNda, setRemoveExistingNda] = useState(false);
+
+  const handleNdaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+
+      const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        setNdaError("NDA must be a PDF or Word document (.pdf, .doc, .docx)");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setNdaError("NDA file size must be less than 10MB");
+        return;
+      }
+
+      setNdaError(null);
+      setRemoveExistingNda(true); // New file will replace existing
+      setFormData((prev) => ({
+        ...prev,
+        ndaDocument: file,
+      }));
+
+      toast({
+        title: "NDA Uploaded",
+        description: `${file.name} has been selected`,
+      });
+    }
+  };
+
+  const removeNdaDocument = () => {
+    setFormData((prev) => ({
+      ...prev,
+      ndaDocument: null,
+    }));
+    setRemoveExistingNda(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,7 +436,7 @@ export default function EditDealPageFixed() {
     
     try {
       setIsSaving(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
       if (!token) {
         toast({ title: 'Authentication required', description: 'Please log in again.', variant: 'destructive' });
@@ -411,7 +464,9 @@ export default function EditDealPageFixed() {
           trailingEBITDACurrency: formData.currency || 'USD($)',
           trailingEBITDAAmount: Number(formData.trailingEBITDA) || 0,
           avgRevenueGrowth: Number(formData.revenueGrowth) || 0,
+          netIncomeCurrency: formData.currency || 'USD($)',
           netIncome: Number(formData.netIncome) || 0,
+          askingPriceCurrency: formData.currency || 'USD($)',
           askingPrice: Number(formData.askingPrice) || 0,
           t12FreeCashFlow: Number(formData.t12FreeCashFlow) || 0,
           t12NetIncome: Number(formData.t12NetIncome) || 0,
@@ -432,6 +487,33 @@ export default function EditDealPageFixed() {
         hideGuidelines: formData.hideGuidelines,
       };
 
+      // Handle NDA document
+      if (formData.ndaDocument) {
+        // New NDA file uploaded - convert to base64
+        const ndaFile = formData.ndaDocument;
+        const base64Content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            const base64 = result.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(ndaFile);
+        });
+
+        updatePayload.ndaDocument = {
+          originalName: ndaFile.name,
+          base64Content: base64Content,
+          mimetype: ndaFile.type,
+          size: ndaFile.size,
+          uploadedAt: new Date(),
+        };
+      } else if (removeExistingNda) {
+        // User wants to remove the existing NDA
+        updatePayload.ndaDocument = null;
+      }
+
       const resp = await fetch(`${apiUrl}/deals/${dealId}`, {
         method: 'PATCH',
         headers: {
@@ -447,7 +529,6 @@ export default function EditDealPageFixed() {
       toast({ title: 'Deal updated', description: 'Your changes have been saved.' });
       router.push('/seller/dashboard');
     } catch (err: any) {
-      console.error('Update deal failed:', err);
       toast({ title: 'Update failed', description: err.message || 'Please try again.', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -503,7 +584,7 @@ export default function EditDealPageFixed() {
 
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
     const response = await fetch(`${apiUrl}/deals/${dealId}`, {
@@ -581,6 +662,13 @@ export default function EditDealPageFixed() {
         dealData.buyerFit?.minPriorAcquisitions ?? undefined,
       minTransactionSize: dealData.buyerFit?.minTransactionSize ?? undefined,
       documents: [],
+      ndaDocument: null,
+      existingNdaDocument: dealData.ndaDocument ? {
+        originalName: dealData.ndaDocument.originalName,
+        mimetype: dealData.ndaDocument.mimetype,
+        size: dealData.ndaDocument.size,
+        uploadedAt: dealData.ndaDocument.uploadedAt,
+      } : null,
       t12FreeCashFlow: dealData.financialDetails?.t12FreeCashFlow || 0,
       t12NetIncome: dealData.financialDetails?.t12NetIncome || 0,
       isPublic: !!dealData.isPublic,
@@ -604,7 +692,6 @@ export default function EditDealPageFixed() {
         setShowGuidelines(!seller.hideGuidelines);
       }
     } catch (error) {
-      console.error('Error fetching seller data:', error);
       setShowGuidelines(true);
     }
 
@@ -652,7 +739,6 @@ export default function EditDealPageFixed() {
       }
     }
   } catch (error: any) {
-    console.error("Error fetching deal:", error);
     toast({
       title: "Error",
       description: error.message || "Failed to load deal data",
@@ -1156,12 +1242,6 @@ export default function EditDealPageFixed() {
         subIndustryNames.length > 0 ? subIndustryNames : [industryName],
       selectedIndustryDisplay: industryName,
     }));
-
-    console.log(`Selected ${selectedIndustryType}: ${industryName}`);
-    console.log(
-      `Sending ${subIndustryNames.length} sub-industries to backend:`,
-      subIndustryNames
-    );
   };
 
   const renderIndustrySelection = () => {
@@ -1406,11 +1486,9 @@ const renderGeographySelection = () => {
 useEffect(() => {
   const fetchInitialData = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const userRole = localStorage.getItem("userRole");
+      const token = sessionStorage.getItem("token");
 
-      if (!token || userRole !== "seller") {
-        router.push("/seller/login");
+      if (!token) {
         return;
       }
 
@@ -1450,7 +1528,6 @@ useEffect(() => {
       await fetchDealData();
       
     } catch (error) {
-      console.error("Error fetching data:", error);
       toast({
         title: "Error",
         description: "Failed to load form data. Please refresh the page.",
@@ -1462,7 +1539,7 @@ useEffect(() => {
 
   fetchInitialData();
 
-}, [router, dealId]);
+}, [dealId]);
 
 useEffect(() => {
   const handleGeographySelection = async () => {
@@ -1523,10 +1600,10 @@ useEffect(() => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Seller Rewards */}
+            {/* Advisor Rewards */}
             <div className="bg-[#f0f7fa] p-6 rounded-lg">
               <h2 className="text-lg font-semibold mb-4">
-                Seller Rewards - Choose Reward Level
+                Advisor Rewards - Choose Reward Level
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Seed Option */}
@@ -2507,6 +2584,113 @@ useEffect(() => {
               </div>
             </section>
 
+            {/* NDA Upload Section */}
+            <section className="bg-[#f9f9f9] p-6 rounded-lg">
+              <h2 className="text-xl font-semibold mb-2">Upload NDA for this deal (optional)</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                If you add your NDA here it will automatically be sent to buyers who request an introduction.
+              </p>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#3aafa9] transition-colors">
+                {formData.ndaDocument ? (
+                  // New NDA file selected
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                      <FileText className="h-8 w-8 text-[#3aafa9]" />
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-none">
+                          {formData.ndaDocument.name}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {(formData.ndaDocument.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeNdaDocument}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        aria-label="Remove NDA"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-green-600 flex items-center justify-center gap-1">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      NDA will be sent to buyers upon introduction
+                    </p>
+                  </div>
+                ) : formData.existingNdaDocument && !removeExistingNda ? (
+                  // Existing NDA from database
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-3 p-3 bg-white rounded-lg border border-green-200">
+                      <FileText className="h-8 w-8 text-green-600" />
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-none">
+                          {formData.existingNdaDocument.originalName}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {(formData.existingNdaDocument.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeNdaDocument}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        aria-label="Remove NDA"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-green-600 flex items-center justify-center gap-1">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      NDA attached - will be sent to buyers upon introduction
+                    </p>
+                    <label className="cursor-pointer inline-block">
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        onChange={handleNdaFileChange}
+                        className="hidden"
+                      />
+                      <span className="text-sm text-[#3aafa9] hover:text-[#2a9d8f] underline">
+                        Replace with different file
+                      </span>
+                    </label>
+                  </div>
+                ) : (
+                  // No NDA
+                  <label className="cursor-pointer block">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={handleNdaFileChange}
+                      className="hidden"
+                    />
+                    <div className="space-y-2">
+                      <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Upload className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">
+                          Click to upload NDA
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          PDF or Word document (max 10MB)
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+                )}
+                {ndaError && (
+                  <p className="text-red-500 text-sm mt-2">{ndaError}</p>
+                )}
+              </div>
+            </section>
+
             {/* Marketplace listing toggle - enhanced */}
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <div className="flex items-start gap-3">
@@ -2527,8 +2711,7 @@ useEffect(() => {
                       />
                     </div>
                   </div>
-                  <p className="mt-1 text-xs text-blue-800">Marketplace allows all buyers on CIM Amplify to see this teaser. Buyers can request access; you'll choose to approve or deny. We suggest that you still select and invite buyers that are perfectly matched on the next screen.</p>
-                  <p className="mt-1 text-xs text-blue-700">Note: If you turn this off later, outstanding marketplace requests will be declined automatically.</p>
+                  <p className="mt-1 text-xs text-blue-800">Marketplace allows all buyers on CIM Amplify to see this teaser. We suggest that you still select and invite buyers that are perfectly matched on the next screen.</p>
                 </div>
               </div>
             </div>

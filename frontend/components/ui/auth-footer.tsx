@@ -128,7 +128,7 @@ export default function Footer() {
                 rel="noopener noreferrer"
                 className="text-white hover:text-[#229273] block py-1 cursor-pointer transition-colors duration-300"
               >
-                Seller Login
+                Advisor Login
               </a>
             </div>
             <div className="mt-6">
@@ -146,7 +146,7 @@ export default function Footer() {
         {/* Copyright - positioned absolutely on desktop, normally on mobile/tablet */}
         <div className="lg:absolute lg:right-4 lg:bottom-4 mt-8 lg:mt-0">
           <p className="text-gray-400 text-sm text-center">
-            © 2025 CIM Amplify. All rights reserved.
+            © 2026 CIM Amplify. All rights reserved.
           </p>
         </div>
       </div>

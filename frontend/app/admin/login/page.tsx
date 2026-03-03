@@ -2,60 +2,130 @@
 
 import type React from "react";
 import Image from "next/image";
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Loader2 } from "lucide-react";
+import { AnimatedButton } from "@/components/ui/animated-button";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
-import { sellerLogin } from "@/services/api";
 import { adminLogin } from "@/services/api";
 
-export default function SellerLoginPage() {
+export default function AdminLoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
   const router = useRouter()
 
+  const { login } = useAuth();
 
-// ...inside your component:
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
+  // Validate email format
+  const validateEmail = (value: string): string | undefined => {
+    if (!value.trim()) return "Email is required";
+    if (!/\S+@\S+\.\S+/.test(value)) return "Please enter a valid email address";
+    return undefined;
+  };
 
-  // Debug: log credentials before sending
-  console.log("Attempting admin login with:", { email, password });
+  // Validate password
+  const validatePassword = (value: string): string | undefined => {
+    if (!value) return "Password is required";
+    return undefined;
+  };
 
-  try {
+  // Handle email change with validation
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (touched.email) {
+      setFieldErrors(prev => ({ ...prev, email: validateEmail(value) }));
+    }
+    if (error) setError("");
+  };
+
+  // Handle password change with validation
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (touched.password) {
+      setFieldErrors(prev => ({ ...prev, password: validatePassword(value) }));
+    }
+    if (error) setError("");
+  };
+
+  // Handle field blur for validation
+  const handleBlur = (field: "email" | "password") => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    if (field === "email") {
+      setFieldErrors(prev => ({ ...prev, email: validateEmail(email) }));
+    } else {
+      setFieldErrors(prev => ({ ...prev, password: validatePassword(password) }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate all fields before submission
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+
+    setFieldErrors({ email: emailError, password: passwordError });
+    setTouched({ email: true, password: true });
+
+    if (emailError || passwordError) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
     const response = await adminLogin({ email, password });
 
-    // Debug: log response from backend
-    console.log("Admin login response:", response);
-
     if (response && response.token) {
+      // Use auth context to handle login with refresh token support
+      login(
+        response.token,
+        response.userId,
+        response.userRole || "admin",
+        response.refresh_token
+      );
+
+      // Store additional admin-specific data in both storages
+      if (response.userEmail) {
+        sessionStorage.setItem("userEmail", response.userEmail);
+        localStorage.setItem("userEmail", response.userEmail);
+      }
+      if (response.userFullName) {
+        sessionStorage.setItem("userFullName", response.userFullName);
+        localStorage.setItem("userFullName", response.userFullName);
+      }
+
       toast({
         title: "Login Successful",
         description: "You have been successfully logged in as an admin.",
       });
 
       setTimeout(() => {
-        router.push("/admin/dashboard");
+        router.push("/admin/overview");
       }, 1000);
     } else {
       throw new Error("Invalid login credentials or missing token.");
     }
   } catch (error: any) {
-    // Debug: log error object
-    console.error("Admin login error:", error);
+    let errorMessage = "Invalid email or password. Please check your credentials and try again.";
+    
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message && !error.message.includes("status code")) {
+      errorMessage = error.message;
+    }
+    
     toast({
       title: "Login Failed",
-      description: error.message || "Failed to log in. Please check your credentials.",
+      description: errorMessage,
       variant: "destructive",
     });
   } finally {
@@ -102,11 +172,15 @@ const handleSubmit = async (e: React.FormEvent) => {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={() => handleBlur("email")}
                 placeholder=""
                 required
-                className="w-full py-6"
+                className={`w-full py-6 ${fieldErrors.email && touched.email ? "border-red-300 focus:border-red-500 focus:ring-red-500" : ""}`}
               />
+              {fieldErrors.email && touched.email && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -121,10 +195,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  onBlur={() => handleBlur("password")}
                   placeholder=""
                   required
-                  className="w-full pr-10 py-6"
+                  className={`w-full pr-10 py-6 ${fieldErrors.password && touched.password ? "border-red-300 focus:border-red-500 focus:ring-red-500" : ""}`}
                 />
                 <button
                   type="button"
@@ -138,24 +213,19 @@ const handleSubmit = async (e: React.FormEvent) => {
                   )}
                 </button>
               </div>
-              {/* Forgot Password Link */}
-              {/* <div className="text-right mt-2">
-                <Link
-                  href="/seller/forgot-password"
-                  className="text-sm text-[#3aafa9] hover:text-[#2a9d8f] underline"
-                >
-                  Forgot password?
-                </Link>
-              </div> */}
+              {fieldErrors.password && touched.password && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+              )}
             </div>
 
-            <Button
+            <AnimatedButton
               type="submit"
               className="w-full bg-[#3aafa9] hover:bg-[#2a9d8f] text-white py-6 rounded-3xl"
-              disabled={isLoading}
+              isLoading={isLoading}
+              loadingText="Logging in..."
             >
-              {isLoading ? "Logging in..." : "Login my account"}
-            </Button>
+              Login my account
+            </AnimatedButton>
           </form>
 
          

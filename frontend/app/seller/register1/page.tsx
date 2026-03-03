@@ -57,34 +57,27 @@ export default function SellerRegisterPage() {
       const cleanToken = urlToken.trim();
       localStorage.setItem("token", cleanToken);
       localStorage.setItem("userRole", "seller");
-      console.log(
-        "Register page - Token set from URL:",
-        cleanToken.substring(0, 10) + "..."
-      );
+
     }
 
     if (urlUserId) {
       const cleanUserId = urlUserId.trim();
       localStorage.setItem("userId", cleanUserId);
-      console.log("Register page - User ID set from URL:", cleanUserId);
+
     }
 
     // If token is provided, redirect to dashboard
     if (urlToken) {
-      console.log(
-        "Register page - Redirecting to dashboard with token from URL"
-      );
+
       localStorage.setItem("userRole", "seller");
       router.push("/seller/dashboard");
       return;
     }
 
     // Check if already logged in
-    const storedToken = localStorage.getItem("token");
+    const storedToken = sessionStorage.getItem("token");
     if (storedToken) {
-      console.log(
-        "Register page - Token found in localStorage, redirecting to dashboard"
-      );
+
       router.push("/seller/dashboard");
     }
   }, [searchParams, router]);
@@ -144,7 +137,7 @@ export default function SellerRegisterPage() {
     setIsSubmitting(true);
 
     try {
-      console.log("Register page - Submitting registration");
+
 
       // Use the API service
       await sellerRegister({
@@ -166,7 +159,7 @@ export default function SellerRegisterPage() {
       // Redirect to dashboard page
       router.push("/registration-pending-verification");
     } catch (error: any) {
-      console.error("Registration error:", error);
+
       setErrors({
         general:
           error.response?.data?.message ||
@@ -186,7 +179,7 @@ export default function SellerRegisterPage() {
 
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
-    console.log("Register page - Redirecting to Google OAuth")
+
     window.location.href = "http://localhost:5001/sellers/google/callback"
   }
 
@@ -254,7 +247,7 @@ export default function SellerRegisterPage() {
                 }}
                 onClick={()=>{router.push("/seller/register")}}
               >
-                Seller Registration
+                Advisor Registration
               </Button>
             </div>
           </div>

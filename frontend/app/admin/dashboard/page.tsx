@@ -2,19 +2,18 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Download, Search, X, LogOut, Building2, Handshake, ShoppingCart, Tag, Eye } from "lucide-react";
-import Image from "next/image";
+import { FileText, Download, Search, X, Building2, ChevronDown, ChevronUp, Users, Mail, Briefcase, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { AdminProtectedRoute } from "@/components/admin/protected-route";
 
 
 
@@ -58,11 +57,18 @@ interface Deal {
   employeeCount?: number;
   seller: string;
   financialDetails?: FinancialDetails;
-
+  ndaDocument?: {
+    originalName: string;
+    base64Content: string;
+    mimetype: string;
+    size: number;
+    uploadedAt: Date;
+  };
   rewardLevel?: string;
   closedWithBuyer?: string;
   closedWithBuyerCompany?: string;
   closedWithBuyerEmail?: string;
+  wasLOIDeal?: boolean;
   businessModel?: BusinessModel;
   managementPreferences?: string;
   buyerFit?: BuyerFit;
@@ -145,7 +151,13 @@ interface AdminEditDealFormData {
   businessModel: BusinessModel;
   managementPreferences: string;
   buyerFit: BuyerFit;
-
+  ndaDocument?: {
+    originalName: string;
+    base64Content: string;
+    mimetype: string;
+    size: number;
+    uploadedAt: Date;
+  };
   visibility: string;
   status: string;
   isPublic: boolean;
@@ -216,130 +228,227 @@ const BuyersActivityPopup: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-800">
-              Buyer's Activity
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Deal: <span className="font-medium">{dealTitle}</span>
-            </p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-slate-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-teal-100">
+              <Users className="h-5 w-5 text-teal-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">
+                Buyer's Activity
+              </h2>
+              <p className="text-sm text-gray-500">
+                Deal: <span className="font-medium text-teal-600">{dealTitle}</span>
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-gray-400" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 border-b border-gray-100">
+          <div className="text-center p-2 bg-white rounded-lg border border-gray-100">
+            <p className="text-xl font-bold text-green-600">{buyersActivity.active?.length || 0}</p>
+            <p className="text-xs text-gray-500">Active</p>
+          </div>
+          <div className="text-center p-2 bg-white rounded-lg border border-gray-100">
+            <p className="text-xl font-bold text-amber-600">{buyersActivity.pending?.length || 0}</p>
+            <p className="text-xs text-gray-500">Pending</p>
+          </div>
+          <div className="text-center p-2 bg-white rounded-lg border border-gray-100">
+            <p className="text-xl font-bold text-red-600">{filteredRejectedBuyers.length}</p>
+            <p className="text-xs text-gray-500">Rejected</p>
+          </div>
+        </div>
+
+        {/* Buyers List */}
+        <div className="p-4 overflow-y-auto max-h-[calc(90vh-220px)]">
           {allBuyers.length === 0 ? (
-            <p className="text-gray-500 text-sm italic">No buyers available.</p>
+            <div className="py-8 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <Users className="h-6 w-6 text-gray-400" />
+              </div>
+              <p className="text-gray-500 font-medium">No buyers available</p>
+              <p className="text-gray-400 text-sm mt-1">No buyer activity for this deal yet</p>
+            </div>
           ) : (
-            <ul className="space-y-2">
+            <div className="space-y-2">
               {allBuyers.map((buyer) => (
-                <li
+                <div
                   key={buyer.buyerId}
-                  className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                  className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-100 rounded-lg hover:bg-gray-100 hover:border-gray-200 cursor-pointer transition-all"
                   onClick={() => setSelectedBuyer(buyer)}
                 >
-                  <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-600">
-                      {buyer.buyerName
-                        ? buyer.buyerName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                        : "?"}
-                    </span>
+                  <div className="h-11 w-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-medium flex-shrink-0">
+                    {buyer.buyerName
+                      ? buyer.buyerName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .substring(0, 2)
+                          .toUpperCase()
+                      : "?"}
                   </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-800">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-gray-800 truncate">
                       {buyer.buyerName || "Unknown"}
                     </h4>
-                    <p className="text-sm text-gray-600">
-                      {buyer.buyerEmail || ""}
+                    <p className="text-sm text-gray-500 truncate">
+                      {buyer.buyerEmail || "No email"}
                     </p>
                     {buyer.buyerCompany && (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-400 truncate mt-0.5">
                         {buyer.buyerCompany}
                       </p>
                     )}
                   </div>
-                  <span
-                    className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                      buyer.status
-                    )}`}
-                  >
-                    {buyer.status.charAt(0).toUpperCase() +
-                      buyer.status.slice(1)}
-                  </span>
-                </li>
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                        buyer.status
+                      )}`}
+                    >
+                      {buyer.status.charAt(0).toUpperCase() +
+                        buyer.status.slice(1)}
+                    </span>
+                    {buyer.lastInteraction && (
+                      <span className="text-xs text-gray-400">
+                        {new Date(buyer.lastInteraction).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+          <span className="text-xs text-gray-400">
+            {allBuyers.length} {allBuyers.length === 1 ? "buyer" : "buyers"} total
+          </span>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </div>
       </div>
+
+      {/* Buyer Detail Popup */}
       {selectedBuyer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <div className="flex items-center justify-between border-b pb-4 mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Buyer Details
-              </h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-medium">
+                  {selectedBuyer.buyerName
+                    ? selectedBuyer.buyerName
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .substring(0, 2)
+                        .toUpperCase()
+                    : "?"}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800">
+                    {selectedBuyer.buyerName || "Unknown"}
+                  </h3>
+                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mt-0.5 ${getStatusColor(selectedBuyer.status)}`}>
+                    {selectedBuyer.status.charAt(0).toUpperCase() + selectedBuyer.status.slice(1)}
+                  </span>
+                </div>
+              </div>
               <button
                 onClick={() => setSelectedBuyer(null)}
-                className="p-2 hover:bg-gray-100 rounded-full"
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
-                <X className="h-5 w-5 text-gray-500" />
+                <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
-            <div className="space-y-2">
-              <p>
-                <strong>Name:</strong> {selectedBuyer.buyerName || "Unknown"}
-              </p>
-              <p>
-                <strong>Email:</strong> {selectedBuyer.buyerEmail || "N/A"}
-              </p>
-              <p>
-                <strong>Company:</strong> {selectedBuyer.buyerCompany || "N/A"}
-              </p>
+
+            {/* Content */}
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <Mail className="h-4 w-4 text-gray-400" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">Email</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">{selectedBuyer.buyerEmail || "N/A"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <Building2 className="h-4 w-4 text-gray-400" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">Company</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">{selectedBuyer.buyerCompany || "N/A"}</p>
+                </div>
+              </div>
+
               {selectedBuyer.companyType && (
-                <p>
-                  <strong>Company Type:</strong> {selectedBuyer.companyType}
-                </p>
-              )}
-              {selectedBuyer.lastInteraction && (
-                <p>
-                  <strong>Last Interaction:</strong>{" "}
-                  {new Date(selectedBuyer.lastInteraction).toLocaleString()}
-                </p>
-              )}
-              {selectedBuyer.interactions &&
-                selectedBuyer.interactions.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-800 mt-4">
-                      Interactions
-                    </h4>
-                    <ul className="space-y-1 text-sm text-gray-600">
-                      {selectedBuyer.interactions.map((interaction, index) => (
-                        <li key={index}>
-                          {interaction.type.charAt(0).toUpperCase() +
-                            interaction.type.slice(1)}{" "}
-                          - {new Date(interaction.timestamp).toLocaleString()} -{" "}
-                          {interaction.notes}
-                        </li>
-                      ))}
-                    </ul>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Briefcase className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">Company Type</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedBuyer.companyType}</p>
                   </div>
-                )}
+                </div>
+              )}
+
+              {selectedBuyer.lastInteraction && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">Last Interaction</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {new Date(selectedBuyer.lastInteraction).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {selectedBuyer.interactions && selectedBuyer.interactions.length > 0 && (
+                <div className="pt-2 border-t border-gray-100">
+                  <h4 className="font-medium text-gray-800 text-sm mb-2">
+                    Interaction History
+                  </h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {selectedBuyer.interactions.map((interaction, index) => (
+                      <div key={index} className="flex items-start gap-2 p-2 bg-gray-50 rounded text-xs">
+                        <span className={`px-1.5 py-0.5 rounded font-medium ${
+                          interaction.type === 'accepted' ? 'bg-green-100 text-green-700' :
+                          interaction.type === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-200 text-gray-600'
+                        }`}>
+                          {interaction.type.charAt(0).toUpperCase() + interaction.type.slice(1)}
+                        </span>
+                        <span className="text-gray-500">
+                          {new Date(interaction.timestamp).toLocaleDateString()}
+                        </span>
+                        {interaction.notes && (
+                          <span className="text-gray-600 flex-1">{interaction.notes}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="mt-6 flex justify-end">
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
               <Button
                 onClick={() => setSelectedBuyer(null)}
-                className="bg-teal-500 hover:bg-teal-600"
+                className="bg-teal-500 hover:bg-teal-600 text-white"
               >
                 Close
               </Button>
@@ -364,6 +473,7 @@ const AdminEditDealForm: React.FC<{
   const [form, setForm] = useState<AdminEditDealFormData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ndaFile, setNdaFile] = useState<File | null>(null);
 
 
   useEffect(() => {
@@ -399,6 +509,7 @@ const AdminEditDealForm: React.FC<{
         minPriorAcquisitions: deal.buyerFit?.minPriorAcquisitions || 0,
         minTransactionSize: deal.buyerFit?.minTransactionSize || 0,
       },
+      ndaDocument: deal.ndaDocument,
       visibility: deal.visibility || "",
       status: deal.status || "",
       isPublic: deal.isPublic || false,
@@ -463,23 +574,46 @@ const AdminEditDealForm: React.FC<{
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const payload: Omit<AdminEditDealFormData, "_id"> = {
+      
+      let updatedNdaDocument = form.ndaDocument;
+      if (ndaFile) {
+        const base64Content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(ndaFile);
+        });
+        updatedNdaDocument = {
+          originalName: ndaFile.name,
+          base64Content,
+          mimetype: ndaFile.type,
+          size: ndaFile.size,
+          uploadedAt: new Date(),
+        };
+      }
+      
+      const payload = {
         title: form.title,
         companyDescription: form.companyDescription,
         industrySector: form.industrySector,
         geographySelection: form.geographySelection,
         yearsInBusiness: form.yearsInBusiness,
         companyType: form.companyType,
-        financialDetails: { ...form.financialDetails },
-        businessModel: { ...form.businessModel },
+        financialDetails: form.financialDetails,
+        businessModel: form.businessModel,
         managementPreferences: form.managementPreferences,
-        buyerFit: { ...form.buyerFit },
+        buyerFit: form.buyerFit,
+        ndaDocument: updatedNdaDocument,
         visibility: form.visibility,
         status: form.status,
         isPublic: form.isPublic,
       };
+      
       const res = await fetch(`${apiUrl}/deals/${deal._id}`, {
         method: "PATCH",
         headers: {
@@ -788,6 +922,68 @@ const AdminEditDealForm: React.FC<{
         </div>
       </div>
 
+      {/* NDA Section */}
+      <div className="border-t pt-6 mt-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">NDA & Agreements</h3>
+        {form.ndaDocument ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Current NDA Document</p>
+                <p className="text-xs text-gray-500 mt-1">{form.ndaDocument.originalName}</p>
+                <p className="text-xs text-gray-400">Uploaded: {new Date(form.ndaDocument.uploadedAt).toLocaleDateString()}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = `data:${form.ndaDocument!.mimetype};base64,${form.ndaDocument!.base64Content}`;
+                    link.download = form.ndaDocument!.originalName;
+                    link.click();
+                  }}
+                >
+                  Download
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setForm((prev) => prev ? { ...prev, ndaDocument: undefined } : null)}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="ndaUpdate" className="text-sm">Update NDA Document</Label>
+              <Input
+                id="ndaUpdate"
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setNdaFile(e.target.files?.[0] || null)}
+                className="mt-1"
+              />
+              {ndaFile && <p className="text-xs text-green-600 mt-1">New file selected: {ndaFile.name}</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <Label htmlFor="ndaUpload" className="text-sm font-medium text-gray-700">Upload NDA Document</Label>
+            <Input
+              id="ndaUpload"
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={(e) => setNdaFile(e.target.files?.[0] || null)}
+              className="mt-2"
+            />
+            {ndaFile && <p className="text-xs text-green-600 mt-1">File selected: {ndaFile.name}</p>}
+          </div>
+        )}
+      </div>
+
       {/* Marketplace Toggle Section */}
       <div className="border-t pt-6 mt-6">
         <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -832,13 +1028,21 @@ const AdminEditDealForm: React.FC<{
 };
 
 export default function DealManagementDashboard() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") || "active";
+  const initialSearch = searchParams.get("search") || "";
+
   const [editDeal, setEditDeal] = useState<Deal | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("active");
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearch);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [activeDeals, setActiveDeals] = useState<Deal[]>([]);
   const [offMarketDeals, setOffMarketDeals] = useState<Deal[]>([]);
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
+  const [loiDeals, setLoiDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -858,10 +1062,17 @@ export default function DealManagementDashboard() {
   const [activeCurrentPage, setActiveCurrentPage] = useState(1);
   const [offMarketCurrentPage, setOffMarketCurrentPage] = useState(1);
   const [allDealsCurrentPage, setAllDealsCurrentPage] = useState(1);
+  const [loiCurrentPage, setLoiCurrentPage] = useState(1);
   const dealsPerPage = 5;
   const [activeTotalDeals, setActiveTotalDeals] = useState(0);
   const [offMarketTotalDeals, setOffMarketTotalDeals] = useState(0);
   const [allDealsTotalDeals, setAllDealsTotalDeals] = useState(0);
+  const [loiTotalDeals, setLoiTotalDeals] = useState(0);
+  // Page transition loading states
+  const [activePageLoading, setActivePageLoading] = useState(false);
+  const [offMarketPageLoading, setOffMarketPageLoading] = useState(false);
+  const [allDealsPageLoading, setAllDealsPageLoading] = useState(false);
+  const [loiPageLoading, setLoiPageLoading] = useState(false);
   const [deleteDealId, setDeleteDealId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -880,6 +1091,19 @@ export default function DealManagementDashboard() {
   const [selectedWinningBuyer, setSelectedWinningBuyer] = useState("");
   const [buyerActivityLoading, setBuyerActivityLoading] = useState(false);
   const [isSubmittingOffMarket, setIsSubmittingOffMarket] = useState(false);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+
+  const toggleDescription = (dealId: string) => {
+    setExpandedDescriptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dealId)) {
+        newSet.delete(dealId);
+      } else {
+        newSet.add(dealId);
+      }
+      return newSet;
+    });
+  };
 
   const router = useRouter();
   const { logout } = useAuth();
@@ -893,7 +1117,7 @@ export default function DealManagementDashboard() {
 
   const fetchDealStatusSummary = async (dealId: string) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const response = await fetch(`${apiUrl}/deals/${dealId}/status-summary`, {
         headers: {
@@ -946,6 +1170,48 @@ export default function DealManagementDashboard() {
     return [];
   };
 
+  // Fetch buyers who have ever had this deal in Active (for "Buyer from CIM Amplify" option)
+  const fetchEverActiveBuyers = async (dealId: string) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+      const response = await fetch(`${apiUrl}/deals/admin/${dealId}/ever-active-buyers`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const buyers = await response.json();
+
+        // Transform to match the expected format
+        const transformedBuyers = buyers.map((buyer: any) => ({
+          buyerId: buyer._id,
+          buyerName: buyer.fullName || "Unknown Buyer",
+          companyName: buyer.companyName || "Unknown Company",
+          buyerEmail: buyer.email || "",
+          status: "active", // Mark all as active since they were ever active
+          currentStatus: buyer.currentStatus,
+          isCurrentlyActive: buyer.isCurrentlyActive,
+        }));
+
+        setBuyerActivity(transformedBuyers);
+
+        // Pre-select first buyer if available
+        if (transformedBuyers.length > 0) {
+          setSelectedWinningBuyer(transformedBuyers[0].buyerId);
+        }
+
+        return transformedBuyers;
+      }
+    } catch (error) {
+      // Error fetching buyers
+    }
+    return [];
+  };
+
   const handleAdminOffMarketClick = (deal: Deal) => {
     setSelectedDealForOffMarketDialog(deal);
     setCurrentDialogStep(1);
@@ -961,7 +1227,7 @@ export default function DealManagementDashboard() {
       if (value === false) {
         if (selectedDealForOffMarketDialog) {
           try {
-            const token = localStorage.getItem("token");
+            const token = sessionStorage.getItem('token');
             const apiUrl = process.env.NEXT_PUBLIC_API_URL;
             const response = await fetch(
               `${apiUrl}/deals/${selectedDealForOffMarketDialog._id}/close-deal`,
@@ -999,19 +1265,21 @@ export default function DealManagementDashboard() {
     if (!selectedDealForOffMarketDialog || !offMarketData.transactionValue) {
       return;
     }
+    // If buyer from CIM is selected, winningBuyerId must be provided
     if (offMarketData.buyerFromCIM === true && !selectedWinningBuyer) {
       return;
     }
     setIsSubmittingOffMarket(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const body = {
+      const body: any = {
         finalSalePrice: Number.parseFloat(offMarketData.transactionValue),
-        ...(offMarketData.buyerFromCIM === true && selectedWinningBuyer
-          ? { winningBuyerId: selectedWinningBuyer }
-          : {}),
       };
+      // Only add winningBuyerId if buyer is from CIM Amplify AND a buyer is selected
+      if (offMarketData.buyerFromCIM === true && selectedWinningBuyer) {
+        body.winningBuyerId = selectedWinningBuyer;
+      }
       const closeResponse = await fetch(
         `${apiUrl}/deals/${selectedDealForOffMarketDialog._id}/close`,
         {
@@ -1027,10 +1295,13 @@ export default function DealManagementDashboard() {
         setOffMarketDialogOpen(false);
         return;
       }
-      setActiveDeals((prev) =>
-        prev.filter((d) => d._id !== selectedDealForOffMarketDialog._id)
-      );
-      setOffMarketDeals((prev) => [selectedDealForOffMarketDialog, ...prev]);
+      // Refresh all tabs to get updated data from backend
+      await Promise.all([
+        fetchDeals(activeCurrentPage, dealsPerPage, "active", debouncedSearchTerm),
+        fetchDeals(offMarketCurrentPage, dealsPerPage, "offMarket", debouncedSearchTerm),
+        fetchDeals(allDealsCurrentPage, dealsPerPage, "allDeals", debouncedSearchTerm),
+        fetchDeals(loiCurrentPage, dealsPerPage, "loi", debouncedSearchTerm),
+      ]);
       setOffMarketDialogOpen(false);
       setCurrentDialogStep(1);
       setSelectedDealForOffMarketDialog(null);
@@ -1044,6 +1315,7 @@ export default function DealManagementDashboard() {
     }
   };
 
+  // Uses everActiveBuyers - buyers who ever had the deal in Active (even if later rejected/passed)
   useEffect(() => {
     if (
       offMarketDialogOpen &&
@@ -1052,7 +1324,7 @@ export default function DealManagementDashboard() {
     ) {
       setBuyerActivity([]);
       setBuyerActivityLoading(true);
-      fetchDealStatusSummary(selectedDealForOffMarketDialog._id).finally(() =>
+      fetchEverActiveBuyers(selectedDealForOffMarketDialog._id).finally(() =>
         setBuyerActivityLoading(false)
       );
     }
@@ -1060,8 +1332,9 @@ export default function DealManagementDashboard() {
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:5001/admin/profile", {
+      const token = sessionStorage.getItem('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+      const res = await fetch(`${apiUrl}/admin/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1075,11 +1348,17 @@ export default function DealManagementDashboard() {
   const fetchDeals = async (
     page: number,
     limit: number,
-    status: "active" | "offMarket" | "allDeals",
+    status: "active" | "offMarket" | "allDeals" | "loi",
     searchTerm: string = ""
   ) => {
+    // Set page loading state
+    if (status === "active") setActivePageLoading(true);
+    else if (status === "offMarket") setOffMarketPageLoading(true);
+    else if (status === "allDeals") setAllDealsPageLoading(true);
+    else if (status === "loi") setLoiPageLoading(true);
+
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       // Properly encode the search term to handle special characters
       const encodedSearchTerm = encodeURIComponent(searchTerm);
@@ -1090,6 +1369,8 @@ export default function DealManagementDashboard() {
         endpoint = `${apiUrl}/deals/admin?page=${page}&limit=${limit}&search=${encodedSearchTerm}&status=completed`;
       } else if (status === "allDeals") {
         endpoint = `${apiUrl}/deals/admin?page=${page}&limit=${limit}&search=${encodedSearchTerm}&excludeStatus=completed`;
+      } else if (status === "loi") {
+        endpoint = `${apiUrl}/deals/admin?page=${page}&limit=${limit}&search=${encodedSearchTerm}&status=loi`;
       }
 
       if (!endpoint) {
@@ -1125,11 +1406,10 @@ export default function DealManagementDashboard() {
                 "Content-Type": "application/json",
               },
             });
-            
+
             let statusSummary = null;
             if (statusRes.ok) {
               const statusData = await statusRes.json();
-              console.log(`Status summary for deal ${deal.title}:`, statusData.summary);
               statusSummary = statusData.summary;
             }
 
@@ -1143,48 +1423,87 @@ export default function DealManagementDashboard() {
       if (status === "active") {
         setActiveDeals(dealsWithSellers);
         setActiveTotalDeals(data.total);
+        setActivePageLoading(false);
       } else if (status === "offMarket") {
         setOffMarketDeals(dealsWithSellers);
         setOffMarketTotalDeals(data.total);
+        setOffMarketPageLoading(false);
       } else if (status === "allDeals") {
         setAllDeals(dealsWithSellers);
         setAllDealsTotalDeals(data.total);
+        setAllDealsPageLoading(false);
+      } else if (status === "loi") {
+        setLoiDeals(dealsWithSellers);
+        setLoiTotalDeals(data.total);
+        setLoiPageLoading(false);
       }
       setError(null);
     } catch (error: any) {
       if (status === "active") {
         setActiveDeals([]);
         setActiveTotalDeals(0);
+        setActivePageLoading(false);
       } else if (status === "offMarket") {
         setOffMarketDeals([]);
         setOffMarketTotalDeals(0);
+        setOffMarketPageLoading(false);
       } else if (status === "allDeals") {
         setAllDeals([]);
         setAllDealsTotalDeals(0);
+        setAllDealsPageLoading(false);
+      } else if (status === "loi") {
+        setLoiDeals([]);
+        setLoiTotalDeals(0);
+        setLoiPageLoading(false);
       }
       setError(error.message);
-      console.error(`Error fetching ${status} deals:`, error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Debounce search term
   useEffect(() => {
-    fetchDeals(activeCurrentPage, dealsPerPage, "active", searchTerm);
-    fetchDeals(offMarketCurrentPage, dealsPerPage, "offMarket", searchTerm);
-    fetchDeals(allDealsCurrentPage, dealsPerPage, "allDeals", searchTerm);
-  }, [activeCurrentPage, offMarketCurrentPage, allDealsCurrentPage, searchTerm]);
+    setSearchLoading(true);
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 400);
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const fetchAllDeals = async () => {
+      await Promise.all([
+        fetchDeals(activeCurrentPage, dealsPerPage, "active", debouncedSearchTerm),
+        fetchDeals(offMarketCurrentPage, dealsPerPage, "offMarket", debouncedSearchTerm),
+        fetchDeals(allDealsCurrentPage, dealsPerPage, "allDeals", debouncedSearchTerm),
+        fetchDeals(loiCurrentPage, dealsPerPage, "loi", debouncedSearchTerm),
+      ]);
+      setSearchLoading(false);
+    };
+    fetchAllDeals();
+  }, [activeCurrentPage, offMarketCurrentPage, allDealsCurrentPage, loiCurrentPage, debouncedSearchTerm]);
 
   useEffect(() => {
     if (activeTab === "active") {
       setActiveCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "active", searchTerm);
+      fetchDeals(1, dealsPerPage, "active", debouncedSearchTerm);
     } else if (activeTab === "offMarket") {
       setOffMarketCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "offMarket", searchTerm);
+      fetchDeals(1, dealsPerPage, "offMarket", debouncedSearchTerm);
     } else if (activeTab === "allDeals") {
       setAllDealsCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "allDeals", searchTerm);
+      fetchDeals(1, dealsPerPage, "allDeals", debouncedSearchTerm);
+    } else if (activeTab === "loi") {
+      setLoiCurrentPage(1);
+      fetchDeals(1, dealsPerPage, "loi", debouncedSearchTerm);
     }
   }, [activeTab]);
 
@@ -1218,7 +1537,7 @@ export default function DealManagementDashboard() {
     setActivityError(null);
     setShowBuyersActivity(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       if (!token) throw new Error("No authentication token found");
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/deals/${deal._id}/status-summary`,
@@ -1235,7 +1554,6 @@ export default function DealManagementDashboard() {
         throw new Error(errorData.message || "Failed to fetch buyers activity");
       }
       const data = await res.json();
-      console.log(`Activity data for deal ${deal.title}:`, data);
       setBuyersActivity({
         active: data.buyersByStatus.active || [],
         pending: data.buyersByStatus.pending || [],
@@ -1267,7 +1585,7 @@ export default function DealManagementDashboard() {
     setDeleteLoading(true);
     setDeleteError(null);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       let response = await fetch(`${apiUrl}/deals/${dealId}`, {
         method: "DELETE",
@@ -1311,7 +1629,7 @@ export default function DealManagementDashboard() {
     setOffMarketLoading(true);
     setOffMarketError(null);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${apiUrl}/deals/${offMarketDeal._id}`, {
         method: "PATCH",
@@ -1342,6 +1660,8 @@ export default function DealManagementDashboard() {
       return offMarketTotalDeals;
     } else if (tab === "allDeals") {
       return allDealsTotalDeals;
+    } else if (tab === "loi") {
+      return loiTotalDeals;
     }
     return 0;
   };
@@ -1349,169 +1669,61 @@ export default function DealManagementDashboard() {
   const activeTotalPages = Math.ceil(activeTotalDeals / dealsPerPage);
   const offMarketTotalPages = Math.ceil(offMarketTotalDeals / dealsPerPage);
   const allDealsTotalPages = Math.ceil(allDealsTotalDeals / dealsPerPage);
+  const loiTotalPages = Math.ceil(loiTotalDeals / dealsPerPage);
   const currentActiveDeals = activeDeals;
   const currentOffMarketDeals = offMarketDeals;
   const currentAllDeals = allDeals;
+  const currentLoiDeals = loiDeals;
 
   function getProfileImageSrc(src?: string | null) {
     if (!src) return undefined;
-    if (src.startsWith("data:")) return src;
-    return src + `?cb=${Date.now()}`;
+    return src;
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gray-50">
-        <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-          <div className="mb-8">
-            <Link href="/seller/dashboard">
-              <Image
-                src="/logo.svg"
-                alt="CIM Amplify Logo"
-                width={150}
-                height={50}
-                className="h-auto"
-              />
-            </Link>
-          </div>
-          <nav className="flex-1 flex flex-col gap-4">
-            <Link href="/admin/dashboard">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-              >
-                <Handshake className="h-5 w-5" />
-                <span>Deals</span>
-              </Button>
-            </Link>
-            <Link href="/admin/buyers">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 font-normal"
-              >
-                <Tag className="h-5 w-5" />
-                <span>Buyers</span>
-              </Button>
-            </Link>
-            <Link href="/admin/sellers">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 font-normal"
-              >
-                <ShoppingCart className="h-5 w-5" />
-                <span>Sellers</span>
-              </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/admin/viewprofile")}
-            >
-              <Eye className="h-5 w-5" />
-              <span>View Profile</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-              <span>Sign Out</span>
-            </Button>
-          </nav>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3aafa9] mb-4"></div>
-            <span className="text-gray-600 text-lg">Loading deals...</span>
-          </div>
+      <div className="flex-1 flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#3aafa9] mb-4"></div>
+          <span className="text-gray-600 text-lg">Loading deals...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-        <div className="mb-8">
-          <Link href="/seller/dashboard">
-            <Image
-              src="/logo.svg"
-              alt="CIM Amplify Logo"
-              width={150}
-              height={50}
-              className="h-auto"
-            />
-          </Link>
-        </div>
-        <nav className="flex-1 flex flex-col gap-4">
-          <Link href="/admin/dashboard">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-            >
-              <Handshake className="h-5 w-5" />
-              <span>Deals</span>
-            </Button>
-          </Link>
-          <Link href="/admin/buyers">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-            >
-              <Tag className="h-5 w-5" />
-              <span>Buyers</span>
-            </Button>
-          </Link>
-          <Link href="/admin/sellers">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              <span>Sellers</span>
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal"
-            onClick={() => router.push("/admin/viewprofile")}
-          >
-            <Eye className="h-5 w-5" />
-            <span>View Profile</span>
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Sign Out</span>
-          </Button>
-        </nav>
-      </div>
-
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white border-b border-gray-200 p-3 px-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">Deal Management</h1>
+    <AdminProtectedRoute>
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="bg-white border-b border-gray-200 p-3 px-4 lg:px-6 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <Input
-                type="search"
-                placeholder="Search deals..."
-                className="pl-10 w-80 bg-gray-100 border-0"
-                value={searchTerm}
-                onChange={handleSearch}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium flex items-center">
-                  {adminProfile?.fullName || "Admin"}
-                </div>
+            <h1 className="text-lg lg:text-2xl font-bold text-gray-800">Deal Management</h1>
+          </div>
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="relative hidden sm:block">
+                <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 transition-colors ${searchLoading ? "text-teal-500 animate-pulse" : "text-gray-400"}`} />
+                <Input
+                  type="text"
+                  placeholder="Search deals..."
+                  className={`pl-10 pr-8 w-48 lg:w-80 bg-gray-100 border-0 transition-all ${searchLoading ? "ring-2 ring-teal-200" : ""}`}
+                  value={searchTerm}
+                  onChange={handleSearch}
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-              <div className="relative h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
+              <div className="flex items-center gap-2 lg:gap-3">
+                <div className="text-right hidden sm:block">
+                  <div className="font-medium flex items-center text-sm lg:text-base">
+                    {adminProfile?.fullName || "Admin"}
+                  </div>
+                </div>
+                <div className="relative h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-medium overflow-hidden ring-2 ring-teal-200">
                 {adminProfile?.profilePicture ? (
                   <img
                     src={getProfileImageSrc(adminProfile.profilePicture)}
@@ -1520,155 +1732,201 @@ export default function DealManagementDashboard() {
                     key={adminProfile.profilePicture}
                   />
                 ) : (
-                  <span>{adminProfile?.fullName ? adminProfile.fullName.charAt(0) : "A"}</span>
+                  <span className="text-sm lg:text-base">{adminProfile?.fullName ? adminProfile.fullName.charAt(0) : "A"}</span>
                 )}
               </div>
             </div>
           </div>
         </header>
 
-        <div className="p-6">
+        {/* Mobile Search Bar */}
+        <div className="sm:hidden p-3 bg-white border-b border-gray-100">
+          <div className="relative">
+            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 transition-colors ${searchLoading ? "text-teal-500 animate-pulse" : "text-gray-400"}`} />
+            <Input
+              type="text"
+              placeholder="Search deals..."
+              className={`pl-10 pr-8 w-full bg-gray-100 border-0 transition-all ${searchLoading ? "ring-2 ring-teal-200" : ""}`}
+              value={searchTerm}
+              onChange={handleSearch}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-4 lg:p-6 overflow-auto">
           {error && <div className="text-red-500 mb-4">{error}</div>}
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="active">
-                Active Deals <Badge className="ml-2">{getTabCount("active")}</Badge>
+            <TabsList className="grid w-full grid-cols-4 mb-4 lg:mb-6 h-auto">
+              <TabsTrigger value="active" className="text-xs sm:text-sm py-2 px-1 sm:px-3">
+                <span className="hidden sm:inline">Active Deals</span>
+                <span className="sm:hidden">Active</span>
+                <Badge className="ml-1 sm:ml-2 text-[10px] sm:text-xs">{getTabCount("active")}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="offMarket">
-                Off Market Deals <Badge className="ml-2">{getTabCount("offMarket")}</Badge>
+              <TabsTrigger value="loi" className="text-xs sm:text-sm py-2 px-1 sm:px-3">
+                <span className="hidden sm:inline">LOI Deals</span>
+                <span className="sm:hidden">LOI</span>
+                <Badge className="ml-1 sm:ml-2 text-[10px] sm:text-xs bg-amber-100 text-amber-700">{getTabCount("loi")}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="allDeals">
-                All Deals <Badge className="ml-2">{getTabCount("allDeals")}</Badge>
+              <TabsTrigger value="offMarket" className="text-xs sm:text-sm py-2 px-1 sm:px-3">
+                <span className="hidden sm:inline">Off Market</span>
+                <span className="sm:hidden">Off Mkt</span>
+                <Badge className="ml-1 sm:ml-2 text-[10px] sm:text-xs">{getTabCount("offMarket")}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="allDeals" className="text-xs sm:text-sm py-2 px-1 sm:px-3">
+                <span className="hidden sm:inline">All Deals</span>
+                <span className="sm:hidden">All</span>
+                <Badge className="ml-1 sm:ml-2 text-[10px] sm:text-xs">{getTabCount("allDeals")}</Badge>
               </TabsTrigger>
             </TabsList>
             <TabsContent value="active">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Page Loading Overlay */}
+              {activePageLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-gray-500 text-sm">Loading deals...</span>
+                  </div>
+                </div>
+              )}
+              {!activePageLoading && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 {currentActiveDeals.map((deal) => (
                   deal && (
                     <div
                       key={deal._id}
-                      className="rounded-lg border border-gray-200 bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                      className="rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-lg transition-all duration-200"
                     >
-                      <div className="flex items-center justify-between border-b border-gray-200 p-4">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-medium text-teal-500">
+                      {/* Header - Compact with inline badges */}
+                      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 bg-gradient-to-r from-gray-50 to-white">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-teal-600 truncate" title={deal.title}>
                             {deal.title}
                           </h3>
                           {deal.isPublic && (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+                            <span className="shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700">
                               Marketplace
                             </span>
                           )}
                         </div>
-                        {deal.rewardLevel && (
-                          <span
-                            className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#e0f7fa] text-[#00796b]"
-                          >
-                            {deal.rewardLevel}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {deal.rewardLevel && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e0f7fa] text-[#00796b]">
+                              {deal.rewardLevel}
+                            </span>
+                          )}
+                          {deal.createdAt && (
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              Posted: {new Date(deal.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="p-4">
-                        {/* Display creation date */}
-                        {deal.createdAt && (
-                          <div className="text-xs text-gray-500 mb-2">
-                            Posted: {new Date(deal.createdAt).toLocaleDateString()}
-                          </div>
-                        )}
-                        
-                        {/* Display status badges */}
+
+                      <div className="px-4 py-3">
+                        {/* Status Badges - Inline compact */}
                         {deal.statusSummary && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-gray-100 text-gray-700">
                               Total Targeted: {deal.statusSummary.totalTargeted}
                             </span>
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-green-100 text-green-700">
                               Active: {deal.statusSummary.totalActive}
                             </span>
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-100 text-orange-700">
                               Pending: {deal.statusSummary.totalPending}
                             </span>
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 text-red-700">
                               Rejected: {deal.statusSummary.totalRejected}
                             </span>
                           </div>
                         )}
-                        <h4>Seller Information</h4>
-                        {deal.sellerProfile ? (
-                          <div className="flex items-center gap-3 mb-2">
-                            <div>
-                              <div className="text-gray-500 text-xs mr-1">
-                                <span>Seller Name:</span> &nbsp;
-                                {deal.sellerProfile.fullName}
+
+                        {/* Two Column Layout - Seller & Financial side by side */}
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                          {/* Seller Information */}
+                          <div className="bg-gray-50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
+                            {deal.sellerProfile ? (
+                              <div className="space-y-0.5 text-xs">
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.fullName}>{deal.sellerProfile.fullName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Email:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.email}>{deal.sellerProfile.email}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Company Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.companyName}>{deal.sellerProfile.companyName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Phone Number:</span><span className="text-gray-700">{deal.sellerProfile.phoneNumber}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Website:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.website}>{deal.sellerProfile.website}</span></div>
                               </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Seller Email:</span>
-                                {deal.sellerProfile.email}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Company Name:</span>
-                                {deal.sellerProfile.companyName}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Phone Number:</span>
-                                {deal.sellerProfile.phoneNumber}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Website:</span>
-                                {deal.sellerProfile.website}
-                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-400 italic">Seller information is not available.</div>
+                            )}
+                          </div>
+
+                          {/* Financial */}
+                          <div className="bg-teal-50/50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Financial</h4>
+                            <div className="space-y-0.5 text-xs">
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Currency:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month Revenue:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month EBITDA:</span><span className="text-gray-700">{deal.financialDetails?.trailingEBITDACurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">T12 Net Income:</span><span className="text-gray-700">${deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}</span></div>
+                              {deal.financialDetails?.finalSalePrice && (
+                                <div className="flex"><span className="text-gray-400 w-28 shrink-0">Final Sale Price:</span><span className="text-teal-600 font-semibold">${deal.financialDetails.finalSalePrice.toLocaleString()}</span></div>
+                              )}
                             </div>
                           </div>
-                        ) : (
-                          <div className="mb-2 text-sm text-gray-500 italic">
-                            Seller information is not available.
+                        </div>
+
+                        {/* Overview - Enhanced with Show More */}
+                        <div className="bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-100 rounded-lg p-3 mb-3">
+                          <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Overview</h4>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Industry:</span>
+                              <span className="text-gray-700 font-medium">{deal.industrySector}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Location:</span>
+                              <span className="text-gray-700">{deal.geographySelection}</span>
+                            </div>
                           </div>
-                        )}
-                        <h4 className="mb-2 font-medium text-gray-800">Overview</h4>
-                        <div className="mb-4 space-y-1 text-sm text-gray-600">
-                          <p>Industry: {deal.industrySector}</p>
-                          <p>Location: {deal.geographySelection}</p>
-                          <p>Company Description: {deal.companyDescription}</p>
-                        </div>
-                        <h4 className="mb-2 font-medium text-gray-800">Financial</h4>
-                        <div className="mb-4 grid grid-cols-2 gap-2 text-sm text-gray-600">
-                          <p>
-                            Currency: {deal.financialDetails?.trailingRevenueCurrency}
-                          </p>
-                          <p>
-                            Trailing 12-Month Revenue:{" "}
-                            {deal.financialDetails?.trailingRevenueCurrency?.replace(
-                              "USD($)",
-                              "$"
-                            ) || "$"}
-                            {deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}
-                          </p>
-                          <p>
-                            Trailing 12-Month EBITDA:{" "}
-                            {deal.financialDetails?.trailingEBITDACurrency?.replace(
-                              "USD($)",
-                              "$"
-                            ) || "$"}
-                            {deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}
-                          </p>
-                          <p>
-                            T12 Net Income: $
-                            {deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}
-                          </p>
-                          {deal.financialDetails?.finalSalePrice && (
-                            <p>
-                              Final Sale Price: $
-                              {deal.financialDetails?.finalSalePrice?.toLocaleString()}
+                          <div className="border-t border-gray-200/60 pt-2 mt-2">
+                            <span className="text-gray-500 text-[10px] font-semibold uppercase tracking-wide">Company Description</span>
+                            <p className={`text-xs text-gray-600 mt-1 leading-relaxed ${expandedDescriptions.has(deal._id) ? '' : 'line-clamp-4'}`}>
+                              {deal.companyDescription}
                             </p>
-                          )}
+                            {deal.companyDescription && deal.companyDescription.length > 200 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDescription(deal._id);
+                                }}
+                                className="mt-1.5 text-[11px] font-medium text-teal-600 hover:text-teal-700 flex items-center gap-0.5 transition-colors"
+                              >
+                                {expandedDescriptions.has(deal._id) ? (
+                                  <>Show Less <ChevronUp className="h-3 w-3" /></>
+                                ) : (
+                                  <>Show More <ChevronDown className="h-3 w-3" /></>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-end">
+
+                        {/* Action Buttons - Enhanced styling */}
+                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
-                            className="bg-teal-500 hover:bg-teal-600 px-8 py-2"
+                            size="sm"
+                            className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleActivityClick(deal);
@@ -1677,8 +1935,8 @@ export default function DealManagementDashboard() {
                             Activity
                           </Button>
                           <Button
-                            className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 hover:text-black px-4 py-2 ml-3"
-                            style={{ minWidth: 110 }}
+                            size="sm"
+                            className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 h-8 px-3 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleAdminOffMarketClick(deal);
@@ -1688,14 +1946,16 @@ export default function DealManagementDashboard() {
                             Off Market
                           </Button>
                           <Button
+                            size="sm"
                             variant="outline"
-                            className="px-4 py-2 mr-2 ml-3"
+                            className="h-8 px-3 text-xs"
                             onClick={() => handleEditDeal(deal)}
                           >
                             Edit
                           </Button>
                           <Button
-                            className="bg-red-500 hover:bg-red-600 px-4 py-2 ml-2 text-white"
+                            size="sm"
+                            className="bg-red-500 hover:bg-red-600 text-white h-8 px-3 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteDealId(deal._id);
@@ -1709,7 +1969,8 @@ export default function DealManagementDashboard() {
                   )
                 ))}
               </div>
-              {currentActiveDeals.length === 0 && (
+              )}
+              {!activePageLoading && currentActiveDeals.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Building2 className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1722,7 +1983,7 @@ export default function DealManagementDashboard() {
                   </p>
                 </div>
               )}
-              {activeTotalPages > 1 && (
+              {!activePageLoading && activeTotalPages > 1 && (
                 <div className="flex justify-center items-center gap-1 mt-6">
                   <Button
                     variant="outline"
@@ -1758,189 +2019,159 @@ export default function DealManagementDashboard() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="offMarket">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {currentOffMarketDeals.map((deal) => (
+
+            {/* LOI Deals Tab Content */}
+            <TabsContent value="loi">
+              {/* Info Banner */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-amber-800">
+                  <strong>LOI Deals:</strong> Deals paused for Letter of Intent negotiations appear here.
+                  These deals are temporarily on hold while LOI negotiations are in progress.
+                </p>
+              </div>
+
+              {/* Page Loading Overlay */}
+              {loiPageLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-gray-500 text-sm">Loading LOI deals...</span>
+                  </div>
+                </div>
+              )}
+              {!loiPageLoading && currentLoiDeals.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                    <FileText className="h-8 w-8 text-amber-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">No LOI Deals</h3>
+                  <p className="text-gray-500 text-sm max-w-md">
+                    There are no deals currently paused for LOI negotiations.
+                    When sellers pause their deals for LOI, they will appear here.
+                  </p>
+                </div>
+              )}
+              {!loiPageLoading && currentLoiDeals.length > 0 && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {currentLoiDeals.map((deal) => (
                   deal && (
                     <div
                       key={deal._id}
-                      className="rounded-lg border border-gray-200 bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                      className="rounded-xl border border-amber-200 bg-white shadow-sm hover:shadow-lg transition-all duration-200"
                     >
-                      <div className="flex items-center justify-between border-b border-gray-200 p-4">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-medium text-teal-500">
+                      {/* Header - LOI Status Badge */}
+                      <div className="flex items-center justify-between border-b border-amber-100 px-4 py-3 bg-gradient-to-r from-amber-50 to-white">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-teal-600 truncate" title={deal.title}>
                             {deal.title}
                           </h3>
-                          {deal.isPublic && (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700">
-                              Marketplace
+                          <span className="shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded-full border border-amber-200 bg-amber-50 text-amber-700">
+                            LOI - Paused
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {deal.rewardLevel && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e0f7fa] text-[#00796b]">
+                              {deal.rewardLevel}
+                            </span>
+                          )}
+                          {deal.createdAt && (
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              Posted: {new Date(deal.createdAt).toLocaleDateString()}
                             </span>
                           )}
                         </div>
-                        {deal.rewardLevel && (
-                          <span
-                            className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#e0f7fa] text-[#00796b]"
-                          >
-                            {deal.rewardLevel}
-                          </span>
-                        )}
                       </div>
-                      <div className="p-4">
-                        {/* Display creation date */}
-                        {deal.createdAt && (
-                          <div className="text-xs text-gray-500 mb-2">
-                            Posted: {new Date(deal.createdAt).toLocaleDateString()}
-                          </div>
-                        )}
 
-                        {/* Sale Information Section */}
-                        <div className="mb-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
-                          <h4 className="font-semibold text-teal-800 mb-2">Sale Information</h4>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Date Taken Off Market:</span>
-                              <span className="font-medium text-gray-800">
-                                {deal.timeline?.completedAt
-                                  ? new Date(deal.timeline.completedAt).toLocaleDateString()
-                                  : deal.timeline?.updatedAt
-                                  ? new Date(deal.timeline.updatedAt).toLocaleDateString()
-                                  : "N/A"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Transaction Value:</span>
-                              <span className="font-medium text-gray-800">
-                                {deal.financialDetails?.finalSalePrice
-                                  ? `$${deal.financialDetails.finalSalePrice.toLocaleString()}`
-                                  : "N/A"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Buyer From CIM Amplify:</span>
-                              <span className={`font-medium ${deal.closedWithBuyer ? "text-green-600" : "text-gray-800"}`}>
-                                {deal.closedWithBuyer ? "Yes" : "No"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Buyer Company Name:</span>
-                              <span className="font-medium text-gray-800">
-                                {deal.closedWithBuyerCompany || "N/A"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Display status badges */}
+                      <div className="px-4 py-3">
+                        {/* Status Badges */}
                         {deal.statusSummary && (
-                          <div className="flex gap-2 mb-3">
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-gray-100 text-gray-700">
                               Total Targeted: {deal.statusSummary.totalTargeted}
                             </span>
-                            {deal.statusSummary.totalActive > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                Active: {deal.statusSummary.totalActive}
-                              </span>
-                            )}
-                            {deal.statusSummary.totalPending > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
-                                Pending: {deal.statusSummary.totalPending}
-                              </span>
-                            )}
-                            {deal.statusSummary.totalRejected > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                Rejected: {deal.statusSummary.totalRejected}
-                              </span>
-                            )}
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-green-100 text-green-700">
+                              Active: {deal.statusSummary.totalActive}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-100 text-orange-700">
+                              Pending: {deal.statusSummary.totalPending}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 text-red-700">
+                              Rejected: {deal.statusSummary.totalRejected}
+                            </span>
                           </div>
                         )}
-                        <h4>Seller Information</h4>
-                        {deal.sellerProfile ? (
-                          <div className="flex items-center gap-3 mb-2">
-                            <div>
-                              <div className="text-gray-500 text-xs mr-1">
-                                <span>Seller Name:</span> &nbsp;
-                                {deal.sellerProfile.fullName}
+
+                        {/* Two Column Layout - Seller & Financial */}
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                          {/* Seller Information */}
+                          <div className="bg-gray-50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
+                            {deal.sellerProfile ? (
+                              <div className="space-y-0.5 text-xs">
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.fullName}>{deal.sellerProfile.fullName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Email:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.email}>{deal.sellerProfile.email}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Company Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.companyName}>{deal.sellerProfile.companyName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Phone Number:</span><span className="text-gray-700">{deal.sellerProfile.phoneNumber}</span></div>
                               </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Seller Email:</span>
-                                {deal.sellerProfile.email}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Company Name:</span>
-                                {deal.sellerProfile.companyName}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Phone Number:</span>
-                                {deal.sellerProfile.phoneNumber}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Website:</span>
-                                {deal.sellerProfile.website}
-                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-400 italic">Seller information is not available.</div>
+                            )}
+                          </div>
+
+                          {/* Financial */}
+                          <div className="bg-amber-50/50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Financial</h4>
+                            <div className="space-y-0.5 text-xs">
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Currency:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month Revenue:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month EBITDA:</span><span className="text-gray-700">{deal.financialDetails?.trailingEBITDACurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">T12 Net Income:</span><span className="text-gray-700">${deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}</span></div>
                             </div>
                           </div>
-                        ) : (
-                          <div className="mb-2 text-sm text-gray-500 italic">
-                            Seller information is not available.
-                          </div>
-                        )}
-                        <h4 className="mb-2 font-medium text-gray-800">Overview</h4>
-                        <div className="mb-4 space-y-1 text-sm text-gray-600">
-                          <p>Industry: {deal.industrySector}</p>
-                          <p>Location: {deal.geographySelection}</p>
-                          <p>Company Description: {deal.companyDescription}</p>
                         </div>
-                        <h4 className="mb-2 font-medium text-gray-800">Financial</h4>
-                        <div className="mb-4 grid grid-cols-2 gap-2 text-sm text-gray-600">
-                          <p>
-                            Currency: {deal.financialDetails?.trailingRevenueCurrency}
-                          </p>
-                          <p>
-                            Trailing 12-Month Revenue:{" "}
-                            {deal.financialDetails?.trailingRevenueCurrency?.replace(
-                              "USD($)",
-                              "$"
-                            ) || "$"}
-                            {deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}
-                          </p>
-                          <p>
-                            Trailing 12-Month EBITDA:{" "}
-                            {deal.financialDetails?.trailingEBITDACurrency?.replace(
-                              "USD($)",
-                              "$"
-                            ) || "$"}
-                            {deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}
-                          </p>
-                          <p>
-                            T12 Net Income: $
-                            {deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}
-                          </p>
-                          {deal.financialDetails?.finalSalePrice && (
-                            <p className="col-span-2">
-                              <span className="font-semibold">Transaction Value:</span> $
-                              {deal.financialDetails.finalSalePrice.toLocaleString()}
+
+                        {/* Overview */}
+                        <div className="bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-100 rounded-lg p-3 mb-3">
+                          <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Overview</h4>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Industry:</span>
+                              <span className="text-gray-700 font-medium">{deal.industrySector}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Location:</span>
+                              <span className="text-gray-700">{deal.geographySelection}</span>
+                            </div>
+                          </div>
+                          <div className="border-t border-gray-200/60 pt-2 mt-2">
+                            <span className="text-gray-500 text-[10px] font-semibold uppercase tracking-wide">Company Description</span>
+                            <p className={`text-xs text-gray-600 mt-1 leading-relaxed ${expandedDescriptions.has(deal._id) ? '' : 'line-clamp-4'}`}>
+                              {deal.companyDescription}
                             </p>
-                          )}
-                        </div>
-                        {(deal.closedWithBuyer || deal.closedWithBuyerCompany || deal.closedWithBuyerEmail) && (
-                          <div className="mb-4 text-sm text-gray-700 border border-gray-100 rounded p-2 bg-gray-50">
-                            <div className="font-semibold mb-1">Closed Buyer</div>
-                            {deal.closedWithBuyerCompany && (
-                              <div>Company: {deal.closedWithBuyerCompany}</div>
+                            {deal.companyDescription && deal.companyDescription.length > 200 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDescription(deal._id);
+                                }}
+                                className="mt-1.5 text-[11px] font-medium text-teal-600 hover:text-teal-700 flex items-center gap-0.5 transition-colors"
+                              >
+                                {expandedDescriptions.has(deal._id) ? (
+                                  <>Show less <ChevronUp className="h-3 w-3" /></>
+                                ) : (
+                                  <>Show more <ChevronDown className="h-3 w-3" /></>
+                                )}
+                              </button>
                             )}
-                            {deal.closedWithBuyerEmail && (
-                              <div>Email: {deal.closedWithBuyerEmail}</div>
-                            )}
-                            {deal.closedWithBuyer &&
-                              !deal.closedWithBuyerCompany &&
-                              !deal.closedWithBuyerEmail && (
-                                <div>Buyer ID: {deal.closedWithBuyer}</div>
-                              )}
                           </div>
-                        )}
-                        <div className="flex justify-end">
+                        </div>
+
+                        {/* Action Buttons - Enhanced styling matching Active Deals */}
+                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
-                            className="bg-teal-500 hover:bg-teal-600 px-8 py-2"
+                            size="sm"
+                            className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleActivityClick(deal);
@@ -1949,7 +2180,53 @@ export default function DealManagementDashboard() {
                             Activity
                           </Button>
                           <Button
-                            className="bg-red-500 hover:bg-red-600 px-4 py-2 ml-2 text-white"
+                            size="sm"
+                            className="bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 h-8 px-3 text-xs"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const token = sessionStorage.getItem('token');
+                                const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+                                const res = await fetch(`${apiUrl}/deals/${deal._id}`, {
+                                  method: "PATCH",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                  body: JSON.stringify({ status: "active" }),
+                                });
+                                if (res.ok) {
+                                  setLoiDeals((prev) => prev.filter((d) => d._id !== deal._id));
+                                  fetchDeals(activeCurrentPage, dealsPerPage, "active", searchTerm);
+                                }
+                              } catch (error) {
+                                // Failed to revive deal
+                              }
+                            }}
+                          >
+                            Revive
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 h-8 px-3 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAdminOffMarketClick(deal);
+                            }}
+                          >
+                            Off Market
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 text-xs"
+                            onClick={() => handleEditDeal(deal)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-red-500 hover:bg-red-600 text-white h-8 px-3 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteDealId(deal._id);
@@ -1963,7 +2240,264 @@ export default function DealManagementDashboard() {
                   )
                 ))}
               </div>
-              {currentOffMarketDeals.length === 0 && (
+              )}
+              {/* Pagination for LOI Deals */}
+              {!loiPageLoading && loiTotalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLoiCurrentPage(loiCurrentPage - 1)}
+                    disabled={loiCurrentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    Page {loiCurrentPage} of {loiTotalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLoiCurrentPage(loiCurrentPage + 1)}
+                    disabled={loiCurrentPage === loiTotalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="offMarket">
+              {/* Page Loading Overlay */}
+              {offMarketPageLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-gray-500 text-sm">Loading deals...</span>
+                  </div>
+                </div>
+              )}
+              {!offMarketPageLoading && (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {currentOffMarketDeals.map((deal) => (
+                  deal && (
+                    <div
+                      key={deal._id}
+                      className="rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-lg transition-all duration-200"
+                    >
+                      {/* Header - Compact with inline badges */}
+                      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 bg-gradient-to-r from-gray-50 to-white">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-teal-600 truncate" title={deal.title}>
+                            {deal.title}
+                          </h3>
+                          {(deal as any).wasLOIDeal && (
+                            <span className="shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-500 text-white">
+                              LOI
+                            </span>
+                          )}
+                          {deal.isPublic && (
+                            <span className="shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+                              Marketplace
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {deal.rewardLevel && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e0f7fa] text-[#00796b]">
+                              {deal.rewardLevel}
+                            </span>
+                          )}
+                          {deal.createdAt && (
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              Posted: {new Date(deal.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="px-4 py-3">
+                        {/* Sale Information - Complete Section */}
+                        <div className="mb-3 p-3 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-lg">
+                          <h4 className="text-[10px] font-bold text-teal-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                            Sale Information
+                          </h4>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Date Taken Off Market:</span>
+                              <span className="font-medium text-gray-700">
+                                {deal.timeline?.completedAt
+                                  ? new Date(deal.timeline.completedAt).toLocaleDateString()
+                                  : deal.timeline?.updatedAt
+                                  ? new Date(deal.timeline.updatedAt).toLocaleDateString()
+                                  : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Transaction Value:</span>
+                              <span className="font-semibold text-teal-700">
+                                {deal.financialDetails?.finalSalePrice
+                                  ? `$${deal.financialDetails.finalSalePrice.toLocaleString()}`
+                                  : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Avg Revenue Growth:</span>
+                              <span className="font-medium text-gray-700">
+                                {deal.financialDetails?.avgRevenueGrowth != null
+                                  ? `${deal.financialDetails.avgRevenueGrowth}%`
+                                  : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Buyer From CIM Amplify:</span>
+                              <span className={`font-medium ${deal.closedWithBuyer && deal.closedWithBuyer !== "false" && deal.closedWithBuyer !== "" ? "text-green-600" : "text-gray-600"}`}>
+                                {deal.closedWithBuyer && deal.closedWithBuyer !== "false" && deal.closedWithBuyer !== "" ? "Yes" : "No"}
+                              </span>
+                            </div>
+                            {deal.closedWithBuyerCompany && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Buyer Company:</span>
+                                <span className="font-medium text-gray-700 truncate ml-1" title={deal.closedWithBuyerCompany}>
+                                  {deal.closedWithBuyerCompany}
+                                </span>
+                              </div>
+                            )}
+                            {deal.closedWithBuyerEmail && (
+                              <div className="flex col-span-2">
+                                <span className="text-gray-500 shrink-0">Buyer Email:</span>
+                                <span className="font-medium text-gray-700 truncate ml-2" title={deal.closedWithBuyerEmail}>
+                                  {deal.closedWithBuyerEmail}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status Badges - Inline compact */}
+                        {deal.statusSummary && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-gray-100 text-gray-700">
+                              Total Targeted: {deal.statusSummary.totalTargeted}
+                            </span>
+                            {deal.statusSummary.totalActive > 0 && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-green-100 text-green-700">
+                                Active: {deal.statusSummary.totalActive}
+                              </span>
+                            )}
+                            {deal.statusSummary.totalPending > 0 && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-100 text-orange-700">
+                                Pending: {deal.statusSummary.totalPending}
+                              </span>
+                            )}
+                            {deal.statusSummary.totalRejected > 0 && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 text-red-700">
+                                Rejected: {deal.statusSummary.totalRejected}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Two Column Layout - Seller & Financial side by side */}
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                          {/* Seller Information */}
+                          <div className="bg-gray-50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
+                            {deal.sellerProfile ? (
+                              <div className="space-y-0.5 text-xs">
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.fullName}>{deal.sellerProfile.fullName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Email:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.email}>{deal.sellerProfile.email}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Company Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.companyName}>{deal.sellerProfile.companyName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Phone Number:</span><span className="text-gray-700">{deal.sellerProfile.phoneNumber}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Website:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.website}>{deal.sellerProfile.website}</span></div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-400 italic">Seller information is not available.</div>
+                            )}
+                          </div>
+
+                          {/* Financial */}
+                          <div className="bg-teal-50/50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Financial</h4>
+                            <div className="space-y-0.5 text-xs">
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Currency:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month Revenue:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month EBITDA:</span><span className="text-gray-700">{deal.financialDetails?.trailingEBITDACurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">T12 Net Income:</span><span className="text-gray-700">${deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}</span></div>
+                              {deal.financialDetails?.finalSalePrice && (
+                                <div className="flex"><span className="text-gray-400 w-28 shrink-0">Transaction Value:</span><span className="text-teal-600 font-semibold">${deal.financialDetails.finalSalePrice.toLocaleString()}</span></div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Overview - Enhanced with Show More */}
+                        <div className="bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-100 rounded-lg p-3 mb-3">
+                          <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Overview</h4>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Industry:</span>
+                              <span className="text-gray-700 font-medium">{deal.industrySector}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Location:</span>
+                              <span className="text-gray-700">{deal.geographySelection}</span>
+                            </div>
+                          </div>
+                          <div className="border-t border-gray-200/60 pt-2 mt-2">
+                            <span className="text-gray-500 text-[10px] font-semibold uppercase tracking-wide">Company Description</span>
+                            <p className={`text-xs text-gray-600 mt-1 leading-relaxed ${expandedDescriptions.has(deal._id) ? '' : 'line-clamp-4'}`}>
+                              {deal.companyDescription}
+                            </p>
+                            {deal.companyDescription && deal.companyDescription.length > 200 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDescription(deal._id);
+                                }}
+                                className="mt-1.5 text-[11px] font-medium text-teal-600 hover:text-teal-700 flex items-center gap-0.5 transition-colors"
+                              >
+                                {expandedDescriptions.has(deal._id) ? (
+                                  <>Show Less <ChevronUp className="h-3 w-3" /></>
+                                ) : (
+                                  <>Show More <ChevronDown className="h-3 w-3" /></>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons - Enhanced styling */}
+                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
+                          <Button
+                            size="sm"
+                            className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleActivityClick(deal);
+                            }}
+                          >
+                            Activity
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-red-500 hover:bg-red-600 text-white h-8 px-3 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteDealId(deal._id);
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+              )}
+              {!offMarketPageLoading && currentOffMarketDeals.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Building2 className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1976,7 +2510,7 @@ export default function DealManagementDashboard() {
                   </p>
                 </div>
               )}
-              {offMarketTotalPages > 1 && (
+              {!offMarketPageLoading && offMarketTotalPages > 1 && (
                 <div className="flex justify-center items-center gap-1 mt-6">
                   <Button
                     variant="outline"
@@ -2018,151 +2552,179 @@ export default function DealManagementDashboard() {
               )}
             </TabsContent>
             <TabsContent value="allDeals">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Page Loading Overlay */}
+              {allDealsPageLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-gray-500 text-sm">Loading deals...</span>
+                  </div>
+                </div>
+              )}
+              {!allDealsPageLoading && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 {currentAllDeals.map((deal) => (
                   deal && (
                     <div
                       key={deal._id}
-                      className="rounded-lg border border-gray-200 bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                      className={`rounded-xl border shadow-sm hover:shadow-lg transition-all duration-200 ${
+                        deal.status === "loi"
+                          ? "border-amber-200 bg-amber-50/30"
+                          : "border-gray-200 bg-white"
+                      }`}
                     >
-                      <div className="flex items-center justify-between border-b border-gray-200 p-4">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-medium text-teal-500">
+                      {/* Header - Compact with inline badges */}
+                      <div className={`flex items-center justify-between border-b px-4 py-3 ${
+                        deal.status === "loi"
+                          ? "border-amber-100 bg-gradient-to-r from-amber-50 to-amber-50/50"
+                          : "border-gray-100 bg-gradient-to-r from-gray-50 to-white"
+                      }`}>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-teal-600 truncate" title={deal.title}>
                             {deal.title}
                           </h3>
+                          {deal.status === "loi" && (
+                            <span className="shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-500 text-white">
+                              LOI
+                            </span>
+                          )}
                           {deal.isPublic && (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+                            <span className="shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700">
                               Marketplace
                             </span>
                           )}
                         </div>
-                        {deal.rewardLevel && (
-                          <span
-                            className="ml-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#e0f7fa] text-[#00796b]"
-                          >
-                            {deal.rewardLevel}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {deal.rewardLevel && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e0f7fa] text-[#00796b]">
+                              {deal.rewardLevel}
+                            </span>
+                          )}
+                          {deal.createdAt && (
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              Posted: {new Date(deal.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="p-4">
-                        {/* Display creation date */}
-                        {deal.createdAt && (
-                          <div className="text-xs text-gray-500 mb-2">
-                            Posted: {new Date(deal.createdAt).toLocaleDateString()}
-                          </div>
-                        )}
-                        
-                        {/* Display status badges */}
+
+                      <div className="px-4 py-3">
+                        {/* Status Badges - Inline compact */}
                         {deal.statusSummary && (
-                          <div className="flex gap-2 mb-3">
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-gray-100 text-gray-700">
                               Total Targeted: {deal.statusSummary.totalTargeted}
                             </span>
                             {deal.statusSummary.totalActive > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-green-100 text-green-700">
                                 Active: {deal.statusSummary.totalActive}
                               </span>
                             )}
                             {deal.statusSummary.totalPending > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-100 text-orange-700">
                                 Pending: {deal.statusSummary.totalPending}
                               </span>
                             )}
                             {deal.statusSummary.totalRejected > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 text-red-700">
                                 Rejected: {deal.statusSummary.totalRejected}
                               </span>
                             )}
                           </div>
                         )}
-                        <h4>Seller Information</h4>
-                        {deal.sellerProfile ? (
-                          <div className="flex items-center gap-3 mb-2">
-                            <div>
-                              <div className="text-gray-500 text-xs mr-1">
-                                <span>Seller Name:</span> &nbsp;
-                                {deal.sellerProfile.fullName}
+
+                        {/* Two Column Layout - Seller & Financial side by side */}
+                        <div className="grid grid-cols-2 gap-4 mb-3">
+                          {/* Seller Information */}
+                          <div className="bg-gray-50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
+                            {deal.sellerProfile ? (
+                              <div className="space-y-0.5 text-xs">
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.fullName}>{deal.sellerProfile.fullName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Seller Email:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.email}>{deal.sellerProfile.email}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Company Name:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.companyName}>{deal.sellerProfile.companyName}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Phone Number:</span><span className="text-gray-700">{deal.sellerProfile.phoneNumber}</span></div>
+                                <div className="flex"><span className="text-gray-400 w-20 shrink-0">Website:</span><span className="text-gray-700 truncate" title={deal.sellerProfile.website}>{deal.sellerProfile.website}</span></div>
                               </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Seller Email:</span>
-                                {deal.sellerProfile.email}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Company Name:</span>
-                                {deal.sellerProfile.companyName}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Phone Number:</span>
-                                {deal.sellerProfile.phoneNumber}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                <span className="mr-1">Website:</span>
-                                {deal.sellerProfile.website}
-                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-400 italic">Seller information is not available.</div>
+                            )}
+                          </div>
+
+                          {/* Financial */}
+                          <div className="bg-teal-50/50 rounded-lg p-2.5">
+                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Financial</h4>
+                            <div className="space-y-0.5 text-xs">
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Currency:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month Revenue:</span><span className="text-gray-700">{deal.financialDetails?.trailingRevenueCurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">Trailing 12-Month EBITDA:</span><span className="text-gray-700">{deal.financialDetails?.trailingEBITDACurrency?.replace("USD($)", "$") || "$"}{deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}</span></div>
+                              <div className="flex"><span className="text-gray-400 w-28 shrink-0">T12 Net Income:</span><span className="text-gray-700">${deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}</span></div>
+                              {deal.financialDetails?.finalSalePrice && (
+                                <div className="flex"><span className="text-gray-400 w-28 shrink-0">Transaction Value:</span><span className="text-teal-600 font-semibold">${deal.financialDetails.finalSalePrice.toLocaleString()}</span></div>
+                              )}
                             </div>
                           </div>
-                        ) : (
-                          <div className="mb-2 text-sm text-gray-500 italic">
-                            Seller information is not available.
-                          </div>
-                        )}
-                        <h4 className="mb-2 font-medium text-gray-800">Overview</h4>
-                        <div className="mb-4 space-y-1 text-sm text-gray-600">
-                          <p>Industry: {deal.industrySector}</p>
-                          <p>Location: {deal.geographySelection}</p>
-                          <p>Company Description: {deal.companyDescription}</p>
                         </div>
-                        <h4 className="mb-2 font-medium text-gray-800">Financial</h4>
-                        <div className="mb-4 grid grid-cols-2 gap-2 text-sm text-gray-600">
-                          <p>
-                            Currency: {deal.financialDetails?.trailingRevenueCurrency}
-                          </p>
-                          <p>
-                            Trailing 12-Month Revenue:{" "}
-                            {deal.financialDetails?.trailingRevenueCurrency?.replace(
-                              "USD($)",
-                              "$"
-                            ) || "$"}
-                            {deal.financialDetails?.trailingRevenueAmount?.toLocaleString() || "N/A"}
-                          </p>
-                          <p>
-                            Trailing 12-Month EBITDA:{" "}
-                            {deal.financialDetails?.trailingEBITDACurrency?.replace(
-                              "USD($)",
-                              "$"
-                            ) || "$"}
-                            {deal.financialDetails?.trailingEBITDAAmount?.toLocaleString() || "N/A"}
-                          </p>
-                          <p>
-                            T12 Net Income: $
-                            {deal.financialDetails?.t12NetIncome?.toLocaleString() || "N/A"}
-                          </p>
-                          {deal.financialDetails?.finalSalePrice && (
-                            <p className="col-span-2">
-                              <span className="font-semibold">Transaction Value:</span> $
-                              {deal.financialDetails.finalSalePrice.toLocaleString()}
+
+                        {/* Overview - Enhanced with Show More */}
+                        <div className="bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-100 rounded-lg p-3 mb-3">
+                          <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Overview</h4>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Industry:</span>
+                              <span className="text-gray-700 font-medium">{deal.industrySector}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-400 font-medium">Location:</span>
+                              <span className="text-gray-700">{deal.geographySelection}</span>
+                            </div>
+                          </div>
+                          <div className="border-t border-gray-200/60 pt-2 mt-2">
+                            <span className="text-gray-500 text-[10px] font-semibold uppercase tracking-wide">Company Description</span>
+                            <p className={`text-xs text-gray-600 mt-1 leading-relaxed ${expandedDescriptions.has(deal._id) ? '' : 'line-clamp-4'}`}>
+                              {deal.companyDescription}
                             </p>
-                          )}
+                            {deal.companyDescription && deal.companyDescription.length > 200 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDescription(deal._id);
+                                }}
+                                className="mt-1.5 text-[11px] font-medium text-teal-600 hover:text-teal-700 flex items-center gap-0.5 transition-colors"
+                              >
+                                {expandedDescriptions.has(deal._id) ? (
+                                  <>Show Less <ChevronUp className="h-3 w-3" /></>
+                                ) : (
+                                  <>Show More <ChevronDown className="h-3 w-3" /></>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Closed Buyer Info - Enhanced */}
                         {(deal.closedWithBuyer || deal.closedWithBuyerCompany || deal.closedWithBuyerEmail) && (
-                          <div className="mb-4 text-sm text-gray-700 border border-gray-100 rounded p-2 bg-gray-50">
-                            <div className="font-semibold mb-1">Closed Buyer</div>
-                            {deal.closedWithBuyerCompany && (
-                              <div>Company: {deal.closedWithBuyerCompany}</div>
-                            )}
-                            {deal.closedWithBuyerEmail && (
-                              <div>Email: {deal.closedWithBuyerEmail}</div>
-                            )}
-                            {deal.closedWithBuyer &&
-                              !deal.closedWithBuyerCompany &&
-                              !deal.closedWithBuyerEmail && (
-                                <div>Buyer ID: {deal.closedWithBuyer}</div>
+                          <div className="mb-3 p-2.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-lg">
+                            <h4 className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1.5">Sale Information</h4>
+                            <div className="space-y-0.5 text-xs">
+                              {deal.closedWithBuyerCompany && (
+                                <div className="flex"><span className="text-gray-500 w-16 shrink-0">Company:</span><span className="text-gray-700 font-medium">{deal.closedWithBuyerCompany}</span></div>
                               )}
+                              {deal.closedWithBuyerEmail && (
+                                <div className="flex"><span className="text-gray-500 w-16 shrink-0">Email:</span><span className="text-gray-700">{deal.closedWithBuyerEmail}</span></div>
+                              )}
+                              {deal.closedWithBuyer && !deal.closedWithBuyerCompany && !deal.closedWithBuyerEmail && (
+                                <div className="flex"><span className="text-gray-500 w-16 shrink-0">Buyer ID:</span><span className="text-gray-700">{deal.closedWithBuyer}</span></div>
+                              )}
+                            </div>
                           </div>
                         )}
-                        <div className="flex justify-end">
+
+                        {/* Action Buttons - Enhanced styling */}
+                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
-                            className="bg-teal-500 hover:bg-teal-600 px-8 py-2"
+                            size="sm"
+                            className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleActivityClick(deal);
@@ -2171,8 +2733,8 @@ export default function DealManagementDashboard() {
                             Activity
                           </Button>
                           <Button
-                            className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 hover:text-black px-4 py-2 ml-3"
-                            style={{ minWidth: 110 }}
+                            size="sm"
+                            className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 h-8 px-3 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleAdminOffMarketClick(deal);
@@ -2182,14 +2744,16 @@ export default function DealManagementDashboard() {
                             Off Market
                           </Button>
                           <Button
+                            size="sm"
                             variant="outline"
-                            className="px-4 py-2 mr-2 ml-3"
+                            className="h-8 px-3 text-xs"
                             onClick={() => handleEditDeal(deal)}
                           >
                             Edit
                           </Button>
                           <Button
-                            className="bg-red-500 hover:bg-red-600 px-4 py-2 ml-2 text-white"
+                            size="sm"
+                            className="bg-red-500 hover:bg-red-600 text-white h-8 px-3 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteDealId(deal._id);
@@ -2203,7 +2767,8 @@ export default function DealManagementDashboard() {
                   )
                 ))}
               </div>
-              {currentAllDeals.length === 0 && (
+              )}
+              {!allDealsPageLoading && currentAllDeals.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Building2 className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -2212,11 +2777,11 @@ export default function DealManagementDashboard() {
                   <p className="text-gray-500 text-center">
                     {searchTerm
                       ? `No deals match your search "${searchTerm}"`
-                      : `No all deals available`}
+                      : `No deals available`}
                   </p>
                 </div>
               )}
-              {allDealsTotalPages > 1 && (
+              {!allDealsPageLoading && allDealsTotalPages > 1 && (
                 <div className="flex justify-center items-center gap-1 mt-6">
                   <Button
                     variant="outline"
@@ -2264,7 +2829,6 @@ export default function DealManagementDashboard() {
           buyersActivity={buyersActivity}
           dealTitle={selectedDealForActivity?.title || ""}
         />
-      </div>
 
       {editDeal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2493,5 +3057,6 @@ export default function DealManagementDashboard() {
         </Dialog>
       )}
     </div>
+    </AdminProtectedRoute>
   );
 }

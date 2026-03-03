@@ -15,6 +15,10 @@ import {
   XCircle,
   X,
   Loader2,
+  Menu,
+  FileText,
+  PauseCircle,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +27,24 @@ import SellerProtectedRoute from "@/components/seller/protected-route";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
 import { Country, State, City } from "country-state-city";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box";
+
+// Helper to get API URL - uses environment variable with localStorage fallback
+const getApiUrl = () => {
+  // First try environment variable (works in production)
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Fallback to localStorage (works for local development with dynamic URL)
+  if (typeof window !== 'undefined') {
+    return getApiUrl();
+  }
+  return "http://localhost:5001";
+};
 
 // Updated interfaces to match API structure
 interface SellerProfile {
@@ -440,7 +462,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   const [matchedBuyers, setMatchedBuyers] = useState<MatchedBuyer[]>([]);
   const [selectedBuyers, setSelectedBuyers] = useState<string[]>([]);
   const [loadingBuyers, setLoadingBuyers] = useState(false);
-  const [rowActionLoading, setRowActionLoading] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
   const [selectedCompanyProfile, setSelectedCompanyProfile] =
@@ -450,8 +471,21 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   const [showBuyersForNewDeal, setShowBuyersForNewDeal] = useState(false);
   const [hasFetchedBuyers, setHasFetchedBuyers] = useState(false);
   const [selectAllDropdownOpen, setSelectAllDropdownOpen] = useState(false);
-  const [confirmDenyBuyer, setConfirmDenyBuyer] = useState<Buyer | null>(null);
-  const [confirmDenyLoading, setConfirmDenyLoading] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Action button states
+  const [isPausingLOI, setIsPausingLOI] = useState(false);
+  const [offMarketDialogOpen, setOffMarketDialogOpen] = useState(false);
+  const [currentDialogStep, setCurrentDialogStep] = useState(1);
+  const [offMarketData, setOffMarketData] = useState({
+    dealSold: null as boolean | null,
+    transactionValue: "",
+    buyerFromCIM: null as boolean | null,
+  });
+  const [buyerActivity, setBuyerActivity] = useState<any[]>([]);
+  const [selectedWinningBuyer, setSelectedWinningBuyer] = useState<string>("");
+  const [buyerActivityLoading, setBuyerActivityLoading] = useState(false);
+  const [isClosingDeal, setIsClosingDeal] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -462,9 +496,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   useEffect(() => {
     const fetchSellerProfile = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = sessionStorage.getItem("token");
         const apiUrl =
-          localStorage.getItem("apiUrl") || "http://localhost:5001";
+          getApiUrl();
         const response = await fetch(`${apiUrl}/sellers/profile`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -482,7 +516,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           });
         }
       } catch (error) {
-        console.error("Error fetching seller profile:", error);
+        // Error fetching seller profile
       }
     };
     fetchSellerProfile();
@@ -497,9 +531,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     const fetchDealDetails = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
+        const token = sessionStorage.getItem("token");
         const apiUrl =
-          localStorage.getItem("apiUrl") || "http://localhost:5001";
+          getApiUrl();
         if (!token) {
           router.push("/seller/login?error=no_token");
           return;
@@ -519,7 +553,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         setDeal(data);
         setError(null);
       } catch (err: any) {
-        console.error("Error fetching deal details:", err);
         setError(err.message || "Failed to load deal details");
         if (
           err.message.includes("Authentication") ||
@@ -538,7 +571,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   const fetchCompanyProfile = async (companyProfileId: string) => {
     try {
       setLoadingCompanyProfile(true);
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiUrl();
       const response = await fetch(
         `${apiUrl}/company-profiles/public/${companyProfileId}`
       );
@@ -547,11 +580,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         const companyData = await response.json();
         setSelectedCompanyProfile(companyData);
       } else {
-        console.error("Failed to fetch company profile:", response.status);
         setSelectedCompanyProfile(null);
       }
     } catch (error) {
-      console.error("Error fetching company profile:", error);
       setSelectedCompanyProfile(null);
     } finally {
       setLoadingCompanyProfile(false);
@@ -562,8 +593,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   const fetchStatusSummary = async () => {
     try {
       setLoadingBuyers(true);
-      const token = localStorage.getItem("token");
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
       const response = await fetch(`${apiUrl}/deals/${dealId}/status-summary`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -587,14 +618,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                 const buyerInfo = await buyerResponse.json();
                 return buyerInfo;
               } else {
-                console.error(
-                  `Failed to fetch buyer ${buyerId}:`,
-                  buyerResponse.status
-                );
                 return null;
               }
             } catch (error) {
-              console.error(`Error fetching buyer ${buyerId}:`, error);
               return null;
             }
           });
@@ -611,7 +637,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           if (companyProfilesResponse.ok) {
             allCompanyProfiles = await companyProfilesResponse.json();
           } else {
-            console.error("Failed to fetch all company profiles:", companyProfilesResponse.status);
           }
 
           for (let i = 0; i < buyerIds.length; i++) {
@@ -676,10 +701,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         };
         setStatusSummary(updatedData);
       } else {
-        console.error("Failed to fetch status summary:", response.status);
       }
     } catch (error) {
-      console.error("Error fetching status summary:", error);
     } finally {
       setLoadingBuyers(false);
     }
@@ -698,9 +721,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       setShowBuyersForNewDeal(true);
       const fetchMatchingBuyers = async () => {
         try {
-          const token = localStorage.getItem("token");
+          const token = sessionStorage.getItem("token");
           const apiUrl =
-            localStorage.getItem("apiUrl") || "http://localhost:5001";
+            getApiUrl();
           const response = await fetch(
             `${apiUrl}/deals/${dealId}/matching-buyers`,
             {
@@ -717,7 +740,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
             setMatchedBuyers([]);
           }
         } catch (error) {
-          console.error("Error fetching matching buyers:", error);
           setMatchedBuyers([]);
         } finally {
           setLoadingBuyers(false);
@@ -729,8 +751,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   }, [deal, dealId, searchParams]);
 
   const handleLogout = () => {
-    logout();
-    router.push("/seller/login");
+    logout(); // logout() from useAuth already handles redirect
   };
 
   const industries = selectedCompanyProfile?.targetCriteria?.industrySectors || [];
@@ -764,7 +785,11 @@ const [showAllCountries, setShowAllCountries] = useState(false);
 
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+    // If it's a base64 image, return as-is
+    if (path.startsWith("data:image")) return path;
+    // If it's already a full URL, return as-is
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    const apiUrl = getApiUrl();
     const formattedPath = path.replace(/\\/g, "/");
     return `${apiUrl}/${
       formattedPath.startsWith("/") ? formattedPath.slice(1) : formattedPath
@@ -788,6 +813,236 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       month: "short",
       day: "numeric",
     });
+  };
+
+  // Action button handlers
+  const handlePauseForLOI = async () => {
+    if (!deal) return;
+    setIsPausingLOI(true);
+    try {
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+
+      const response = await fetch(`${apiUrl}/deals/${deal._id}/pause-for-loi`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to pause deal for LOI");
+      }
+
+      toast({
+        title: "Deal Paused for LOI",
+        description: "The deal has been moved to LOI - Deals. You can find it in the LOI - Deals section.",
+      });
+
+      // Navigate back to dashboard
+      router.push("/seller/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to pause deal for LOI",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPausingLOI(false);
+    }
+  };
+
+  const handleOffMarketClick = () => {
+    setCurrentDialogStep(1);
+    setOffMarketDialogOpen(true);
+    setSelectedWinningBuyer("");
+    setOffMarketData({
+      dealSold: null,
+      transactionValue: "",
+      buyerFromCIM: null,
+    });
+  };
+
+  const formatTransactionValue = (value: string) => {
+    const numericValue = value.replace(/\D/g, '');
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  // Fetch buyers who have ever had this deal in Active
+  const fetchEverActiveBuyers = async () => {
+    if (!deal) return [];
+    try {
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+
+      const response = await fetch(`${apiUrl}/deals/${deal._id}/ever-active-buyers`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const buyers = await response.json();
+        const transformedBuyers = buyers.map((buyer: any) => ({
+          buyerId: buyer._id,
+          buyerName: buyer.fullName || "Unknown Buyer",
+          companyName: buyer.companyName || "Unknown Company",
+          buyerEmail: buyer.email || "",
+          status: "active",
+          currentStatus: buyer.currentStatus,
+          isCurrentlyActive: buyer.isCurrentlyActive,
+        }));
+        setBuyerActivity(transformedBuyers);
+        if (transformedBuyers.length > 0) {
+          setSelectedWinningBuyer(transformedBuyers[0].buyerId);
+        }
+        return transformedBuyers;
+      }
+    } catch (error) {
+      // Error fetching ever active buyers
+    }
+    return [];
+  };
+
+  // Fetch buyers when entering step 3
+  useEffect(() => {
+    if (offMarketDialogOpen && deal && currentDialogStep === 3) {
+      setBuyerActivity([]);
+      setSelectedWinningBuyer("");
+      setBuyerActivityLoading(true);
+      fetchEverActiveBuyers().finally(() => setBuyerActivityLoading(false));
+    }
+  }, [offMarketDialogOpen, deal, currentDialogStep]);
+
+  const activeBuyerOptions = buyerActivity.filter((buyer) => buyer?.status === "active");
+
+  const handleDialogResponse = async (key: string, value: boolean) => {
+    setOffMarketData((prev) => ({ ...prev, [key]: value }));
+    if (key === "dealSold") {
+      if (value === false) {
+        // Mark deal as off-market without sale
+        await handleCloseWithoutSale();
+      } else {
+        setCurrentDialogStep(2);
+      }
+    }
+  };
+
+  const handleCloseWithoutSale = async () => {
+    if (!deal) return;
+    setIsClosingDeal(true);
+    try {
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/deals/${deal._id}/close-deal`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to close deal");
+      }
+      setOffMarketDialogOpen(false);
+      toast({
+        title: "Deal marked as off-market",
+        description: "The deal has been removed from your active deals.",
+      });
+      router.push("/seller/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark deal off-market.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClosingDeal(false);
+    }
+  };
+
+  const handleOffMarketSubmit = async () => {
+    if (!deal) return;
+    setIsClosingDeal(true);
+    try {
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+      const transactionValueNumeric = offMarketData.transactionValue.replace(/,/g, "");
+
+      const response = await fetch(`${apiUrl}/deals/${deal._id}/close`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          finalSalePrice: transactionValueNumeric ? Number(transactionValueNumeric) : undefined,
+          winningBuyerId: selectedWinningBuyer || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to close deal");
+      }
+      setOffMarketDialogOpen(false);
+      toast({
+        title: "Deal Completed",
+        description: "The deal has been marked as completed and removed from your active deals",
+      });
+      router.push("/seller/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete deal.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClosingDeal(false);
+    }
+  };
+
+  const handleImmediateCloseNoCIM = async () => {
+    if (!deal) return;
+    setIsClosingDeal(true);
+    try {
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+      const transactionValueNumeric = offMarketData.transactionValue.replace(/,/g, "");
+
+      const response = await fetch(`${apiUrl}/deals/${deal._id}/close`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          finalSalePrice: transactionValueNumeric ? Number(transactionValueNumeric) : undefined,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to close deal");
+      }
+      setOffMarketDialogOpen(false);
+      toast({
+        title: "Deal Completed",
+        description: "The deal has been marked as closed and removed from your active deals",
+      });
+      router.push("/seller/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to close deal.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClosingDeal(false);
+    }
   };
 
   const getStatusColor = (status: string): string => {
@@ -855,8 +1110,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     }
     try {
       setSending(true);
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
-      const token = localStorage.getItem("token");
+      const apiUrl = getApiUrl();
+      const token = sessionStorage.getItem("token");
       if (!token) {
         toast({
           title: "Authentication required",
@@ -918,7 +1173,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       // Always re-fetch matching buyers after sending invites
       await handleInviteBuyersClick();
     } catch (error: any) {
-      console.error("Error sending invites:", error);
       toast({
         title: "Error sending invites",
         description:
@@ -935,9 +1189,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     setShowBuyersForNewDeal(true);
     const fetchMatchingBuyers = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = sessionStorage.getItem("token");
         const apiUrl =
-          localStorage.getItem("apiUrl") || "http://localhost:5001";
+          getApiUrl();
         const response = await fetch(
           `${apiUrl}/deals/${dealId}/matching-buyers`,
           {
@@ -954,7 +1208,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           setMatchedBuyers([]);
         }
       } catch (error) {
-        console.error("Error fetching matching buyers:", error);
         setMatchedBuyers([]);
       } finally {
         setLoadingBuyers(false);
@@ -964,137 +1217,145 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     await fetchMatchingBuyers();
   };
 
-  const approveBuyerToPending = async (buyerId: string) => {
-    try {
-      setRowActionLoading((p) => ({ ...p, [buyerId]: true }));
-      const token = localStorage.getItem('token');
-      const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
-      const res = await fetch(`${apiUrl}/deals/${dealId}/approve-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ buyerId }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      await fetchStatusSummary();
-    } catch (err: any) {
-      toast({ title: 'Action failed', description: err.message || 'Please try again.', variant: 'destructive' });
-    } finally {
-      setRowActionLoading((p) => ({ ...p, [buyerId]: false }));
-    }
-  };
-
-  const denyBuyer = async (buyerId: string) => {
-    try {
-      setConfirmDenyLoading(true);
-      const token = localStorage.getItem('token');
-      const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
-      const res = await fetch(`${apiUrl}/deals/${dealId}/deny-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ buyerId }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      toast({ title: 'Access denied', description: 'Buyer has been notified.' });
-      setConfirmDenyBuyer(null);
-      await fetchStatusSummary();
-    } catch (err: any) {
-      toast({ title: 'Denial failed', description: err.message || 'Please try again.', variant: 'destructive' });
-    } finally {
-      setConfirmDenyLoading(false);
-    }
-  };
+  // Navigation component for reuse
+  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <>
+      <div className="mb-8">
+        <Link href="/seller/dashboard" onClick={onNavigate}>
+          <Image
+            src="/logo.svg"
+            alt="CIM Amplify Logo"
+            width={150}
+            height={50}
+            className="h-auto"
+          />
+        </Link>
+      </div>
+      <nav className="flex-1 space-y-6">
+        <Button
+          variant="secondary"
+          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
+          onClick={() => {
+            onNavigate?.();
+            router.push("/seller/dashboard");
+          }}
+        >
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>MyDeals</span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          onClick={() => {
+            onNavigate?.();
+            router.push("/seller/loi-deals");
+          }}
+        >
+          <FileText className="h-5 w-5" />
+          <span>LOI - Deals</span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          onClick={() => {
+            onNavigate?.();
+            router.push("/seller/history");
+          }}
+        >
+          <Clock className="h-5 w-5" />
+          <span>Off Market</span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          onClick={() => {
+            onNavigate?.();
+            router.push("/seller/view-profile");
+          }}
+        >
+          <Eye className="h-5 w-5" />
+          <span>View Profile</span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
+          onClick={() => {
+            onNavigate?.();
+            handleLogout();
+          }}
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Sign Out</span>
+        </Button>
+      </nav>
+      <AmplifyVenturesBox />
+    </>
+  );
 
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-          <div className="mb-8">
-            <Link href="/seller/dashboard">
-              <Image
-                src="/logo.svg"
-                alt="CIM Amplify Logo"
-                width={150}
-                height={50}
-                className="h-auto"
-              />
-            </Link>
-          </div>
-          <nav className="flex-1 space-y-6">
-            <Button
-              variant="secondary"
-              className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-              onClick={() => router.push("/seller/dashboard")}
-            >
-              <svg
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>Deals</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/seller/view-profile")}
-            >
-              <Eye className="h-5 w-5" />
-              <span>View Profile</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/seller/history")}
-            >
-              <Clock className="h-5 w-5" />
-              <span>Off Market</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-              <span>Sign Out</span>
-            </Button>
-          </nav>
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex w-64 bg-white border-r border-gray-200 p-6 flex-col">
+          <NavigationContent />
         </div>
 
         {/* Main content */}
         <div className="flex-1">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-            <div className="flex items-center">
+          <header className="bg-white border-b border-gray-200 p-3 sm:p-6 flex justify-between items-center gap-2">
+            <div className="flex items-center gap-2">
+              {/* Mobile Menu Button */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] sm:w-[350px] flex flex-col h-full overflow-hidden">
+                  <SheetHeader>
+                    <SheetTitle>Menu</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 flex-1 overflow-y-auto pb-6">
+                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                  </div>
+                </SheetContent>
+              </Sheet>
               <Button
                 variant="ghost"
                 size="icon"
-                className="mr-4"
+                className="flex-shrink-0"
                 onClick={() => router.push("/seller/dashboard")}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 truncate">
                 {showBuyersForNewDeal
                   ? "Choose Buyers"
                   : "Buyer Status Summary"}
               </h1>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <div className="text-right hidden sm:block">
+                <div className="font-medium text-sm sm:text-base truncate max-w-[120px]">
                   {userProfile?.fullName || sellerProfile?.fullName || "User"}
                 </div>
               </div>
-              <div className="relative h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
+              <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
                 {sellerProfile?.profilePicture ? (
                   <img
                     src={
@@ -1117,7 +1378,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
 
           {/* Matched Buyers Section - Show only for new deals */}
           {showBuyersForNewDeal && (
-            <div className="p-6">
+            <div className="p-3 sm:p-6">
               {loadingBuyers ? (
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="text-center">
@@ -1211,24 +1472,12 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                           <div className="flex-1">
                             <div className="flex justify-between items-start mb-4">
                               <h3 className="text-lg font-medium text-teal-500">
-                                {buyer.companyName || "Anonymous"}
+                                {buyer.companyName || "Anonymous Company"}
                               </h3>
                             </div>
                             <div className="mb-6">
                               <h4 className="font-medium mb-2">Overview</h4>
                               <div className="space-y-1 text-sm">
-                                <div>
-                                  <span className="text-gray-500">Name: </span>
-                                  {buyer.buyerName || "Unknown"}
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Email: </span>
-                                  {buyer.buyerEmail || "Not provided"}
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Website: </span>
-                                  {buyer.website || "Unknown"}
-                                </div>
                                 <div>
                                   <span className="text-gray-500">
                                     Company Type:{" "}
@@ -1353,9 +1602,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           )}
 
           {/* Deal Details Content */}
-          <div className="p-6">
+          <div className="p-3 sm:p-6">
             {loading ? (
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <Skeleton className="h-8 w-1/3 mb-6" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -1387,9 +1636,44 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                 {/* Buyer Status Summary */}
                 <div className="bg-white rounded-lg shadow mb-6">
                   <div className="p-6 border-b border-gray-200">
-                    <h3 className="text-lg text-[#0D9488] font-medium">
-                      {deal.title}
-                    </h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <h3 className="text-lg text-[#0D9488] font-medium">
+                        {deal.title}
+                      </h3>
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push(`/seller/edit-deal?id=${deal._id}`)}
+                          className="py-2 text-xs sm:text-sm border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-all duration-200"
+                        >
+                          <Edit3 className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="py-2 text-xs sm:text-sm bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:border-amber-400 whitespace-nowrap disabled:opacity-70 transition-all duration-200"
+                          onClick={handlePauseForLOI}
+                          disabled={isPausingLOI}
+                        >
+                          {isPausingLOI ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <PauseCircle className="h-4 w-4 mr-1" />
+                              <span>Pause for LOI</span>
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="py-2 text-xs sm:text-sm bg-red-50 text-red-600 border-red-300 hover:bg-red-100 hover:border-red-400 whitespace-nowrap transition-all duration-200"
+                          onClick={handleOffMarketClick}
+                        >
+                          Off Market
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   <div className="p-6">
                     {loadingBuyers ? (
@@ -1524,15 +1808,13 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                             <div className="overflow-x-auto">
                               <table className="w-full table-fixed">
                                 <colgroup>
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
+                                  <col className="w-1/4" />
+                                  <col className="w-1/4" />
+                                  <col className="w-1/4" />
+                                  <col className="w-1/4" />
                                 </colgroup>
                                 <thead>
                                   <tr className="text-left border-b border-gray-200">
-                                    <th className="pb-3 font-medium text-gray-600">Buyer</th>
                                     <th className="pb-3 font-medium text-gray-600">Company</th>
                                     <th className="pb-3 font-medium text-gray-600">Status</th>
                                     <th className="pb-3 font-medium text-gray-600">Date</th>
@@ -1545,77 +1827,30 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                       key={buyer._id}
                                       className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                                     >
-                                      <td className="py-4 pr-4 cursor-pointer" onClick={() => handleBuyerClick(buyer)}>
+                                      <td className="py-4 pr-4">
                                         <div className="flex items-center">
-                                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 mr-3 flex-shrink-0">
-                                            {buyer.buyerName &&
-                                            buyer.buyerName !== `Buyer ${buyer.buyerId.slice(-4)}` ? (
-                                              buyer.buyerName.charAt(0).toUpperCase()
-                                            ) : (
-                                              <User className="h-5 w-5" />
-                                            )}
+                                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3 flex-shrink-0">
+                                            <User className="h-5 w-5" />
                                           </div>
                                           <div className="min-w-0">
-                                            <p className="font-medium truncate">{buyer.buyerName}</p>
-                                            <p className="text-sm text-gray-500 truncate">{buyer.buyerEmail}</p>
+                                            <p className="font-medium truncate">
+                                              {buyer.companyName && buyer.companyName !== "Company not available"
+                                                ? buyer.companyName
+                                                : "Anonymous Company"}
+                                            </p>
                                           </div>
                                         </div>
                                       </td>
-                                      <td className="py-4 pr-4 cursor-pointer" onClick={() => handleBuyerClick(buyer)}>
+                                      <td className="py-4 pr-4">
                                         <span
-                                          className={`truncate block ${
-                                            buyer.companyName === "Company not available" ? "text-gray-500 text-sm" : ""
-                                          }`}
+                                          className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(buyer.status || 'pending')}`}
                                         >
-                                          {buyer.companyName}
+                                          {buyer.status || 'pending'}
                                         </span>
                                       </td>
-                                      <td className="py-4 pr-4">
-                                        {(() => {
-                                          const isMarketplace = !!statusSummary?.deal?.isPublic;
-                                          const label = isMarketplace && buyer.status === 'requested' ? 'request pending' : (buyer.status || 'pending');
-                                          return (
-                                            <span
-                                              className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(label)}`}
-                                            >
-                                              {label}
-                                            </span>
-                                          );
-                                        })()}
-                                      </td>
                                       <td className="py-4 text-sm whitespace-nowrap">{formatDate(buyer.invitedAt)}</td>
-                                      <td className="py-4 pr-4 flex items-center gap-2">
-                                        {statusSummary?.deal?.isPublic && buyer.status === 'requested' ? (
-                                          <>
-                                            <Button
-                                              className="bg-teal-500 hover:bg-teal-600"
-                                              onClick={async (e) => {
-                                                e.stopPropagation();
-                                                const id = buyer.buyerId || buyer._id;
-                                                await approveBuyerToPending(id);
-                                              }}
-                                              disabled={!!rowActionLoading[buyer.buyerId || buyer._id]}
-                                            >
-                                              {rowActionLoading[buyer.buyerId || buyer._id] ? (
-                                                <span className="inline-flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-1" />Approving…</span>
-                                              ) : (
-                                                'Approve Access'
-                                              )}
-                                            </Button>
-                                            <Button
-                                              variant="outline"
-                                              className="border-red-200 text-red-600 hover:bg-red-50"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setConfirmDenyBuyer(buyer);
-                                              }}
-                                            >
-                                              Deny
-                                            </Button>
-                                          </>
-                                        ) : (
-                                          <span className="text-gray-400 text-sm">n/a</span>
-                                        )}
+                                      <td className="py-4 pr-4">
+                                        <span className="text-gray-400 text-sm">Awaiting response</span>
                                       </td>
                                     </tr>
                                   ))}
@@ -1660,41 +1895,51 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                       </div>
 
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {/* Basic Information */}
+                                        {/* Basic Information - Only show contact details for Active buyers */}
                                         <div className="mb-6">
                                           <h4 className="text-lg font-medium mb-4 text-gray-800">
                                             Basic Information
                                           </h4>
                                           <div className="space-y-3 text-sm">
-                                            <div>
-                                              <span className="text-gray-500 font-medium">
-                                                Contact Name:{" "}
-                                              </span>
-                                              <span className="text-gray-900">
-                                                {selectedBuyer.buyerName ||
-                                                  "Unknown"}
-                                              </span>
-                                            </div>
-                                            
-                                            <div>
-                                              <span className="text-gray-500 font-medium">
-                                                Email:{" "}
-                                              </span>
-                                              <span className="text-gray-900">
-                                                {selectedBuyer.buyerEmail ||
-                                                  "Not provided"}
-                                              </span>
-                                            </div>
-                                            {selectedCompanyProfile?.website && (
-                                              <div>
-                                                <span className="text-gray-500 font-medium">
-                                                  Website:{" "}
-                                                </span>
-                                                <span className="text-gray-900">
-                                                  <a href={selectedCompanyProfile.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                                                    {selectedCompanyProfile.website}
-                                                  </a>
-                                                </span>
+                                            {/* Only show contact name and email for Active buyers */}
+                                            {(selectedBuyer.status === 'accepted' || selectedBuyer.status === 'interested' || selectedBuyer.sellerApproved) ? (
+                                              <>
+                                                <div>
+                                                  <span className="text-gray-500 font-medium">
+                                                    Contact Name:{" "}
+                                                  </span>
+                                                  <span className="text-gray-900">
+                                                    {selectedBuyer.buyerName ||
+                                                      "Unknown"}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-gray-500 font-medium">
+                                                    Email:{" "}
+                                                  </span>
+                                                  <span className="text-gray-900">
+                                                    {selectedBuyer.buyerEmail ||
+                                                      "Not provided"}
+                                                  </span>
+                                                </div>
+                                                {selectedCompanyProfile?.website && (
+                                                  <div>
+                                                    <span className="text-gray-500 font-medium">
+                                                      Website:{" "}
+                                                    </span>
+                                                    <span className="text-gray-900">
+                                                      <a href={selectedCompanyProfile.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                                        {selectedCompanyProfile.website}
+                                                      </a>
+                                                    </span>
+                                                  </div>
+                                                )}
+                                              </>
+                                            ) : (
+                                              <div className="bg-gray-50 p-3 rounded-lg">
+                                                <p className="text-gray-500 text-sm italic">
+                                                  Contact details will be available once the buyer accepts the deal invitation.
+                                                </p>
                                               </div>
                                             )}
                                             {selectedCompanyProfile?.description && (
@@ -1924,19 +2169,17 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                             <div className="overflow-x-auto">
                               <table className="w-full table-fixed">
                                 <colgroup>
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
-                                  <col className="w-1/5" />
+                                  <col className="w-1/4" />
+                                  <col className="w-1/4" />
+                                  <col className="w-1/4" />
+                                  <col className="w-1/4" />
                                 </colgroup>
                                 <thead>
                                   <tr className="text-left border-b border-gray-200">
-                                    <th className="pb-3 font-medium text-gray-600">Buyer</th>
                                     <th className="pb-3 font-medium text-gray-600">Company</th>
                                     <th className="pb-3 font-medium text-gray-600">Status</th>
                                     <th className="pb-3 font-medium text-gray-600">Date</th>
-                                    <th className="pb-3 font-medium text-gray-600">Action</th>
+                                    <th className="pb-3 font-medium text-gray-600">Reason</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1944,34 +2187,27 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                     <tr key={buyer._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                       <td className="py-4 pr-4">
                                         <div className="flex items-center">
-                                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 mr-3 flex-shrink-0">
-                                            {buyer.buyerName &&
-                                            buyer.buyerName !== `Buyer ${buyer.buyerId.slice(-4)}` ? (
-                                              buyer.buyerName.charAt(0).toUpperCase()
-                                            ) : (
-                                              <User className="h-5 w-5" />
-                                            )}
+                                          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 mr-3 flex-shrink-0">
+                                            <User className="h-5 w-5" />
                                           </div>
                                           <div className="min-w-0">
-                                            <p className="font-medium truncate cursor-pointer" onClick={() => handleBuyerClick(buyer)}>{buyer.buyerName}</p>
-                                            <p className="text-sm text-gray-500 truncate">{buyer.buyerEmail}</p>
+                                            <p className="font-medium truncate">
+                                              {buyer.companyName && buyer.companyName !== "Company not available"
+                                                ? buyer.companyName
+                                                : "Anonymous Company"}
+                                            </p>
                                           </div>
                                         </div>
-                                      </td>
-                                      <td className="py-4 pr-4">
-                                        <span
-                                          className={`truncate block ${
-                                            buyer.companyName === "Company not available" ? "text-gray-500 text-sm" : ""
-                                          }`}
-                                        >
-                                          {buyer.companyName}
-                                        </span>
                                       </td>
                                       <td className="py-4 pr-4">
                                         {(() => {
                                           const isMarketplaceDenial = !!statusSummary?.deal?.isPublic && buyer.decisionBy === 'seller';
                                           if (isMarketplaceDenial) {
-                                            return <span className="text-gray-400 text-sm">n/a</span>;
+                                            return (
+                                              <span className="px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap bg-red-100 text-red-700">
+                                                request denied
+                                              </span>
+                                            );
                                           }
                                           const label = buyer.status || 'rejected';
                                           return (
@@ -1988,9 +2224,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                         {(() => {
                                           const isMarketplaceDenial = !!statusSummary?.deal?.isPublic && buyer.decisionBy === 'seller';
                                           if (isMarketplaceDenial) {
-                                            return <span className="text-red-600 font-medium">Request Denied</span>;
+                                            return <span className="text-gray-500 text-sm">Denied by advisor</span>;
                                           }
-                                          return <span className="text-gray-400 text-sm">n/a</span>;
+                                          return <span className="text-gray-500 text-sm">Passed on deal</span>;
                                         })()}
                                       </td>
                                     </tr>
@@ -2023,34 +2259,150 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           </div>
         </div>
       </div>
-      {confirmDenyBuyer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold mb-2">Deny Access?</h3>
-            <p className="text-gray-600 mb-4">
-              Are you sure you want to deny access for{' '}
-              <span className="font-medium">{confirmDenyBuyer.buyerName}</span>?
-              This will notify the buyer and move them to Rejected.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmDenyBuyer(null)} disabled={confirmDenyLoading}>
-                Cancel
-              </Button>
-              <Button
-                className="bg-red-500 hover:bg-red-600"
-                onClick={() => denyBuyer(confirmDenyBuyer.buyerId || confirmDenyBuyer._id)}
-                disabled={confirmDenyLoading}
-              >
-                {confirmDenyLoading ? (
-                  <span className="inline-flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-1" />Denying…</span>
-                ) : (
-                  'Deny'
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+
+      {/* Off Market Dialog */}
+      <Dialog open={offMarketDialogOpen} onOpenChange={setOffMarketDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          {currentDialogStep === 1 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">Did the deal sell?</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 mt-4">
+                <div className="flex gap-4">
+                  <Button
+                    variant={offMarketData.dealSold === false ? "default" : "outline"}
+                    onClick={() => handleDialogResponse("dealSold", false)}
+                    disabled={isClosingDeal}
+                    className={
+                      offMarketData.dealSold === false
+                        ? "flex-1 bg-red-500 text-white hover:bg-red-600 border-red-500"
+                        : "flex-1 bg-white text-red-500 border border-red-500 hover:bg-red-50"
+                    }
+                  >
+                    {isClosingDeal ? <Loader2 className="h-4 w-4 animate-spin" /> : "No"}
+                  </Button>
+                  <Button
+                    variant={offMarketData.dealSold === true ? "default" : "outline"}
+                    onClick={() => handleDialogResponse("dealSold", true)}
+                    className={
+                      offMarketData.dealSold === true
+                        ? "flex-1 bg-teal-500 text-white hover:bg-teal-600 border-teal-500"
+                        : "flex-1 bg-white text-teal-500 border border-teal-500 hover:bg-teal-50"
+                    }
+                  >
+                    Yes
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : currentDialogStep === 2 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">What was the transaction value?</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="transaction-value">Transaction Value ($)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <Input
+                      id="transaction-value"
+                      type="text"
+                      placeholder="Enter amount"
+                      value={offMarketData.transactionValue}
+                      onChange={(e) =>
+                        setOffMarketData((prev) => ({
+                          ...prev,
+                          transactionValue: formatTransactionValue(e.target.value),
+                        }))
+                      }
+                      className="pl-7"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={() => setCurrentDialogStep(3)} className="bg-teal-500 hover:bg-teal-600">
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : currentDialogStep === 3 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">Select the buyer</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {buyerActivityLoading ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-gray-500">
+                      <span className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-teal-500 border-t-transparent"></span>
+                      Loading buyers...
+                    </div>
+                  ) : activeBuyerOptions.length > 0 ? (
+                    activeBuyerOptions.map((buyer) => (
+                      <div
+                        key={buyer.buyerId}
+                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                          selectedWinningBuyer === buyer.buyerId
+                            ? "border-teal-500 bg-teal-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        onClick={() => setSelectedWinningBuyer(buyer.buyerId)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
+                            <User className="h-5 w-5 text-gray-500" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">{buyer.buyerName || "Unknown Buyer"}</div>
+                            <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
+                          </div>
+                        </div>
+                        {selectedWinningBuyer === buyer.buyerId && (
+                          <svg className="h-5 w-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-4">
+                      No buyers have interacted with this deal yet
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-3 pt-2">
+                  <Button
+                    onClick={() => {
+                      setOffMarketData((prev) => ({ ...prev, buyerFromCIM: true }));
+                      handleOffMarketSubmit();
+                    }}
+                    className="w-full bg-teal-500 hover:bg-teal-600"
+                    disabled={!selectedWinningBuyer || isClosingDeal}
+                  >
+                    {isClosingDeal ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleImmediateCloseNoCIM}
+                    disabled={isClosingDeal}
+                    className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    {isClosingDeal ? <Loader2 className="h-4 w-4 animate-spin" /> : "The buyer did not come from CIM Amplify"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <DialogHeader>
+              <DialogTitle className="sr-only">Off Market Dialog</DialogTitle>
+            </DialogHeader>
+          )}
+        </DialogContent>
+      </Dialog>
     </SellerProtectedRoute>
   );
 }

@@ -19,26 +19,21 @@ export default function SelectRolePage() {
   // Handle redirection for already logged-in users
   useEffect(() => {
     if (!isLoading) {
-      console.log("SelectRole - Auth state:", { isLoggedIn, userRole })
 
       // If user is already logged in, redirect to appropriate dashboard
       if (isLoggedIn && userRole) {
         switch (userRole) {
           case "buyer":
-            console.log("SelectRole - User is already a buyer, redirecting to deals")
             router.push("/buyer/deals")
             break
           case "seller":
-            console.log("SelectRole - User is already a seller, redirecting to dashboard")
             router.push("/seller/dashboard")
             break
           case "admin":
-            console.log("SelectRole - User is an admin, redirecting to admin dashboard")
             router.push("/admin/dashboard")
             break
           default:
             // If role is unknown, stay on this page
-            console.log("SelectRole - User has unknown role:", userRole)
         }
       }
     }
@@ -49,10 +44,8 @@ export default function SelectRolePage() {
     e.preventDefault()
 
     if (isLoggedIn && userRole === "buyer") {
-      console.log("SelectRole - Buyer clicked profile button, redirecting to deals")
       router.push("/buyer/deals")
     } else {
-      console.log("SelectRole - Non-buyer clicked profile button, redirecting to register")
       router.push("/buyer/login")
     }
   }
@@ -62,10 +55,8 @@ export default function SelectRolePage() {
     e.preventDefault()
 
     if (isLoggedIn && userRole === "seller") {
-      console.log("SelectRole - Seller clicked button, redirecting to dashboard")
       router.push("/seller/dashboard")
     } else {
-      console.log("SelectRole - Non-seller clicked button, redirecting to register")
       router.push("/seller/login")
     }
   }

@@ -34,11 +34,22 @@ export default function SellerForgotPasswordPage() {
         description: response.data?.message,
       })
     } catch (err: any) {
-      console.error(err)
-      setError(err?.response?.data?.message || 'Something went wrong.')
+      let errorMessage = "Unable to send reset email. Please try again.";
+      
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err?.response?.status === 404) {
+        errorMessage = "No account found with this email address. Please check your email or register for a new account.";
+      } else if (err?.response?.status >= 500) {
+        errorMessage = "Server error. Please try again in a few minutes.";
+      } else if (err.message && err.message.includes("Network Error")) {
+        errorMessage = "Network connection error. Please check your internet connection and try again.";
+      }
+      
+      setError(errorMessage)
       toast({
         title: 'Error',
-        description: err?.response?.data?.message || 'Something went wrong.',
+        description: errorMessage,
         variant: 'destructive',
       })
     } finally {

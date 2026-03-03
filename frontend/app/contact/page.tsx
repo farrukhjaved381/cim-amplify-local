@@ -79,7 +79,6 @@ export default function SimpleContact() {
       }, 3000);
       
     } catch (error) {
-      console.error('Form submission error:', error);
       setSubmitStatus('Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);

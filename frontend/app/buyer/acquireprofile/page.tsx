@@ -195,17 +195,15 @@ export default function AcquireProfilePage() {
 
     if (urlToken) {
       const cleanToken = urlToken.trim();
-      localStorage.setItem("token", cleanToken);
+      sessionStorage.setItem("token", cleanToken);
       setAuthToken(cleanToken);
-      console.log("Token set from URL:", cleanToken.substring(0, 10) + "...");
+      
     } else {
-      const storedToken = localStorage.getItem("token");
+      const storedToken = sessionStorage.getItem("token");
       if (storedToken) {
         const cleanToken = storedToken.trim();
         setAuthToken(cleanToken);
-        console.log("Token set from localStorage:", cleanToken.substring(0, 10) + "...");
       } else {
-        console.warn("No token found, redirecting to login");
         toast({
           title: "Authentication Required",
           description: "Please log in to access this page.",
@@ -218,15 +216,13 @@ export default function AcquireProfilePage() {
 
     if (urlUserId) {
       const cleanUserId = urlUserId.trim();
-      localStorage.setItem("userId", cleanUserId);
+      sessionStorage.setItem("userId", cleanUserId);
       setBuyerId(cleanUserId);
-      console.log("Buyer ID set from URL:", cleanUserId);
     } else {
-      const storedUserId = localStorage.getItem("userId");
+      const storedUserId = sessionStorage.getItem("userId");
       if (storedUserId) {
         const cleanUserId = storedUserId.trim();
         setBuyerId(cleanUserId);
-        console.log("Buyer ID set from localStorage:", cleanUserId);
       }
     }
 
@@ -243,7 +239,6 @@ export default function AcquireProfilePage() {
         const geo = await getGeoData();
         setGeoData(geo);
         const industry = await getIndustryData();
-        console.log("Fetched industryData:", JSON.stringify(industry, null, 2));
         setIndustryData(industry);
 
         const initialIndustrySelection: IndustrySelection = {
@@ -266,7 +261,6 @@ export default function AcquireProfilePage() {
           await fetchUserProfile();
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
         toast({
           title: "Data Loading Error",
           description: "Failed to load geography and industry data.",
@@ -280,29 +274,21 @@ export default function AcquireProfilePage() {
   // Fetch user's existing profile data
   const fetchUserProfile = async () => {
     if (!authToken || !buyerId) {
-      console.warn("No authToken or buyerId, cannot fetch profile", { authToken, buyerId });
       return;
     }
     try {
       const apiUrl = localStorage.getItem("apiUrl") || DEFAULT_API_URL;
-      console.log("Fetching buyer details from:", `${apiUrl}/buyers/me`, "with token:", authToken.substring(0, 10) + "...", "buyerId:", buyerId);
 
       const buyerRes = await fetch(`${apiUrl}/buyers/me`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (!buyerRes.ok) {
-        const errorBody = await buyerRes.text();
-        console.error("Failed to fetch buyer details:", {
-          status: buyerRes.status,
-          statusText: buyerRes.statusText,
-          body: errorBody,
-        });
         throw new Error(`Failed to fetch buyer details: ${buyerRes.status} ${buyerRes.statusText}`);
       }
 
       const buyerDetails = await buyerRes.json();
-      console.log("Fetched buyerDetails:", buyerDetails);
+     
 
       const profileRes = await fetch(`${apiUrl}/company-profiles/my-profile`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -310,8 +296,7 @@ export default function AcquireProfilePage() {
 
       if (profileRes.ok) {
         const profileData = await profileRes.json();
-        console.log("Existing profile loaded:", profileData);
-        console.log("profileData.capitalEntity:", profileData.capitalEntity);
+        
 
         // Map industrySectors to industrySelection
         const newIndustrySelection: IndustrySelection = {
@@ -390,7 +375,7 @@ export default function AcquireProfilePage() {
         setGeoSelection(profileData.targetCriteria?.countries || []);
         toast({ title: "Profile Loaded", description: "Your existing profile has been loaded." });
       } else if (profileRes.status === 404) {
-        console.log("No existing profile found, setting formData from buyerDetails:", buyerDetails);
+      
         setFormData({
           ...formData,
           companyName: buyerDetails.companyName || "",
@@ -402,15 +387,10 @@ export default function AcquireProfilePage() {
         toast({ title: "New Profile", description: "Please fill out your company profile details." });
       } else {
         const errorBody = await profileRes.text();
-        console.error("Failed to fetch company profile:", {
-          status: profileRes.status,
-          statusText: profileRes.statusText,
-          body: errorBody,
-        });
         throw new Error(`Failed to fetch company profile: ${profileRes.status} ${profileRes.statusText}`);
       }
     } catch (error) {
-      console.error("Error fetching profile:", error, {
+      console.error("Profile fetch error:", {
         apiUrl: localStorage.getItem("apiUrl") || DEFAULT_API_URL,
         authToken: authToken?.substring(0, 10) + "...",
         buyerId,
@@ -912,7 +892,7 @@ const validateField = (field: string, value: any): string | null => {
       elementId = "feeAgreement";
     }
     
-    console.log(`Scrolling to field: ${firstErrorField} with element ID: ${elementId}`);
+  
     
     const element = document.getElementById(elementId);
     if (element) {
@@ -928,8 +908,6 @@ const validateField = (field: string, value: any): string | null => {
           }, 3000);
         }
       }, 500);
-    } else {
-      console.warn(`Element with ID ${elementId} not found`);
     }
   }
 };
@@ -1000,10 +978,18 @@ const validateField = (field: string, value: any): string | null => {
 
   const { dismiss } = useToast();
   const handleLogout = () => {
-    console.log("Logging out");
+   
     dismiss();
+    // Clear sessionStorage
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("refreshToken");
+    sessionStorage.removeItem("userId");
+    sessionStorage.removeItem("userRole");
+    // Clear localStorage (legacy)
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("userId");
+    localStorage.removeItem("userRole");
     router.push("/buyer/login");
   };
 
@@ -1220,7 +1206,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           profileId = profile._id;
         }
       } catch (error) {
-        console.log("No existing profile found, will create new one");
+        
       }
       const method = profileId ? "PATCH" : "POST";
       const url = profileId ? `${apiUrl}/company-profiles/${profileId}` : `${apiUrl}/company-profiles`;
@@ -1237,7 +1223,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
-      console.log(`Profile ${profileId ? "updated" : "created"} successfully:`, result);
+   
       setSubmitStatus("success");
       toast({
         title: `Profile ${profileId ? "Updated" : "Submitted"}`,
@@ -1248,7 +1234,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         router.push("/buyer/deals?profileSubmitted=true");
       }, 1000);
     } catch (error: any) {
-      console.error("Submission error:", error);
       setSubmitStatus("error");
       setErrorMessage(error.message || "An error occurred while submitting your profile.");
       toast({
@@ -2483,7 +2468,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               className="bg-[#3aafa9] hover:bg-[#2a9d8f] text-white px-8 py-2 text-base font-medium"
               disabled={isSubmitting}
               onClick={(e) => {
-                console.log("Submit button clicked");
+               
                 handleSubmit(e);
               }}
             >

@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { AdminProtectedRoute } from "@/components/admin/protected-route";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/use-toast";
 
@@ -76,8 +77,8 @@ const BUSINESS_MODELS = [
   "Asset Heavy",
 ];
 
-// Default API URL
-const DEFAULT_API_URL = "http://localhost:5001";
+// Default API URL - use environment variable with fallback
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 // Type for hierarchical selection
 interface HierarchicalSelection {
@@ -179,7 +180,7 @@ if (urlProfileId) {
     localStorage.setItem("token", cleanToken);
     setAuthToken(cleanToken);
   } else {
-    const storedToken = localStorage.getItem("token");
+    const storedToken = sessionStorage.getItem('token');
     if (storedToken) {
       setAuthToken(storedToken.trim());
     } else {
@@ -228,7 +229,7 @@ useEffect(() => {
       setIndustryData(industry);
 
     } catch (error) {
-      console.error("Error fetching initial data:", error);
+      // Error fetching initial data - handled silently
     }
   };
 
@@ -363,7 +364,6 @@ const fetchUserProfile = async () => {
     });
     if (buyerRes.ok) {
       buyerDetails = await buyerRes.json();
-      console.log("Fetched buyerDetails:", buyerDetails);
     }
   } catch (err) {
     // handle error
@@ -392,7 +392,6 @@ const fetchUserProfile = async () => {
             },
           ],
         };
-        console.log("Setting formData from buyerDetails (404):", newForm);
         return newForm;
       });
       return;
@@ -401,7 +400,6 @@ const fetchUserProfile = async () => {
   }
 
   const profileData = await response.json();
-  console.log("Existing profile loaded:", profileData);
 
   // Update form data with the fetched profile
   if (profileData) {
@@ -434,7 +432,6 @@ const fetchUserProfile = async () => {
       selectedCurrency: profileData.selectedCurrency || "USD",
       capitalEntity: profileData.capitalEntity || undefined,
     };
-    console.log("Setting formData from profileData:", updatedProfile);
     setFormData(updatedProfile);
 
     // Update geography selections
@@ -1414,7 +1411,7 @@ const getExistingProfileId = async (currentBuyerId: string): Promise<string | nu
     }
     return null;
   } catch (error) {
-    console.error("Error checking for existing profile:", error);
+    // Error checking for existing profile - handled silently
     return null;
   }
 };
@@ -1526,7 +1523,6 @@ const handleSubmit = async (e: React.FormEvent) => {
   const hasErrors = Object.values(errors).some((error) => error !== "");
   
   if (hasErrors) {
-    console.log("Validation errors found:", errors);
     toast({
       title: "Validation Error",
       description: "Please correct the errors in the form before submitting.",
@@ -1595,8 +1591,6 @@ const handleSubmit = async (e: React.FormEvent) => {
       JSON.stringify(profileData, (key, value) => (value === undefined ? null : value))
     );
 
-    console.log("Submitting profile data:", cleanProfileData);
-
     let response;
     if (isAdminEdit && profileId) {
       // PATCH for admin
@@ -1656,7 +1650,6 @@ const handleSubmit = async (e: React.FormEvent) => {
       }
     }, 1000);
   } catch (error: any) {
-    console.error("Submission error:", error);
     setSubmitStatus("error");
     setErrorMessage(
       error.message || "An error occurred while updating the profile."
@@ -1884,10 +1877,11 @@ const handleSubmit = async (e: React.FormEvent) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] py-8 px-4 font-poppins">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <AdminProtectedRoute>
+      <div className="min-h-screen bg-[#f0f4f8] py-4 sm:py-8 px-3 sm:px-4 font-poppins">
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-semibold text-[#2f2b43] font-poppins">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#2f2b43] font-poppins">
             Buyer Profile Form
           </h1>
         </div>
@@ -1912,7 +1906,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
         <form onSubmit={handleSubmit}>
           {/* Company Information */}
-          <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
+          <div className="bg-white rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
             <h2 className="text-[#2f2b43] text-lg font-poppins font-seminold mb-4">
               About Your Company
             </h2>
@@ -2328,7 +2322,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
 
           {/* Target Criteria */}
-          <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
+          <div className="bg-white rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
             <h2 className="text-[#2f2b43] text-lg font-medium mb-4">
               Target Criteria
             </h2>
@@ -2887,7 +2881,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
             </div>
             {/* Preferred Business Models */}
-            <div className="rounded-lg p-6 shadow-sm mb-6">
+            <div className="rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
               <h2 className="text-[#2f2b43] text-lg font-medium mb-4">
                 Preferred Business Models
               </h2>
@@ -2914,7 +2908,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             {/* Description of Ideal Target(s) */}
-            <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
+            <div className="bg-white rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
               <h2 className="text-[#2f2b43] text-lg font-medium mb-4">
                 Description of Ideal Target(s)
               </h2>
@@ -2933,7 +2927,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
           </div>
           {/* General Preferences */}
-          <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
+          <div className="bg-white rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
             <h2 className="text-[#2f2b43] text-lg font-medium mb-4">
               General Preferences
             </h2>
@@ -2999,7 +2993,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
           </div>
            {/* Agreements */}
-           <div className="bg-white rounded-lg p-6 shadow-sm mb-6">
+           <div className="bg-white rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
             <h2 className="text-[#2f2b43] text-lg font-medium mb-4">
               Agreement
             </h2>
@@ -3048,7 +3042,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               className="bg-[#3aafa9] hover:bg-[#2a9d8f] text-white px-8 py-2 text-base font-medium"
               disabled={isSubmitting}
               onClick={(e) => {
-                console.log("Submit button clicked");
                 handleSubmit(e);
               }}
             >
@@ -3066,5 +3059,6 @@ const handleSubmit = async (e: React.FormEvent) => {
       </div>
       <Toaster />
     </div>
+    </AdminProtectedRoute>
   );
 }

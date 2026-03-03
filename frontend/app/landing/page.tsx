@@ -781,7 +781,7 @@ export default function Component() {
               </p>
               <ul className="space-y-3 sm:space-y-4">
                 {[
-                  "Seller Rewards – You are our oxygen and we appreciate you. Every deal is worth at least an Amazon gift card. Much more if your buyer comes from CIM Amplify and you use us exclusively",
+                  "Advisor Rewards – You are our oxygen and we appreciate you. Every deal is worth at least an Amazon gift card. Much more if your buyer comes from CIM Amplify and you use us exclusively",
                   'No tire kickers! Set "Ability to Close" filters for every deal',
 
                   "We get out of the way – no requirement to communicate through the platform",

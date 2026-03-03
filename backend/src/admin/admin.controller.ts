@@ -10,6 +10,7 @@ import { BuyersService } from "../buyers/buyers.service"
 import { UpdateCompanyProfileDto } from "../company-profile/dto/update-company-profile.dto"
 import { UnauthorizedException } from "@nestjs/common"
 import { SellersService } from "../sellers/sellers.service"
+import { UpdateSellerDto } from "../sellers/dto/update-seller.dto"
 
 interface RequestWithUser extends Request {
   user: {
@@ -69,6 +70,42 @@ export class AdminController {
     const result = updated.toObject ? updated.toObject() : { ...updated };
     delete result.password;
     return result;
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('upload-profile-picture')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload admin profile picture as base64' })
+  @ApiResponse({ status: 200, description: 'Profile picture uploaded successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async uploadProfilePicture(@Request() req: RequestWithUser, @Body() body: { profilePicture: string }) {
+    if (!req.user?.userId) {
+      throw new UnauthorizedException("User not authenticated");
+    }
+
+    if (!body.profilePicture) {
+      return { error: "No profile picture data provided" };
+    }
+
+    // Validate base64 image format
+    if (!body.profilePicture.startsWith('data:image/')) {
+      return { error: "Invalid image format. Please provide a valid base64 image." };
+    }
+
+    try {
+      const updated = await this.adminService.updateProfile(req.user.userId, { profilePicture: body.profilePicture });
+      const result = updated.toObject ? updated.toObject() : { ...updated };
+      delete result.password;
+      return {
+        message: "Profile picture uploaded successfully",
+        profilePicture: body.profilePicture,
+        profile: result
+      };
+    } catch (error) {
+      console.error("Error updating admin profile picture:", error);
+      return { error: "Failed to update profile picture" };
+    }
   }
 
   // Company Profile Management for Admins
@@ -179,6 +216,24 @@ export class AdminController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
+  @Patch('buyers/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a buyer (admin only)' })
+  @ApiParam({ name: 'id', type: String, description: 'Buyer ID' })
+  @ApiResponse({ status: 200, description: 'Buyer updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - requires admin role' })
+  @ApiResponse({ status: 404, description: 'Buyer not found' })
+  async updateBuyer(@Param('id') id: string, @Body() updateData: any) {
+    // Convert phoneNumber to phone if provided (frontend uses phoneNumber, backend uses phone)
+    if (updateData.phoneNumber !== undefined) {
+      updateData.phone = updateData.phoneNumber;
+      delete updateData.phoneNumber;
+    }
+    return this.adminService.updateBuyer(id, updateData);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Delete('buyers/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a buyer (admin only)' })
@@ -224,6 +279,19 @@ export class AdminController {
   @ApiResponse({ status: 404, description: 'Seller not found' })
   async getSeller(@Param('id') id: string) {
     return this.sellersService.findById(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Patch('sellers/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a seller (admin only)' })
+  @ApiParam({ name: 'id', type: String, description: 'Seller ID' })
+  @ApiResponse({ status: 200, description: 'Seller updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - requires admin role' })
+  @ApiResponse({ status: 404, description: 'Seller not found' })
+  async updateSeller(@Param('id') id: string, @Body() updateSellerDto: UpdateSellerDto) {
+    return this.sellersService.update(id, updateSellerDto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

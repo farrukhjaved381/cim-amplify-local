@@ -4,8 +4,10 @@ import { ValidationPipe } from "@nestjs/common"
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger"
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { join } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 import { AppModule } from "./app.module"
 import * as express from "express"
+import { GlobalExceptionFilter } from "./common/filters/http-exception.filter"
 
 let cachedApp: NestExpressApplication;
 
@@ -15,14 +17,53 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Create uploads directories if they don't exist (only for local development)
+  if (process.env.VERCEL !== '1') {
+    const uploadDirs = ['./uploads', './uploads/profile-pictures', './uploads/deal-documents'];
+    uploadDirs.forEach(dir => {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+        console.log(`📁 Created directory: ${dir}`);
+      }
+    });
+
+    // Serve static files from uploads directory
+    app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+      prefix: '/uploads/',
+    });
+  }
+
   let frontendUrl = process.env.FRONTEND_URL || "http://localhost:5000"
   // Remove trailing slash if present
   if (frontendUrl.endsWith("/")) {
     frontendUrl = frontendUrl.slice(0, -1)
   }
+  // Enable CORS before other middleware
+  app.enableCors({
+    origin: true, // Allow all origins for now
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'Accept',
+      'Cache-Control',
+      'X-Requested-With',
+      'Origin',
+      'Access-Control-Request-Method',
+      'Access-Control-Request-Headers'
+    ],
+    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  })
+
   // Increase body size limit for large uploads (e.g., base64 images)
-  app.use(express.json({ limit: '10mb' }))
-  app.use(express.urlencoded({ limit: '10mb', extended: true }))
+  app.use(express.json({ limit: '50mb' }))
+  app.use(express.urlencoded({ limit: '50mb', extended: true }))
+  
+  // Global exception filter for consistent error responses
+  app.useGlobalFilters(new GlobalExceptionFilter())
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -33,35 +74,7 @@ async function bootstrap() {
       },
     }),
   )
-  // Fix CORS configuration
-  const allowedOrigins = [
-    "https://cim-amplify-five.vercel.app",
-    process.env.FRONTEND_URL,
-    "http://localhost:5000",
-    "http://localhost:3000", // Keep for backward compatibility
-  ].filter(Boolean);
   
-  app.enableCors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-      
-      // Check if origin is allowed
-      const isAllowed = allowedOrigins.some(allowed => 
-        allowed && (origin.includes(allowed) || origin === allowed || origin.includes('.vercel.app'))
-      );
-      
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        callback(null, true); // Allow all for now, restrict in production
-      }
-    },
-    credentials: true,
-  })
   // Setup Swagger with CDN assets for Vercel
   const config = new DocumentBuilder()
     .setTitle("CIM Amplify API")
@@ -91,7 +104,7 @@ async function bootstrap() {
     },
   })
 
-  const port = process.env.PORT || 5001;
+  const port = process.env.PORT || 3001;
   
   // Only listen on port if not in Vercel environment
   if (process.env.VERCEL !== '1') {

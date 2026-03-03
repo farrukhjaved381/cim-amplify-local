@@ -20,6 +20,7 @@ export default function VerifyEmailSuccessPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const token = searchParams.get('token');
+  const refreshToken = searchParams.get('refreshToken');
   const role = searchParams.get('role');
   const fullNameParam = searchParams.get('fullName');
 
@@ -28,26 +29,25 @@ export default function VerifyEmailSuccessPage() {
       try {
         const decoded: JwtPayload = jwtDecode(token);
         const userId = decoded.sub;
-        
+
         setUserName(fullNameParam || decoded.name || 'User');
         setUserRole(role);
-        
+
         localStorage.setItem('token', token);
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        }
         localStorage.setItem('userId', userId);
         localStorage.setItem('userRole', role);
-        
-        console.log('VerifyEmailSuccess - Stored token and userId:', token.substring(0, 10) + '...', userId);
-        
+
         setTimeout(() => setIsLoading(false), 800);
       } catch (error) {
-        console.error('VerifyEmailSuccess - Failed to decode token:', error);
         router.push('/verify-email-failure');
       }
     } else {
-      console.warn('VerifyEmailSuccess - Missing token or role, redirecting to failure');
       router.push('/verify-email-failure');
     }
-  }, [token, role, router]);
+  }, [token, role, refreshToken, router]);
 
   const handleContinue = () => {
     if (userRole === 'buyer') {
@@ -205,7 +205,7 @@ export default function VerifyEmailSuccessPage() {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-white mb-4 group-hover:text-green-200 transition-colors duration-300">Next Steps for Sellers:</h2>
+                    <h2 className="text-2xl font-bold text-white mb-4 group-hover:text-green-200 transition-colors duration-300">Next Steps for Advisors:</h2>
                     <p className="text-white/80 mb-4 leading-relaxed text-lg">
                       Welcome to CIM Amplify! You can now log in to your dashboard to add and manage your deals.
                     </p>
@@ -376,7 +376,7 @@ export default function VerifyEmailSuccessPage() {
           {/* Footer */}
           <div className="bg-white/5 backdrop-blur-sm px-8 py-6 border-t border-white/10">
             <p className="text-center text-base text-white/60">
-              © 2025 CIM Amplify. All rights reserved.
+              © 2026 CIM Amplify. All rights reserved.
             </p>
           </div>
         </div>

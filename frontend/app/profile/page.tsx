@@ -80,15 +80,15 @@ export default function ProfilePage() {
       const cleanToken = urlToken.trim()
       localStorage.setItem("token", cleanToken)
       setAuthToken(cleanToken)
-      console.log("Profile page - Token set from URL:", cleanToken.substring(0, 10) + "...")
+
     } else {
-      const storedToken = localStorage.getItem("token")
+      const storedToken = sessionStorage.getItem('token')
       if (storedToken) {
         const cleanToken = storedToken.trim()
         setAuthToken(cleanToken)
-        console.log("Profile page - Token set from localStorage:", cleanToken.substring(0, 10) + "...")
+
       } else {
-        console.warn("Profile page - No token found, redirecting to login")
+
         router.push("/login")
         return
       }
@@ -99,13 +99,13 @@ export default function ProfilePage() {
       const cleanUserId = urlUserId.trim()
       localStorage.setItem("userId", cleanUserId)
       setBuyerId(cleanUserId)
-      console.log("Profile page - Buyer ID set from URL:", cleanUserId)
+
     } else {
       const storedUserId = localStorage.getItem("userId")
       if (storedUserId) {
         const cleanUserId = storedUserId.trim()
         setBuyerId(cleanUserId)
-        console.log("Profile page - Buyer ID set from localStorage:", cleanUserId)
+
       }
     }
   }, [searchParams, router])
@@ -152,7 +152,7 @@ export default function ProfilePage() {
 
         // If 404, it means the user hasn't created a company profile yet
         if (companyResponse.status === 404) {
-          console.log("No company profile found")
+
           setCompanyProfile(null)
         } else if (!companyResponse.ok) {
           if (companyResponse.status === 401) {
@@ -168,7 +168,7 @@ export default function ProfilePage() {
           setCompanyProfile(companyData)
         }
       } catch (err: any) {
-        console.error("Error fetching profiles:", err)
+
         setError(err.message || "Failed to load profile data")
         toast({
           title: "Error",
@@ -184,7 +184,7 @@ export default function ProfilePage() {
   }, [authToken, router])
 
   const handleLogout = () => {
-    console.log("Profile page - Logging out")
+
     localStorage.removeItem("token")
     localStorage.removeItem("userId")
     router.push("/login")
@@ -204,6 +204,11 @@ export default function ProfilePage() {
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null
 
+    // If it's a base64 image, return as-is
+    if (path.startsWith("data:image/")) {
+      return path
+    }
+
     const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
 
     // If the path already has http/https, return it as is
@@ -218,7 +223,7 @@ export default function ProfilePage() {
     return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.substring(1) : formattedPath}`
   }
 
-  // Update the handleProfilePictureUpload function to use 'file' as the form field name
+  // Update the handleProfilePictureUpload function to use base64 encoding
   const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file || !authToken) return
@@ -247,52 +252,61 @@ export default function ProfilePage() {
     setUploadError(null)
 
     try {
-      // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      // Convert file to base64
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        const base64Image = e.target?.result as string
+        
+        // Get API URL from localStorage or use default
+        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
 
-      // Create form data with 'file' as the field name
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Upload the image
-      const response = await fetch(`${apiUrl}/buyers/upload-profile-picture`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: formData,
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Handle unauthorized
-          localStorage.removeItem("token")
-          localStorage.removeItem("userId")
-          router.push("/login?session=expired")
-          throw new Error("Session expired. Please log in again.")
-        }
-        throw new Error(`Failed to upload profile picture: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      // Update the buyer profile with the new profile picture path
-      if (buyerProfile) {
-        setBuyerProfile({
-          ...buyerProfile,
-          profilePicture: data.profilePicture || buyerProfile.profilePicture,
+        // Send base64 image to backend
+        const response = await fetch(`${apiUrl}/buyers/upload-profile-picture`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ profilePicture: base64Image }),
         })
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Handle unauthorized
+            localStorage.removeItem("token")
+            localStorage.removeItem("userId")
+            router.push("/login?session=expired")
+            throw new Error("Session expired. Please log in again.")
+          }
+          throw new Error(`Failed to upload profile picture: ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (data.error) {
+          throw new Error(data.error)
+        }
+
+        // Update the buyer profile with the new profile picture
+        if (buyerProfile) {
+          setBuyerProfile({
+            ...buyerProfile,
+            profilePicture: data.profilePicture || buyerProfile.profilePicture,
+          })
+        }
+
+        toast({
+          title: "Success",
+          description: "Profile picture uploaded successfully",
+        })
+
+        // Refresh the profile data to get the updated profile picture
+        fetchBuyerProfile()
       }
-
-      toast({
-        title: "Success",
-        description: "Profile picture uploaded successfully",
-      })
-
-      // Refresh the profile data to get the updated profile picture
-      fetchBuyerProfile()
+      
+      reader.readAsDataURL(file)
     } catch (err: any) {
-      console.error("Error uploading profile picture:", err)
+
       setUploadError(err.message || "Failed to upload profile picture")
       toast({
         title: "Error",
@@ -330,7 +344,7 @@ export default function ProfilePage() {
       const buyerData = await buyerResponse.json()
       setBuyerProfile(buyerData)
     } catch (err) {
-      console.error("Error fetching buyer profile:", err)
+
     }
   }
 

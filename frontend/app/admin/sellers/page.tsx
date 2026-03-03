@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { ShoppingCart, Tag, Handshake, Eye, LogOut, Search, Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Search, Edit, Trash2, AlertTriangle, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Eye, Handshake, ExternalLink } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AdminProtectedRoute } from "@/components/admin/protected-route";
 
 // Seller interface
 interface Seller {
@@ -30,7 +31,15 @@ interface Seller {
   password?: string;
   activeDealsCount: number;
   offMarketDealsCount: number;
+  loiDealsCount?: number;
   allDealsCount?: number;
+  referralSource?: string;
+  profilePicture?: string | null;
+  isEmailVerified?: boolean;
+  isGoogleAccount?: boolean;
+  managementPreferences?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Add AdminProfile type
@@ -47,11 +56,22 @@ interface AdminProfile {
   role?: string;
 }
 
-// Helper to get image src with cache busting only for real URLs
-function getProfileImageSrc(src?: string | null) {
-  if (!src) return undefined;
-  if (src.startsWith("data:")) return src;
-  return `${src}?cb=${Date.now()}`;
+// Helper function to get the complete profile picture URL
+function getProfilePictureUrl(path: string | null | undefined) {
+  if (!path) return null;
+  // If it's a base64 image (used by admin profiles), return as-is
+  if (path.startsWith('data:image')) {
+    return path;
+  }
+  // If it's already a full URL, return as-is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  const apiUrl = typeof window !== 'undefined'
+    ? (localStorage.getItem("apiUrl") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001")
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001");
+  const formattedPath = path.replace(/\\/g, "/");
+  return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.slice(1) : formattedPath}`;
 }
 
 export default function SellersManagementDashboard() {
@@ -81,10 +101,13 @@ export default function SellersManagementDashboard() {
   const [totalSellers, setTotalSellers] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalDeals, setModalDeals] = useState<any[]>([]);
-  const [modalStatus, setModalStatus] = useState<"active" | "completed" | "all" | null>(null);
+  const [modalStatus, setModalStatus] = useState<"active" | "completed" | "loi" | "all" | null>(null);
   const [modalSeller, setModalSeller] = useState<Seller | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
 
+  // Detail modal state
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedSeller, setSelectedSeller] = useState<Seller | null>(null);
 
   const router = useRouter();
   const { logout } = useAuth();
@@ -92,11 +115,12 @@ export default function SellersManagementDashboard() {
 
   // Define sellersPerPage before useEffect hooks
   const [sellersPerPage, setSellersPerPage] = useState(10);
+  const [pageLoading, setPageLoading] = useState(false);
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = sessionStorage.getItem('token');
         if (!token) throw new Error("No authentication token found");
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/profile`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -113,10 +137,11 @@ export default function SellersManagementDashboard() {
 
   useEffect(() => {
     const fetchSellers = async () => {
-      setLoading(true);
+      // Use pageLoading for pagination, loading for initial load
+      if (!loading) setPageLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem("token");
+        const token = sessionStorage.getItem('token');
         if (!token) throw new Error("No authentication token found");
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         const queryParams = new URLSearchParams({
@@ -156,6 +181,7 @@ export default function SellersManagementDashboard() {
         setTotalSellers(0);
       } finally {
         setLoading(false);
+        setPageLoading(false);
       }
     };
     fetchSellers();
@@ -183,8 +209,9 @@ export default function SellersManagementDashboard() {
     setCurrentPage(1);
   };
 
-  const handleView = (sellerId: string) => {
-    if (sellerId) router.push(`/admin/sellers/${sellerId}`);
+  const handleViewDetails = (seller: Seller) => {
+    setSelectedSeller(seller);
+    setDetailModalOpen(true);
   };
 
   const handleViewActiveDeals = (sellerId: string) => {
@@ -231,7 +258,7 @@ export default function SellersManagementDashboard() {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       if (!token) throw new Error("No authentication token found");
       const body: Partial<Seller> & { password?: string } = { ...editForm };
       if (Object.prototype.hasOwnProperty.call(body, "password") && !body.password) delete (body as any).password;
@@ -240,6 +267,7 @@ export default function SellersManagementDashboard() {
       delete (body as any).role;
       delete (body as any).activeDealsCount;
       delete (body as any).offMarketDealsCount;
+      delete (body as any).allDealsCount;
       if (!editSeller) throw new Error("No seller selected");
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${apiUrl}/admin/sellers/${editSeller._id || editSeller.id}`, {
@@ -273,7 +301,7 @@ export default function SellersManagementDashboard() {
   const handleDelete = async (sellerId: string) => {
     if (!sellerId || !window.confirm("Are you sure you want to delete this seller?")) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       if (!token) throw new Error("No authentication token found");
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${apiUrl}/admin/sellers/${sellerId}`, {
@@ -318,13 +346,13 @@ export default function SellersManagementDashboard() {
     }
   };
 
-  const openDealModal = async (seller: Seller, status: "active" | "completed" | "all") => {
+  const openDealModal = async (seller: Seller, status: "active" | "completed" | "loi" | "all") => {
     setModalSeller(seller);
     setModalStatus(status);
     setModalLoading(true);
     setModalOpen(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem('token');
       if (!token) throw new Error("No authentication token found");
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       const url = status === "all"
@@ -349,93 +377,60 @@ export default function SellersManagementDashboard() {
   const currentSellers = sortedSellers;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-        <div className="mb-8">
-          <Link href="/seller/dashboard">
-            <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
-          </Link>
-        </div>
-        <nav className="flex-1 flex flex-col gap-4">
-          <Link href="/admin/dashboard">
-            <Button variant="ghost" className="w-full justify-start gap-3 font-normal">
-              <Handshake className="h-5 w-5" />
-              <span>Deals</span>
-            </Button>
-          </Link>
-          <Link href="/admin/buyers">
-            <Button variant="ghost" className="w-full justify-start gap-3 font-normal">
-              <Tag className="h-5 w-5" />
-              <span>Buyers</span>
-            </Button>
-          </Link>
-          <Link href="/admin/sellers">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              <span>Sellers</span>
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal"
-            onClick={() => router.push("/admin/viewprofile")}
-          >
-            <Eye className="h-5 w-5" />
-            <span>View Profile</span>
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Sign Out</span>
-          </Button>
-        </nav>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+    <AdminProtectedRoute>
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 p-3 px-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">All Sellers</h1>
-          <div className="flex items-center gap-3">
-            <div className="relative">
+      <header className="bg-white border-b border-gray-200 p-3 px-4 lg:px-6 flex justify-between items-center sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg lg:text-2xl font-bold text-gray-800">All Sellers</h1>
+        </div>
+          <div className="flex items-center gap-2 lg:gap-3">
+            <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input
                 type="search"
                 placeholder="Search here..."
-                className="pl-10 w-80 bg-gray-100 border-0"
+                className="pl-10 w-48 lg:w-80 bg-gray-100 border-0"
                 value={searchTerm}
                 onChange={handleSearch}
               />
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium flex items-center">{adminProfile?.fullName || "Admin"}</div>
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="text-right hidden sm:block">
+                <div className="font-medium flex items-center text-sm lg:text-base">{adminProfile?.fullName || "Admin"}</div>
               </div>
-              <div className="relative h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
+              <div className="relative h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-medium overflow-hidden ring-2 ring-teal-200">
                 {adminProfile?.profilePicture ? (
                   <img
-                    src={getProfileImageSrc(adminProfile.profilePicture)}
+                    src={getProfilePictureUrl(adminProfile.profilePicture) || ""}
                     alt={adminProfile.fullName || "User"}
                     className="h-full w-full object-cover"
                     key={adminProfile.profilePicture}
                   />
                 ) : (
-                  <span>{adminProfile?.fullName ? adminProfile.fullName.charAt(0) : "A"}</span>
+                  <span className="text-sm lg:text-base">{adminProfile?.fullName ? adminProfile.fullName.charAt(0) : "A"}</span>
                 )}
               </div>
             </div>
           </div>
         </header>
 
+        {/* Mobile Search Bar */}
+        <div className="md:hidden p-3 bg-white border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Input
+              type="search"
+              placeholder="Search here..."
+              className="pl-10 w-full bg-gray-100 border-0"
+              value={searchTerm}
+              onChange={handleSearch}
+            />
+          </div>
+        </div>
+
         {/* Content Area */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto">
           {error && (
             <div className="mb-4 p-4 bg-red-100 border border-red-300 rounded-lg flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-700" />
@@ -450,14 +445,14 @@ export default function SellersManagementDashboard() {
           )}
 
           {/* Page Title and Search */}
-          <div className="mb-6 flex flex-col md:flex-row md:items-center md:gap-6">
-            <div className="flex items-center gap-4">
-              <div className="relative">
+          <div className="mb-6 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   type="search"
                   placeholder="Search"
-                  className="pl-10 w-64 bg-white border border-gray-200"
+                  className="pl-10 w-full sm:w-64 bg-white border border-gray-200"
                   value={searchTerm}
                   onChange={handleSearch}
                 />
@@ -469,9 +464,10 @@ export default function SellersManagementDashboard() {
                   if (!sortByActiveDeals) setSortOrder("desc");
                   setCurrentPage(1);
                 }}
-                className={sortByActiveDeals ? "bg-[#3aafa9] hover:bg-[#359a94]" : ""}
+                className={`text-xs sm:text-sm px-2 sm:px-4 ${sortByActiveDeals ? "bg-[#3aafa9] hover:bg-[#359a94]" : ""}`}
               >
-                {sortByActiveDeals ? "Sorted by Active Deals" : "Sort by Active Deals"}
+                <span className="hidden sm:inline">{sortByActiveDeals ? "Sorted by Active Deals" : "Sort by Active Deals"}</span>
+                <span className="sm:hidden">{sortByActiveDeals ? "Active ✓" : "Sort Active"}</span>
               </Button>
               <select
                 value={sortOrder}
@@ -479,21 +475,21 @@ export default function SellersManagementDashboard() {
                   setSortOrder(e.target.value as "asc" | "desc");
                   setCurrentPage(1);
                 }}
-                className="border border-gray-300 rounded px-2 py-1 text-sm ml-2"
+                className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
               >
                 <option value="asc">A to Z</option>
                 <option value="desc">Z to A</option>
               </select>
             </div>
-            <div className="flex items-center gap-2 mt-4 md:mt-0">
-              <span className="text-sm text-gray-700">Items per page:</span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</span>
               <select
                 value={sellersPerPage}
                 onChange={(e) => {
                   setSellersPerPage(Number(e.target.value));
                   setCurrentPage(1); // Reset to first page when changing page size
                 }}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
+                className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
               >
                 <option value="10">10</option>
                 <option value="50">50</option>
@@ -505,119 +501,170 @@ export default function SellersManagementDashboard() {
           {/* Sellers Table */}
           {loading ? (
             <div className="flex justify-center items-center py-12">
-              <span className="text-gray-600 text-lg">Loading sellers...</span>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-gray-600 text-sm">Loading sellers...</span>
+              </div>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
+              {/* Page transition loading overlay */}
+              {pageLoading && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-gray-500 text-sm">Loading sellers...</span>
+                  </div>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Company</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Full Name</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Email</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm hidden sm:table-cell">
+                      <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider">Company</th>
+                      <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider">Full Name</th>
+                      <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider">Email</th>
+                      <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden sm:table-cell">
                         Phone
                       </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm hidden md:table-cell">
+                      <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden md:table-cell">
                         Website
                       </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm hidden lg:table-cell">
-                        Active Deals
+                      <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden md:table-cell">
+                        Referral
                       </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm hidden lg:table-cell">
-                        Off-Market Deals
+                      <th className="text-center py-3.5 px-3 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden lg:table-cell">
+                        Active
                       </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm hidden lg:table-cell">
-                        All Deals
+                      <th className="text-center py-3.5 px-3 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden lg:table-cell">
+                        LOI
                       </th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700 text-sm">Actions</th>
+                      <th className="text-center py-3.5 px-3 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden lg:table-cell">
+                        Off-Market
+                      </th>
+                      <th className="text-center py-3.5 px-3 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden lg:table-cell">
+                        All
+                      </th>
+                      <th className="text-center py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {currentSellers.map((seller) => {
+                    {currentSellers.map((seller, index) => {
                       const sellerId = seller._id || seller.id || "";
                       return (
-                        <tr key={sellerId} className="hover:bg-gray-50 transition-colors">
+                        <tr key={sellerId} className={`hover:bg-teal-50/30 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
                           <td className="py-3 px-4">
-                            <div className="font-medium text-gray-900 text-sm truncate max-w-[150px]">
-                              {seller.companyName || "N/A"}
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-medium text-xs flex-shrink-0 overflow-hidden">
+                                {getProfilePictureUrl(seller.profilePicture) ? (
+                                  <img src={getProfilePictureUrl(seller.profilePicture) || ""} alt="" className="w-full h-full rounded-full object-cover" />
+                                ) : (
+                                  (seller.companyName || "N")?.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div className="font-medium text-gray-900 text-sm truncate max-w-[130px]" title={seller.companyName || "N/A"}>
+                                {seller.companyName || "N/A"}
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="text-gray-700 text-sm truncate max-w-[120px]">
+                            <div className="text-gray-700 text-sm truncate max-w-[120px]" title={seller.fullName || "N/A"}>
                               {seller.fullName || "N/A"}
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="text-gray-600 text-sm truncate max-w-[180px]">
-                              {seller.email || "N/A"}
+                            <div className="flex items-center gap-1.5">
+                              <div className="text-gray-600 text-sm truncate max-w-[160px]" title={seller.email || "N/A"}>
+                                {seller.email || "N/A"}
+                              </div>
+                              {seller.isEmailVerified && (
+                                <CheckCircle className="h-3.5 w-3.5 text-green-500 flex-shrink-0" title="Verified" />
+                              )}
                             </div>
                           </td>
                           <td className="py-3 px-4 hidden sm:table-cell">
-                            <div className="text-gray-600 text-sm truncate">{seller.phoneNumber || "-"}</div>
+                            <div className="text-gray-600 text-sm truncate" title={seller.phoneNumber || "-"}>{seller.phoneNumber || "-"}</div>
                           </td>
                           <td className="py-3 px-4 hidden md:table-cell">
-                            <div className="text-blue-600 text-sm truncate max-w-[140px] hover:underline cursor-pointer">
-                              {seller.website ? (
-                                <a href={seller.website} target="_blank" rel="noopener noreferrer">
-                                  {seller.website}
-                                </a>
-                              ) : "-"}
+                            {seller.website ? (
+                              <a
+                                href={seller.website.startsWith('http') ? seller.website : `https://${seller.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 text-xs bg-blue-50 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors inline-block truncate max-w-[100px]"
+                                title={seller.website}
+                              >
+                                {seller.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-sm">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 hidden md:table-cell">
+                            <div className="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded-full inline-block truncate max-w-[100px]" title={seller.referralSource || "-"}>
+                              {seller.referralSource || "-"}
                             </div>
                           </td>
-                          <td
-                            className="py-3 px-4 hidden lg:table-cell cursor-pointer"
-                            onClick={() => openDealModal(seller, "active")}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDealModal(seller, "active"); }}
-                          >
-                            <div className="text-gray-600 text-sm hover:text-blue-600 hover:underline">
+                          <td className="py-3 px-3 text-center hidden lg:table-cell">
+                            <button
+                              className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors cursor-pointer"
+                              onClick={() => openDealModal(seller, "active")}
+                            >
                               {seller.activeDealsCount}
-                            </div>
+                            </button>
                           </td>
-                          <td
-                            className="py-3 px-4 hidden lg:table-cell cursor-pointer"
-                            onClick={() => openDealModal(seller, "completed")}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDealModal(seller, "completed"); }}
-                          >
-                            <div className="text-gray-600 text-sm hover:text-blue-600 hover:underline">
+                          <td className="py-3 px-3 text-center hidden lg:table-cell">
+                            <button
+                              className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors cursor-pointer"
+                              onClick={() => openDealModal(seller, "loi")}
+                            >
+                              {seller.loiDealsCount || 0}
+                            </button>
+                          </td>
+                          <td className="py-3 px-3 text-center hidden lg:table-cell">
+                            <button
+                              className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors cursor-pointer"
+                              onClick={() => openDealModal(seller, "completed")}
+                            >
                               {seller.offMarketDealsCount}
-                            </div>
+                            </button>
                           </td>
-                          <td
-                            className="py-3 px-4 hidden lg:table-cell cursor-pointer"
-                            onClick={() => openDealModal(seller, "all")}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDealModal(seller, "all"); }}
-                          >
-                            <div className="text-gray-600 text-sm hover:text-blue-600 hover:underline">
+                          <td className="py-3 px-3 text-center hidden lg:table-cell">
+                            <button
+                              className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors cursor-pointer"
+                              onClick={() => openDealModal(seller, "all")}
+                            >
                               {seller.allDealsCount}
-                            </div>
+                            </button>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-center gap-0.5">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="p-1.5 h-7 w-7 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                                onClick={() => handleEdit(sellerId)}
-                                title="Edit"
+                                className="p-1.5 h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                onClick={() => handleViewDetails(seller)}
+                                title="View Details"
                               >
-                                <Edit className="h-3.5 w-3.5" />
+                                <Eye className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="p-1.5 h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                className="p-1.5 h-8 w-8 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                                onClick={() => handleEdit(sellerId)}
+                                title="Edit"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="p-1.5 h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 onClick={() => handleDelete(sellerId)}
                                 title="Delete"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
@@ -627,22 +674,26 @@ export default function SellersManagementDashboard() {
                   </tbody>
                 </table>
               </div>
-              {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-                  <div className="text-sm text-gray-600 mb-2 sm:mb-0">
-                    Showing {Math.min(startIndex + 1, totalSellers)} to{" "}
-                    {Math.min(startIndex + sellersPerPage, totalSellers)} of {totalSellers} entries
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((prev) => prev - 1)}
-                      disabled={currentPage === 1}
-                      className="px-2 py-1 text-sm h-8 min-w-[32px] border-gray-300 hover:bg-gray-100"
-                    >
-                      ‹
-                    </Button>
+              {/* Pagination bar - Enhanced styling */}
+              <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3.5 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-slate-50">
+                <div className="text-xs text-gray-600 mb-2 sm:mb-0">
+                  {totalPages <= 1 ? (
+                    <>Showing <span className="font-semibold text-teal-600">{totalSellers}</span> of <span className="font-semibold text-teal-600">{totalSellers}</span> sellers</>
+                  ) : (
+                    <>Showing <span className="font-semibold text-teal-600">{Math.min(startIndex + 1, totalSellers)}-{Math.min(startIndex + sellersPerPage, totalSellers)}</span> of <span className="font-semibold text-teal-600">{totalSellers}</span> sellers <span className="text-gray-400">(Page {currentPage} of {totalPages})</span></>
+                  )}
+                </div>
+                {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => prev - 1)}
+                    disabled={currentPage === 1}
+                    className="px-2.5 py-1 text-sm h-8 min-w-[32px] border-gray-200 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-colors rounded-lg disabled:opacity-50"
+                  >
+                    ‹
+                  </Button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
                       if (
                         page === 1 ||
@@ -655,10 +706,10 @@ export default function SellersManagementDashboard() {
                             variant={currentPage === page ? "default" : "outline"}
                             size="sm"
                             onClick={() => setCurrentPage(page)}
-                            className={`px-2 py-1 text-sm h-8 min-w-[32px] ${
+                            className={`px-2.5 py-1 text-sm h-8 min-w-[32px] rounded-lg transition-colors ${
                               currentPage === page
-                                ? "bg-[#3aafa9] text-white hover:bg-[#359a94] border-[#3aafa9]"
-                                : "border-gray-300 hover:bg-gray-100"
+                                ? "bg-teal-500 text-white hover:bg-teal-600 border-teal-500 shadow-sm"
+                                : "border-gray-200 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600"
                             }`}
                           >
                             {page}
@@ -681,74 +732,144 @@ export default function SellersManagementDashboard() {
                       size="sm"
                       onClick={() => setCurrentPage((prev) => prev + 1)}
                       disabled={currentPage === totalPages}
-                      className="px-2 py-1 text-sm h-8 min-w-[32px] border-gray-300 hover:bg-gray-100"
+                      className="px-2.5 py-1 text-sm h-8 min-w-[32px] border-gray-200 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-colors rounded-lg disabled:opacity-50"
                     >
                       ›
                     </Button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
               {totalSellers === 0 && searchTerm !== "" && !loading && (
-                <div className="py-12 text-center text-gray-500">
-                  No sellers found matching "{searchTerm}".
+                <div className="py-12 text-center">
+                  <div className="text-gray-400 mb-2">
+                    <Search className="h-8 w-8 mx-auto" />
+                  </div>
+                  <p className="text-gray-500">No sellers found matching "<span className="font-medium text-gray-700">{searchTerm}</span>"</p>
                 </div>
               )}
               {totalSellers === 0 && searchTerm === "" && !loading && (
-                <div className="py-12 text-center text-gray-500">No sellers available.</div>
+                <div className="py-12 text-center">
+                  <div className="text-gray-300 mb-2">
+                    <User className="h-10 w-10 mx-auto" />
+                  </div>
+                  <p className="text-gray-500">No sellers available.</p>
+                </div>
               )}
             </div>
           )}
         </div>
-      </div>
 
       {/* Edit Modal */}
       {editSeller && (
         <Dialog open={!!editSeller} onOpenChange={() => setEditSeller(null)}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Edit Seller</DialogTitle>
+              <DialogTitle className="text-xl font-semibold text-gray-800">Edit Seller Profile</DialogTitle>
+              <DialogDescription className="text-gray-500">
+                Update seller information for {editSeller.fullName || editSeller.email}
+              </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm mb-1">Full Name</label>
-                <Input name="fullName" value={editForm.fullName} onChange={handleEditFormChange} />
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                  <Input
+                    name="fullName"
+                    value={editForm.fullName}
+                    onChange={handleEditFormChange}
+                    placeholder="Enter full name"
+                    className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
+                  <Input
+                    name="title"
+                    value={editForm.title}
+                    onChange={handleEditFormChange}
+                    placeholder="Enter title"
+                    required
+                    className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-sm mb-1">Email</label>
-                <Input name="email" value={editForm.email} onChange={handleEditFormChange} />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                <Input
+                  name="email"
+                  value={editForm.email}
+                  onChange={handleEditFormChange}
+                  placeholder="Enter email"
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
+                />
               </div>
               <div>
-                <label className="block text-sm mb-1">Company Name</label>
-                <Input name="companyName" value={editForm.companyName} onChange={handleEditFormChange} />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name</label>
+                <Input
+                  name="companyName"
+                  value={editForm.companyName}
+                  onChange={handleEditFormChange}
+                  placeholder="Enter company name"
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
+                  <Input
+                    name="phoneNumber"
+                    value={editForm.phoneNumber}
+                    onChange={handleEditFormChange}
+                    placeholder="Enter phone"
+                    className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Website</label>
+                  <Input
+                    name="website"
+                    value={editForm.website}
+                    onChange={handleEditFormChange}
+                    placeholder="Enter website"
+                    className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-sm mb-1">Phone Number</label>
-                <Input name="phoneNumber" value={editForm.phoneNumber} onChange={handleEditFormChange} />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Website</label>
-                <Input name="website" value={editForm.website} onChange={handleEditFormChange} />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Title</label>
-                <Input name="title" value={editForm.title} onChange={handleEditFormChange} required />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Password (leave blank to keep unchanged)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
                 <Input
                   name="password"
                   type="password"
                   value={editForm.password}
                   onChange={handleEditFormChange}
+                  placeholder="Leave blank to keep unchanged"
                   autoComplete="new-password"
+                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">Only fill if you want to change the password</p>
               </div>
-              {error && <div className="text-red-500 text-sm">{error}</div>}
-              <div className="flex gap-2 mt-4">
-                <Button type="submit" disabled={editLoading}>
-                  {editLoading ? "Saving..." : "Save"}
+              {error && <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 bg-teal-500 hover:bg-teal-600 text-white"
+                >
+                  {editLoading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save Changes"
+                  )}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setEditSeller(null)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditSeller(null)}
+                  className="flex-1"
+                >
                   Cancel
                 </Button>
               </div>
@@ -759,34 +880,273 @@ export default function SellersManagementDashboard() {
 
       {/* Deal Info Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {modalStatus && modalSeller
-                ? `${modalStatus === "active" ? "Active" : "Off-Market"} Deals for ${modalSeller.fullName || "Seller"}`
-                : "Deals"}
-            </DialogTitle>
-            <DialogDescription>{modalSeller?.companyName || "N/A"}</DialogDescription>
+        <DialogContent className="max-w-lg">
+          <DialogHeader className="pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                modalStatus === "active" ? "bg-green-100" :
+                modalStatus === "loi" ? "bg-amber-100" :
+                modalStatus === "completed" ? "bg-blue-100" : "bg-purple-100"
+              }`}>
+                <Handshake className={`h-5 w-5 ${
+                  modalStatus === "active" ? "text-green-600" :
+                  modalStatus === "loi" ? "text-amber-600" :
+                  modalStatus === "completed" ? "text-blue-600" : "text-purple-600"
+                }`} />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold text-gray-800">
+                  {modalStatus && modalSeller
+                    ? `${modalStatus === "active" ? "Active" : modalStatus === "loi" ? "LOI" : modalStatus === "completed" ? "Off-Market" : "All"} Deals`
+                    : "Deals"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-gray-500">
+                  {modalSeller?.fullName} • {modalSeller?.companyName || "N/A"}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           {modalLoading ? (
-            <div className="py-6 text-center">Loading deals...</div>
+            <div className="py-8 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-3 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-gray-500 text-sm">Loading deals...</span>
+              </div>
+            </div>
           ) : modalDeals.length === 0 ? (
-            <div className="py-6 text-center text-gray-500">No deals found.</div>
+            <div className="py-8 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <Handshake className="h-6 w-6 text-gray-400" />
+              </div>
+              <p className="text-gray-500 font-medium">No {modalStatus === "completed" ? "off-market" : modalStatus === "loi" ? "LOI" : modalStatus} deals found</p>
+              <p className="text-gray-400 text-sm mt-1">This seller has no {modalStatus === "completed" ? "off-market" : modalStatus === "loi" ? "LOI" : modalStatus} deals at the moment</p>
+            </div>
           ) : (
-            <ul className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
-              {modalDeals.map((deal) => (
-                <li key={deal._id} className="py-2 px-1">
-                  <div className="font-medium text-gray-900">{deal.title || "Untitled Deal"}</div>
-                  <div className="text-xs text-gray-400">Industry: {deal.industrySector || "N/A"}</div>
-                  <div className="text-xs text-gray-400">
-                    Last Updated: {deal.timeline?.updatedAt ? new Date(deal.timeline.updatedAt).toLocaleString() : "-"}
+            <div className="space-y-2 max-h-96 overflow-y-auto py-1">
+              {modalDeals.map((deal) => {
+                // Determine the correct tab based on deal status
+                const getTabForDeal = (status: string) => {
+                  if (status === "loi") return "loi";
+                  if (status === "completed" || status === "off-market") return "offMarket";
+                  if (status === "active") return "active";
+                  return "allDeals";
+                };
+                const tab = getTabForDeal(deal.status);
+                return (
+                <Link
+                  key={deal._id}
+                  href={`/admin/dashboard?tab=${tab}&search=${encodeURIComponent(deal.title || '')}`}
+                  className={`block p-2.5 rounded-lg hover:bg-gray-100 transition-colors border cursor-pointer ${
+                    deal.status === "loi"
+                      ? "bg-amber-50 border-amber-200"
+                      : "bg-gray-50 border-gray-100"
+                  }`}
+                  onClick={() => setModalOpen(false)}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <h4 className="font-medium text-teal-600 hover:text-teal-700 text-sm truncate flex items-center gap-1.5">
+                        {deal.title || "Untitled Deal"}
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                      </h4>
+                      {deal.status === "loi" && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500 text-white flex-shrink-0">
+                          LOI
+                        </span>
+                      )}
+                    </div>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-700 flex-shrink-0">
+                      {deal.industrySector || "N/A"}
+                    </span>
                   </div>
-                </li>
-              ))}
-            </ul>
+                  <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {deal.timeline?.updatedAt
+                        ? new Date(deal.timeline.updatedAt).toLocaleDateString()
+                        : "-"}
+                    </span>
+                    {deal.geographySelection && (
+                      <span className="flex items-center gap-1">
+                        <Globe className="h-3 w-3" />
+                        {deal.geographySelection}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              );
+              })}
+            </div>
+          )}
+          <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+            <span className="text-xs text-gray-400">
+              {modalDeals.length} {modalDeals.length === 1 ? "deal" : "deals"} found
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Seller Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-800">Seller Details</DialogTitle>
+          </DialogHeader>
+          {selectedSeller && (
+            <div className="space-y-4">
+              {/* Profile Picture and Basic Info */}
+              <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+                <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0">
+                  {getProfilePictureUrl(selectedSeller.profilePicture) ? (
+                    <Image
+                      src={getProfilePictureUrl(selectedSeller.profilePicture) || ""}
+                      alt={selectedSeller.fullName || "Seller"}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <span className="text-white text-2xl font-bold">
+                      {(selectedSeller.fullName || "S").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900">{selectedSeller.fullName || "N/A"}</h3>
+                  <p className="text-sm text-gray-500">{selectedSeller.title || "No title"}</p>
+                  <p className="text-sm font-medium text-teal-600">{selectedSeller.companyName || "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Mail className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{selectedSeller.email || "N/A"}</p>
+                  </div>
+                  {selectedSeller.isEmailVerified && (
+                    <CheckCircle className="h-4 w-4 text-green-500" title="Email Verified" />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">Phone</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedSeller.phoneNumber || "N/A"}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Globe className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500">Website</p>
+                    {selectedSeller.website ? (
+                      <a
+                        href={selectedSeller.website.startsWith('http') ? selectedSeller.website : `https://${selectedSeller.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-blue-600 hover:underline truncate block"
+                      >
+                        {selectedSeller.website}
+                      </a>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900">N/A</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Briefcase className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">Referral Source</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedSeller.referralSource || "N/A"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deal Statistics */}
+              <div className="grid grid-cols-4 gap-3 pt-2">
+                <div
+                  className="text-center p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => { setDetailModalOpen(false); openDealModal(selectedSeller, "active"); }}
+                >
+                  <p className="text-2xl font-bold text-green-600">{selectedSeller.activeDealsCount || 0}</p>
+                  <p className="text-xs text-gray-500">Active</p>
+                </div>
+                <div
+                  className="text-center p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
+                  onClick={() => { setDetailModalOpen(false); openDealModal(selectedSeller, "loi"); }}
+                >
+                  <p className="text-2xl font-bold text-amber-600">{selectedSeller.loiDealsCount || 0}</p>
+                  <p className="text-xs text-gray-500">LOI</p>
+                </div>
+                <div
+                  className="text-center p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => { setDetailModalOpen(false); openDealModal(selectedSeller, "completed"); }}
+                >
+                  <p className="text-2xl font-bold text-blue-600">{selectedSeller.offMarketDealsCount || 0}</p>
+                  <p className="text-xs text-gray-500">Off-Market</p>
+                </div>
+                <div
+                  className="text-center p-3 bg-purple-50 rounded-lg cursor-pointer hover:bg-purple-100 transition-colors"
+                  onClick={() => { setDetailModalOpen(false); openDealModal(selectedSeller, "all"); }}
+                >
+                  <p className="text-2xl font-bold text-purple-600">{selectedSeller.allDealsCount || 0}</p>
+                  <p className="text-xs text-gray-500">Total</p>
+                </div>
+              </div>
+
+              {/* Account Info */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  <span>Joined: {selectedSeller.createdAt ? new Date(selectedSeller.createdAt).toLocaleDateString() : "N/A"}</span>
+                </div>
+                {selectedSeller.isGoogleAccount && (
+                  <span className="flex items-center gap-1 text-blue-600">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    Google Account
+                  </span>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    setDetailModalOpen(false);
+                    handleEdit(selectedSeller._id || selectedSeller.id || "");
+                  }}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Seller
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-teal-600 border-teal-600 hover:bg-teal-50"
+                  onClick={() => {
+                    setDetailModalOpen(false);
+                    openDealModal(selectedSeller, "all");
+                  }}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Deals
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
     </div>
+    </AdminProtectedRoute>
   );
 }

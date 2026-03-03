@@ -36,7 +36,7 @@ export default function SellerResetPasswordPage() {
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.')
+      setError('New password and confirm password must match.')
       return
     }
 
@@ -187,7 +187,6 @@ export default function SellerResetPasswordPage() {
         </div>
       </div>
       <Toaster />
-      <Footer />
     </div>
     <Footer />
     </div>

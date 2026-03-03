@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import FloatingChatbot from "@/components/seller/FloatingChatbot";
+import SellerProtectedRoute from "@/components/seller/protected-route";
 // Helper for required field star
 const RequiredStar = () => <span className="text-red-500">*</span>;
 import {
@@ -27,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import { ChevronDown, ChevronRight, Search, Store, X, Info, DollarSign, Users, FileText, Briefcase } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Store, X, Info, DollarSign, Users, FileText, Briefcase, Loader2, ArrowLeft, Upload } from "lucide-react";
 
 import {
   getIndustryData,
@@ -72,6 +73,7 @@ interface SellerFormData {
   minPriorAcquisitions: number;
   minTransactionSize: number;
   documents: File[];
+  ndaDocument?: File | null;
   employeeCount?: number;
   isPublic?: boolean;
   hideGuidelines?: boolean;
@@ -163,6 +165,7 @@ const validateFinancials = (
 export default function SellerFormPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [industryData, setIndustryData] = useState<IndustryData | null>(null);
   const [flatGeoData, setFlatGeoData] = useState<GeoItem[]>([]);
   const [flatIndustryData, setFlatIndustryData] = useState<IndustryItem[]>([]);
@@ -182,8 +185,8 @@ export default function SellerFormPage() {
     if (!dontShowAgain) return;
     
     try {
-      const token = localStorage.getItem('token');
-      const sellerId = localStorage.getItem('userId');
+      const token = sessionStorage.getItem('token');
+      const sellerId = sessionStorage.getItem('userId');
       const apiUrl = localStorage.getItem('apiUrl') || 'http://localhost:5001';
       
       const response = await fetch(`${apiUrl}/sellers/${sellerId}`, {
@@ -198,10 +201,7 @@ export default function SellerFormPage() {
       if (!response.ok) {
         throw new Error(`Failed to update preferences: ${response.status}`);
       }
-      
-      console.log('Seller preferences updated successfully');
     } catch (error) {
-      console.error('Failed to update seller preferences:', error);
       toast({
         title: "Warning",
         description: "Failed to save preference. Modal may appear again next time.",
@@ -262,6 +262,7 @@ export default function SellerFormPage() {
     minPriorAcquisitions: 0,
     minTransactionSize: 0,
     documents: [],
+    ndaDocument: null,
     isPublic: false,
     hideGuidelines: false,
   });
@@ -350,7 +351,6 @@ export default function SellerFormPage() {
         setIndustryData(industryResponse);
         setFlatIndustryData(flattenIndustryData(industryResponse.sectors));
       } catch (error) {
-        console.error("Error fetching data:", error);
         toast({
           title: "Error",
           description: "Failed to load form data. Please refresh the page.",
@@ -362,11 +362,9 @@ export default function SellerFormPage() {
     };
 
     const fetchSellerData = async () => {
-      const token = localStorage.getItem("token");
-      const userRole = localStorage.getItem("userRole");
+      const token = sessionStorage.getItem("token");
 
-      if (!token || userRole !== "seller") {
-        router.push("/seller/login");
+      if (!token) {
         return;
       }
 
@@ -384,14 +382,13 @@ export default function SellerFormPage() {
           setShowGuidelines(!seller.hideGuidelines);
         }
       } catch (error) {
-        console.error("Error fetching seller data:", error);
         setShowGuidelines(true); // Default to showing guidelines if fetch fails
       }
     };
 
     fetchData();
     fetchSellerData();
-  }, [router]);
+  }, []);
 
   const loadStatesAndCities = async (countryCode: string) => {
     const hasStates = flatGeoData.some(
@@ -564,8 +561,6 @@ export default function SellerFormPage() {
       geographySelections: [name],
       geographyHierarchy: hierarchyData,
     }));
-
-    console.log("Geography hierarchy data to send to backend:", hierarchyData);
   };
 
   const clearGeographySelection = () => {
@@ -647,9 +642,6 @@ export default function SellerFormPage() {
       selectedIndustryDisplay: industryName,
       industryHierarchy: hierarchyData,
     }));
-
-    console.log(`Selected ${selectedIndustryType}: ${industryName}`);
-    console.log("Industry hierarchy data to send to backend:", hierarchyData);
   };
 
   const toggleSector = (sector: Sector) => {
@@ -1498,12 +1490,67 @@ const renderGeographySelection = () => {
     }));
   };
 
+  const [ndaError, setNdaError] = useState<string | null>(null);
+
+  const handleNdaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+
+      const allowedTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        setNdaError("NDA must be a PDF or Word document (.pdf, .doc, .docx)");
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setNdaError("NDA file size must be less than 10MB");
+        return;
+      }
+
+      setNdaError(null);
+      setFormData((prev) => ({
+        ...prev,
+        ndaDocument: file,
+      }));
+
+      toast({
+        title: "NDA Uploaded",
+        description: `${file.name} has been selected`,
+      });
+    }
+  };
+
+  const removeNdaDocument = () => {
+    setFormData((prev) => ({
+      ...prev,
+      ndaDocument: null,
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     const errors: { [key: string]: string } = {};
     try {
+      const token = sessionStorage.getItem("token");
+      const sellerId = sessionStorage.getItem("userId");
+      
+      if (!token || !sellerId) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        });
+        router.push("/seller/login");
+        throw new Error("Authentication required");
+      }
+
       if (!formData.dealTitle.trim()) throw new Error("Deal title is required");
       if (!formData.companyDescription.trim())
         throw new Error("Company description is required");
@@ -1553,13 +1600,9 @@ const renderGeographySelection = () => {
 
       setFieldErrors(errors);
       if (Object.keys(errors).length > 0) {
-        setIsLoading(false);
+        setIsSubmitting(false);
         return;
       }
-
-      const token = localStorage.getItem("token");
-      const sellerId = localStorage.getItem("userId");
-      if (!token || !sellerId) throw new Error("Authentication required");
 
       // Compose the payload (no timeline, createdAt, updatedAt)
       const rewardLevelMap: Record<string, "Seed" | "Bloom" | "Fruit"> = {
@@ -1588,11 +1631,14 @@ const renderGeographySelection = () => {
         financialDetails: {
           trailingRevenueCurrency: formData.currency || "USD($)",
           trailingRevenueAmount: formData.trailingRevenue || 0,
+          trailingEBITDACurrency: formData.currency || "USD($)",
           trailingEBITDAAmount: formData.trailingEBITDA || 0,
           t12FreeCashFlow: formData.t12FreeCashFlow || 0,
           t12NetIncome: formData.t12NetIncome || 0,
           avgRevenueGrowth: formData.revenueGrowth || 0,
+          netIncomeCurrency: formData.currency || "USD($)",
           netIncome: formData.netIncome || 0,
+          askingPriceCurrency: formData.currency || "USD($)",
           askingPrice: formData.askingPrice || 0,
         },
         businessModel: {
@@ -1632,13 +1678,33 @@ const renderGeographySelection = () => {
         dealData.visibility = "seed";
       }
 
-      console.log("Documents to upload:", formData.documents.length);
-      console.log("Geography hierarchy data:", formData.geographyHierarchy);
-      console.log("Industry hierarchy data:", formData.industryHierarchy);
+      // Handle NDA document - convert to base64
+      if (formData.ndaDocument) {
+        const ndaFile = formData.ndaDocument;
+        const base64Content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
+            const base64 = result.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(ndaFile);
+        });
+
+        dealData.ndaDocument = {
+          originalName: ndaFile.name,
+          base64Content: base64Content,
+          mimetype: ndaFile.type,
+          size: ndaFile.size,
+          uploadedAt: new Date(),
+        };
+      }
+
 
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
-      // Send as JSON directly (file uploads are disabled on the backend)
       const response = await fetch(`${apiUrl}/deals`, {
         method: "POST",
         headers: {
@@ -1663,7 +1729,6 @@ const renderGeographySelection = () => {
       }
 
       const result = await response.json();
-      console.log("Deal created successfully:", result);
 
       toast({
         title: "Success",
@@ -1675,7 +1740,6 @@ const renderGeographySelection = () => {
         router.push(`/seller/deal?id=${result._id}&newDeal=true`);
       }, 2000);
     } catch (error: any) {
-      console.error("Form submission error:", error);
       toast({
         title: "Submission Failed",
         description:
@@ -1683,7 +1747,7 @@ const renderGeographySelection = () => {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -1696,13 +1760,40 @@ const renderGeographySelection = () => {
   }
 
   return (
-    <>
+    <SellerProtectedRoute>
+      {/* Submission Loading Overlay */}
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9998]">
+          <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl max-w-sm mx-4">
+            <Loader2 className="h-12 w-12 animate-spin text-[#3aafa9]" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-800 mb-1">Creating Your Deal</h3>
+              <p className="text-sm text-gray-600">Please wait while we process your submission...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto py-8 px-4 max-w-5xl bg-white">
+        {/* Back to Dashboard Header */}
+        <div className="mb-6">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => router.push("/seller/dashboard")}
+            className="flex items-center gap-2 text-gray-600 hover:text-[#3aafa9] hover:bg-gray-100 -ml-2"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span>Back to Dashboard</span>
+          </Button>
+          <h1 className="text-2xl font-bold text-gray-800 mt-4">Create New Deal</h1>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-8 mb-16">
-          {/* Seller Rewards */}
+          {/* Advisor Rewards */}
           <div className="bg-[#f0f7fa] p-6 rounded-lg">
             <h2 className="text-lg font-semibold mb-4">
-              Seller Rewards - Choose Reward Level
+              Advisor Rewards - Choose Reward Level
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Seed Option */}
@@ -2707,6 +2798,71 @@ const renderGeographySelection = () => {
             </div>
           </section>
 
+          {/* NDA Upload Section */}
+          <section className="bg-[#f9f9f9] p-6 rounded-lg">
+            <h2 className="text-xl font-semibold mb-2">Upload NDA for this deal (optional)</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              If you add your NDA here it will automatically be sent to buyers who request an introduction.
+            </p>
+
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#3aafa9] transition-colors">
+              {formData.ndaDocument ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                    <FileText className="h-8 w-8 text-[#3aafa9]" />
+                    <div className="text-left flex-1">
+                      <p className="font-medium text-gray-900 truncate max-w-[200px] sm:max-w-none">
+                        {formData.ndaDocument.name}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {(formData.ndaDocument.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeNdaDocument}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                      aria-label="Remove NDA"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-green-600 flex items-center justify-center gap-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    NDA will be sent to buyers upon introduction
+                  </p>
+                </div>
+              ) : (
+                <label className="cursor-pointer block">
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleNdaFileChange}
+                    className="hidden"
+                  />
+                  <div className="space-y-2">
+                    <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Upload className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">
+                        Click to upload NDA
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        PDF or Word document (max 10MB)
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              )}
+              {ndaError && (
+                <p className="text-red-500 text-sm mt-2">{ndaError}</p>
+              )}
+            </div>
+          </section>
+
           {/* Marketplace listing toggle - enhanced */}
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                 <div className="flex items-start gap-3">
@@ -2725,8 +2881,7 @@ const renderGeographySelection = () => {
                         />
                       </div>
                     </div>
-                    <p className="mt-1 text-xs text-blue-800">Marketplace allows all buyers on CIM Amplify to see this teaser, not just the ones you invite on the next screen. Buyers can request access; you'll choose to approve or deny. We suggest that you still select and invite buyers that are perfectly matched on the next screen.</p>
-                    <p className="mt-1 text-xs text-blue-700">Note: If you turn this off later, outstanding marketplace requests will be declined automatically.</p>
+                   <p className="mt-1 text-xs text-blue-800">Marketplace allows all buyers on CIM Amplify to see this teaser. We suggest that you still select and invite buyers that are perfectly matched on the next screen.</p>
                   </div>
                 </div>
               </div>
@@ -2754,10 +2909,17 @@ const renderGeographySelection = () => {
           <div className="flex justify-end">
             <Button
               type="submit"
-              className="bg-[#3aafa9] hover:bg-[#2a9d8f] text-white font-bold py-3 px-6 rounded-lg"
-              disabled={isLoading}
+              className="bg-[#3aafa9] hover:bg-[#2a9d8f] text-white font-bold py-3 px-6 rounded-lg min-w-[280px] flex items-center justify-center gap-2"
+              disabled={isSubmitting}
             >
-              {isLoading ? "Submitting..." : "Next -> View and Choose Matched Buyers"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Creating Deal...</span>
+                </>
+              ) : (
+                "Next -> View and Choose Matched Buyers"
+              )}
             </Button>
           </div>
           <Toaster />
@@ -2853,6 +3015,6 @@ const renderGeographySelection = () => {
           </div>
         </div>
       )}
-    </>
+    </SellerProtectedRoute>
   );
 }

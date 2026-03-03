@@ -30,7 +30,10 @@ import {
   Settings,
   Briefcase,
   Store,
+  Menu,
+  User,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/use-toast";
 
@@ -121,6 +124,9 @@ export default function MarketPlace() {
   // Track per-deal request loading state
   const [requestLoading, setRequestLoading] = useState<Record<string, boolean>>({});
 
+  // Track expanded descriptions for show more/less
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+
   // Hierarchical selection state
   const [geoSelection, setGeoSelection] = useState<HierarchicalSelection>({
     continents: {},
@@ -166,6 +172,8 @@ export default function MarketPlace() {
   // Marketplace deals state
   const [deals, setDeals] = useState<any[]>([]);
   const [dealsLoading, setDealsLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notInterestedLoading, setNotInterestedLoading] = useState<Record<string, boolean>>({});
 
   // Check if we're on the client side
   useEffect(() => {
@@ -176,8 +184,13 @@ export default function MarketPlace() {
     if (amount === undefined || amount === null) return 'Not provided';
     const value = Number(amount);
     if (Number.isNaN(value)) return 'Not provided';
-    const label = currency || '$';
-    return `${label} ${value.toLocaleString()}`;
+    // Extract symbol from formats like "USD($)" or use as-is
+    let symbol = '$';
+    if (currency) {
+      const match = currency.match(/\((.+)\)/);
+      symbol = match ? match[1] : currency;
+    }
+    return `${symbol}${value.toLocaleString()}`;
   };
 
   const formatPercentDisplay = (value?: number | null) => {
@@ -208,21 +221,15 @@ export default function MarketPlace() {
       const cleanToken = urlToken.trim();
       localStorage.setItem("token", cleanToken);
       setAuthToken(cleanToken);
-      console.log(
-        "Company Profile - Token set from URL:",
-        cleanToken.substring(0, 10) + "..."
-      );
+
     } else {
-      const storedToken = localStorage.getItem("token");
+      const storedToken = sessionStorage.getItem("token");
       if (storedToken) {
         const cleanToken = storedToken.trim();
         setAuthToken(cleanToken);
-        console.log(
-          "Company Profile - Token set from localStorage:",
-          cleanToken.substring(0, 10) + "..."
-        );
+
       } else {
-        console.warn("Company Profile - No token found, redirecting to login");
+
         toast({
           title: "Authentication Required",
           description: "Please log in to access this page.",
@@ -238,16 +245,13 @@ export default function MarketPlace() {
       const cleanUserId = urlUserId.trim();
       localStorage.setItem("userId", cleanUserId);
       setBuyerId(cleanUserId);
-      console.log("Company Profile - Buyer ID set from URL:", cleanUserId);
+
     } else {
       const storedUserId = localStorage.getItem("userId");
       if (storedUserId) {
         const cleanUserId = storedUserId.trim();
         setBuyerId(cleanUserId);
-        console.log(
-          "Company Profile - Buyer ID set from localStorage:",
-          cleanUserId
-        );
+
       }
     }
 
@@ -286,7 +290,7 @@ export default function MarketPlace() {
         }
         setDealsLoading(false);
       } catch (error) {
-        console.error("Error fetching data:", error);
+
         toast({
           title: "Data Loading Error",
           description: "Failed to load geography and industry data.",
@@ -310,13 +314,46 @@ export default function MarketPlace() {
         const txt = await resp.text();
         throw new Error(txt || 'Failed to request access');
       }
-      toast({ title: 'Request sent', description: 'The seller has been notified.' });
-      // Optimistically update card status to requested
-      setDeals((prev: any[]) => prev.map((d) => d._id === dealId ? { ...d, currentBuyerRequested: true, currentBuyerStatus: 'requested' } : d));
+      toast({ 
+        title: '✅ Success!', 
+        description: 'Deal added to Active. You can now view full details and request more information.',
+        duration: 4000
+      });
+      // Optimistically update card status to accepted (moved to Active)
+      setDeals((prev: any[]) => prev.map((d) => d._id === dealId ? { ...d, currentBuyerRequested: true, currentBuyerStatus: 'accepted' } : d));
     } catch (e: any) {
-      toast({ title: 'Request failed', description: e.message || 'Please try again.', variant: 'destructive' });
+      toast({ title: '❌ Request failed', description: e.message || 'Please try again.', variant: 'destructive', duration: 4000 });
     } finally {
       setRequestLoading((p) => ({ ...p, [dealId]: false }));
+    }
+  };
+
+  const handleNotInterested = async (dealId: string) => {
+    try {
+      if (!authToken) return;
+      setNotInterestedLoading((p) => ({ ...p, [dealId]: true }));
+      const resp = await fetch(`${apiUrl}/deals/${dealId}/not-interested`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || 'Failed to mark as not interested');
+      }
+      toast({ 
+        title: '🗑️ Deal Removed', 
+        description: 'This deal has been removed from your marketplace and won\'t be shown again.',
+        duration: 4000
+      });
+      // Remove the deal from the list locally
+      setDeals((prev: any[]) => prev.filter((d) => d._id !== dealId));
+    } catch (e: any) {
+      toast({ title: '❌ Action failed', description: e.message || 'Please try again.', variant: 'destructive', duration: 4000 });
+    } finally {
+      setNotInterestedLoading((p) => ({ ...p, [dealId]: false }));
     }
   };
 
@@ -382,7 +419,7 @@ export default function MarketPlace() {
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.log("No existing profile found, showing empty form");
+  
           return;
         }
 
@@ -393,11 +430,11 @@ export default function MarketPlace() {
       }
 
       const profileData = await response.json();
-      console.log("Existing profile loaded:", profileData);
+
 
       if (profileData && profileData._id) {
         setProfileId(profileData._id);
-        console.log("Company Profile ID stored for updates:", profileData._id);
+
       }
 
       if (profileData) {
@@ -498,7 +535,7 @@ export default function MarketPlace() {
         }
       }
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      // Error fetching profile
     } finally {
       setIsSubmitting(false);
     }
@@ -509,9 +546,9 @@ export default function MarketPlace() {
     if (!isClient) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       if (!token) {
-        console.warn("Company Profile - Missing token for profile fetch");
+
         return;
       }
 
@@ -535,9 +572,8 @@ export default function MarketPlace() {
 
       const data = await response.json();
       setBuyerProfile(data);
-      console.log("Company Profile - Buyer profile fetched:", data);
     } catch (error) {
-      console.error("Error fetching buyer profile:", error);
+
     }
   };
 
@@ -1371,15 +1407,7 @@ export default function MarketPlace() {
         ...formData,
       };
 
-      console.log(
-        "Company Profile - Updating profile at:",
-        `${apiUrl}/company-profiles/${profileId}`
-      );
-      console.log(
-        "Company Profile - Using token:",
-        authToken.substring(0, 10) + "..."
-      );
-      console.log("Company Profile - Profile ID:", profileId);
+
 
       const updateData = { ...profileData };
       delete (updateData as any)._id;
@@ -1389,10 +1417,7 @@ export default function MarketPlace() {
       delete (updateData as any).buyer;
       delete (updateData as any).agreementsAcceptedAt; // <-- Prevent sending this field
 
-      console.log(
-        "Company Profile - Update data:",
-        JSON.stringify(updateData, null, 2)
-      );
+
 
       const response = await fetch(`${apiUrl}/company-profiles/${profileId}`, {
         method: "PATCH",
@@ -1403,11 +1428,11 @@ export default function MarketPlace() {
         body: JSON.stringify(updateData),
       });
 
-      console.log("Company Profile - Response status:", response.status);
+
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("API Error Response:", errorData);
+
 
         if (response.status === 401) {
           localStorage.removeItem("token");
@@ -1431,7 +1456,7 @@ export default function MarketPlace() {
       }
 
       const result = await response.json();
-      console.log("Company Profile - Update successful:", result);
+
 
       setSubmitStatus("success");
 
@@ -1440,7 +1465,7 @@ export default function MarketPlace() {
         router.push("/buyer/deals");
       }, 2000);
     } catch (error: any) {
-      console.error("Update error:", error);
+
       setSubmitStatus("error");
       setErrorMessage(
         error.message || "An error occurred while updating your profile."
@@ -1668,6 +1693,8 @@ export default function MarketPlace() {
   // Function to get the complete profile picture URL
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
+    // If it's a base64 image, return as-is
+    if (path.startsWith("data:image")) return path;
 
     const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
@@ -1686,7 +1713,7 @@ export default function MarketPlace() {
   const handleLogout = () => {
     if (!isClient) return;
 
-    console.log("Company Profile - Logging out");
+
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     router.push("/buyer/login");
@@ -1726,10 +1753,73 @@ export default function MarketPlace() {
     setIndustrySelection(newIndustrySelection);
   }, [industryData, formData.targetCriteria.industrySectors]);
 
-  const visibleMarketplaceDeals = deals.filter((deal) => {
-    const status = (deal.currentBuyerStatus || 'none').toLowerCase();
-    return status === 'none' || status === 'requested';
-  });
+  // Check if profile is complete
+  const isProfileComplete = (profile: any): boolean => {
+    if (!profile) return false;
+    if (
+      !profile.companyName ||
+      !profile.website ||
+      profile.contacts?.length === 0 ||
+      !profile.companyType ||
+      !profile.capitalEntity ||
+      profile.dealsCompletedLast5Years === undefined ||
+      profile.averageDealSize === undefined
+    ) {
+      return false;
+    }
+    const contactsComplete = profile.contacts?.every(
+      (contact: any) => contact.name && contact.email && contact.phone
+    );
+    if (!contactsComplete) return false;
+    if (
+      !profile.targetCriteria ||
+      profile.targetCriteria.countries?.length === 0 ||
+      profile.targetCriteria.industrySectors?.length === 0 ||
+      profile.targetCriteria.revenueMin === undefined ||
+      profile.targetCriteria.revenueMax === undefined ||
+      profile.targetCriteria.ebitdaMin === undefined ||
+      profile.targetCriteria.ebitdaMax === undefined ||
+      profile.targetCriteria.transactionSizeMin === undefined ||
+      profile.targetCriteria.transactionSizeMax === undefined ||
+      profile.targetCriteria.revenueGrowth === undefined ||
+      profile.targetCriteria.minYearsInBusiness === undefined ||
+      !profile.targetCriteria.preferredBusinessModels ||
+      profile.targetCriteria.preferredBusinessModels.length === 0 ||
+      !profile.targetCriteria.description
+    ) {
+      return false;
+    }
+    if (!profile.agreements || !profile.agreements.feeAgreementAccepted) {
+      return false;
+    }
+    return true;
+  };
+
+  // Store profile completeness state
+  const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
+
+  // Check profile completeness
+  useEffect(() => {
+    if (formData && formData.companyName) {
+      setProfileComplete(isProfileComplete(formData));
+    }
+  }, [formData]);
+
+  // Sort deals newest to oldest and filter - only show deals where buyer hasn't interacted yet
+  const visibleMarketplaceDeals = deals
+    .filter((deal) => {
+      const status = (deal.currentBuyerStatus || 'none').toLowerCase();
+      // Only show deals that the buyer hasn't added to Active yet
+      return status === 'none';
+    })
+    .sort((a: any, b: any) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA; // Newest first
+    });
+
+  // Helper to check if deal is LOI
+  const isLOIDeal = (deal: any) => deal.status === 'loi';
 
   if (!isClient) {
     return <div>Loading...</div>;
@@ -1738,164 +1828,287 @@ export default function MarketPlace() {
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between px-6 py-3 max-w-full box-border">
-          <div className="flex items-center space-x-10 pt-3 pb-1">
-            <Link href="/buyer/deals">
-              <div className="flex items-center">
-                <Image
-                  src="/logo.svg"
-                  width={150} // Reduced width to prevent overflow
-                  height={40}
-                  alt="CIM Amplify"
-                  className="h-10 w-auto"
-                />
-              </div>
+      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-4">
+          {/* Left side: Hamburger + Logo (desktop) + Title */}
+          <div className="flex items-center gap-3">
+            {/* Mobile Menu Button - on the LEFT */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                <SheetHeader>
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                {/* Logo inside the sidebar */}
+                <div className="mt-6 mb-6">
+                  <Link href="https://cimamplify.com/" onClick={() => setMobileMenuOpen(false)}>
+                    <Image src="/logo.svg" width={150} height={40} alt="CIM Amplify" className="h-10 w-auto" />
+                  </Link>
+                </div>
+                <nav className="flex flex-col space-y-2">
+                  <Link
+                    href="/buyer/deals"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <Briefcase className="mr-3 h-5 w-5" />
+                    <span>All Deals</span>
+                  </Link>
+                  <Link
+                    href="/buyer/marketplace"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
+                  >
+                    <Store className="mr-3 h-5 w-5" />
+                    <span>MarketPlace</span>
+                  </Link>
+                  <Link
+                    href="/buyer/company-profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <Settings className="mr-3 h-5 w-5" />
+                    <span>Company Profile</span>
+                  </Link>
+                  <Link
+                    href="/buyer/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <User className="mr-3 h-5 w-5" />
+                    <span>My Profile</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
+                  >
+                    <LogOut className="mr-3 h-5 w-5" />
+                    <span>Sign Out</span>
+                  </button>
+                </nav>
+              </SheetContent>
+            </Sheet>
+
+            {/* Logo - hidden on mobile, shown on desktop */}
+            <Link href="https://cimamplify.com/" className="hidden md:flex items-center">
+              <Image src="/logo.svg" width={150} height={40} alt="CIM Amplify" className="h-8 sm:h-10 w-auto" />
             </Link>
-            <h1 className="text-2xl font-semibold text-gray-800">
-              MarketPlace
-            </h1>
+
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">MarketPlace</h1>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <div className="mr-2 text-right truncate max-w-[150px]">
-                <div className="text-sm font-medium">
-                  {buyerProfile?.fullName || "User"}
-                </div>
+          {/* Right side: Profile */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="text-right hidden sm:block">
+              <div className="font-medium text-sm sm:text-base truncate max-w-[150px]">
+                {buyerProfile?.fullName || "User"}
               </div>
-              <div className="relative">
-                {buyerProfile?.profilePicture ? (
-                  <img
-                    src={
-                      getProfilePictureUrl(buyerProfile.profilePicture) ||
-                      "/placeholder.svg"
-                    }
-                    alt={buyerProfile.fullName}
-                    className="h-8 w-8 rounded-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/placeholder.svg";
-                    }}
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-gray-600 text-sm">
-                      {buyerProfile?.fullName?.charAt(0) || "U"}
-                    </span>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
+              {buyerProfile?.profilePicture ? (
+                <img
+                  src={getProfilePictureUrl(buyerProfile.profilePicture) || "/placeholder.svg"}
+                  alt={buyerProfile.fullName}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "/placeholder.svg";
+                  }}
+                />
+              ) : (
+                <span className="text-gray-600 text-sm font-medium">
+                  {buyerProfile?.fullName?.charAt(0) || "U"}
+                </span>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-4rem)] w-full box-border">
-        {/* Sidebar */}
-        <aside className="w-56 border-r border-gray-200 bg-white flex-shrink-0">
-          <nav className="flex flex-col p-4">
+      <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] w-full box-border flex-1">
+        {/* Sidebar - Sticky */}
+        <aside className="hidden md:block w-56 flex-shrink-0">
+          <div className="sticky top-[4rem] h-[calc(100vh-4rem)] border-r border-gray-200 bg-white overflow-y-auto">
+            <nav className="flex flex-col p-4">
             <Link
               href="/buyer/deals"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100"
+              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Briefcase className="mr-3 h-5 w-5" />
               <span>All Deals</span>
             </Link>
             <Link
               href="/buyer/marketplace"
-              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600"
+              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
             >
               <Store className="mr-3 h-5 w-5" />
               <span>MarketPlace</span>
             </Link>
             <Link
               href="/buyer/company-profile"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100"
+              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Settings className="mr-3 h-5 w-5" />
               <span>Company Profile</span>
             </Link>
+            <Link
+              href="/buyer/profile"
+              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span>My Profile</span>
+            </Link>
 
             <button
               onClick={handleLogout}
-              className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 text-left w-full"
+              className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
             >
               <LogOut className="mr-3 h-5 w-5" />
               <span>Sign Out</span>
             </button>
-          </nav>
+            </nav>
+          </div>
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 p-6 overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-        
-          </div>
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-gray-50">
+          {/* Show warning if profile incomplete */}
+          {profileComplete === false && (
+            <div className="mb-6 rounded-lg bg-yellow-50 p-4 text-yellow-800 border border-yellow-200">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-shrink-0">
+                  <AlertCircle className="h-5 w-5 text-yellow-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">
+                    Complete your Company Profile to access Marketplace deals
+                  </p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    You must fill out your company profile before browsing or requesting access to marketplace deals.
+                  </p>
+                </div>
+                <Link href="/buyer/company-profile">
+                  <Button className="bg-yellow-600 hover:bg-yellow-700 text-white whitespace-nowrap">
+                    Complete Profile
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+
           {dealsLoading ? (
-            <div>Loading...</div>
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#3AAFA9]"></div>
+              <p className="text-gray-500">Loading marketplace deals...</p>
+            </div>
+          ) : profileComplete === false ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+              <AlertCircle className="h-12 w-12 text-gray-400" />
+              <div>
+                <p className="text-gray-600 font-medium">Marketplace Access Restricted</p>
+                <p className="text-gray-500 text-sm mt-1">Please complete your company profile to view available deals.</p>
+              </div>
+              <Link href="/buyer/company-profile">
+                <Button className="bg-[#3AAFA9] hover:bg-[#2d8f8a] text-white">
+                  Complete Profile
+                </Button>
+              </Link>
+            </div>
           ) : visibleMarketplaceDeals.length === 0 ? (
-            <div className="text-gray-600">No public deals available right now.</div>
+            <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+              <Store className="h-12 w-12 text-gray-400" />
+              <p className="text-gray-600">No public deals available right now.</p>
+              <p className="text-gray-500 text-sm">Check back soon for new opportunities.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {visibleMarketplaceDeals.map((deal) => {
-                const status = (deal.currentBuyerStatus || 'none').toLowerCase();
-                const isRequested = status === 'requested';
                 const isLoading = !!requestLoading[deal._id];
-                const buttonLabel = isLoading ? 'Sending…' : isRequested ? 'Request Sent' : 'Request Access';
+                const isLOI = isLOIDeal(deal);
                 return (
                   <div
                     key={deal._id}
-                    className="border rounded-xl p-4 bg-white shadow-sm flex flex-col gap-4 transition hover:shadow-md"
+                    className={`border rounded-xl p-5 shadow-sm flex flex-col gap-4 transition-all duration-200 ${
+                      isLOI 
+                        ? 'bg-yellow-50 border-yellow-300 hover:shadow-md hover:border-yellow-400' 
+                        : 'bg-white hover:shadow-lg hover:border-[#3AAFA9]/30'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-semibold text-center text-gray-900 text-base leading-tight">Deal Overview</h3>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-3"><strong>Deal Description:</strong>
-                          {deal.companyDescription || 'Summary coming soon.'}
-                        </p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900 text-lg leading-tight">Deal Overview</h3>
+                          {isLOI && (
+                            <span className="text-xs px-2 py-1 bg-yellow-500 text-white rounded-full font-semibold">
+                              LOI
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2">
+                          <p className={`text-sm text-gray-600 ${!expandedDescriptions[deal._id] ? 'line-clamp-4' : ''}`}>
+                            {deal.companyDescription || 'Summary coming soon.'}
+                          </p>
+                          {deal.companyDescription && deal.companyDescription.length > 200 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedDescriptions(prev => ({
+                                ...prev,
+                                [deal._id]: !prev[deal._id]
+                              }))}
+                              className="text-[#3AAFA9] hover:text-[#2d8f8a] text-sm font-medium mt-1 transition-colors"
+                            >
+                              {expandedDescriptions[deal._id] ? 'Show less' : 'Show more'}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {deal.isFeatured ? (
-                          <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full flex-shrink-0">Featured</span>
-                        ) : null}
-                        {isRequested ? (
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full flex-shrink-0">Request Sent</span>
-                        ) : null}
+                      {deal.isFeatured && (
+                        <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full flex-shrink-0 font-medium">
+                          Featured
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 p-3 border border-gray-100">
+                        <div className="text-xs uppercase text-gray-500 font-medium">Industry</div>
+                        <div className="font-semibold text-gray-900 mt-1">{deal.industrySector || 'Not provided'}</div>
+                      </div>
+                      <div className="rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 p-3 border border-gray-100">
+                        <div className="text-xs uppercase text-gray-500 font-medium">Geography</div>
+                        <div className="font-semibold text-gray-900 mt-1">{deal.geographySelection || 'Not provided'}</div>
+                      </div>
+                      <div className="rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 p-3 border border-gray-100">
+                        <div className="text-xs uppercase text-gray-500 font-medium">Years in Business</div>
+                        <div className="font-semibold text-gray-900 mt-1">{deal.yearsInBusiness ?? 'Not provided'}</div>
+                      </div>
+                      <div className="rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 p-3 border border-gray-100">
+                        <div className="text-xs uppercase text-gray-500 font-medium">Business Model</div>
+                        <div className="font-semibold text-gray-900 mt-1">{getBusinessModelSummary(deal.businessModel)}</div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-sm text-gray-700">
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <div className="text-xs uppercase text-gray-500">Industry</div>
-                        <div className="font-medium text-gray-900">{deal.industrySector || 'Not provided'}</div>
-                      </div>
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <div className="text-xs uppercase text-gray-500">Geography</div>
-                        <div className="font-medium text-gray-900">{deal.geographySelection || 'Not provided'}</div>
-                      </div>
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <div className="text-xs uppercase text-gray-500">Years in Business</div>
-                        <div className="font-medium text-gray-900">{deal.yearsInBusiness ?? 'Not provided'}</div>
-                      </div>
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <div className="text-xs uppercase text-gray-500">Business Model</div>
-                        <div className="font-medium text-gray-900">{getBusinessModelSummary(deal.businessModel)}</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 text-sm text-gray-700">
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <div className="text-xs uppercase text-gray-500">T12 Revenue</div>
-                        <div className="font-medium text-gray-900">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg bg-gradient-to-br from-[#3AAFA9]/5 to-[#3AAFA9]/10 p-3 border border-[#3AAFA9]/20">
+                        <div className="text-xs uppercase text-[#2B7A78] font-medium">T12 Revenue</div>
+                        <div className="font-semibold text-gray-900 mt-1">
                           {formatCurrencyDisplay(
                             deal.financialDetails?.trailingRevenueAmount,
                             deal.financialDetails?.trailingRevenueCurrency
                           )}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-gray-50 p-3">
-                        <div className="text-xs uppercase text-gray-500">T12 EBITDA</div>
-                        <div className="font-medium text-gray-900">
+                      <div className="rounded-lg bg-gradient-to-br from-[#3AAFA9]/5 to-[#3AAFA9]/10 p-3 border border-[#3AAFA9]/20">
+                        <div className="text-xs uppercase text-[#2B7A78] font-medium">T12 EBITDA</div>
+                        <div className="font-semibold text-gray-900 mt-1">
                           {formatCurrencyDisplay(
                             deal.financialDetails?.trailingEBITDAAmount,
                             deal.financialDetails?.trailingEBITDACurrency
@@ -1903,9 +2116,9 @@ export default function MarketPlace() {
                         </div>
                       </div>
                       {deal.financialDetails?.netIncome !== 0 && (
-                        <div className="rounded-lg bg-gray-50 p-3">
-                          <div className="text-xs uppercase text-gray-500">Net Income</div>
-                          <div className="font-medium text-gray-900">
+                        <div className="rounded-lg bg-gradient-to-br from-[#3AAFA9]/5 to-[#3AAFA9]/10 p-3 border border-[#3AAFA9]/20">
+                          <div className="text-xs uppercase text-[#2B7A78] font-medium">Net Income</div>
+                          <div className="font-semibold text-gray-900 mt-1">
                             {formatCurrencyDisplay(
                               deal.financialDetails?.netIncome,
                               deal.financialDetails?.netIncomeCurrency
@@ -1914,9 +2127,9 @@ export default function MarketPlace() {
                         </div>
                       )}
                       {deal.financialDetails?.askingPrice !== 0 && (
-                        <div className="rounded-lg bg-gray-50 p-3">
-                          <div className="text-xs uppercase text-gray-500">Asking Price</div>
-                          <div className="font-medium text-gray-900">
+                        <div className="rounded-lg bg-gradient-to-br from-[#3AAFA9]/5 to-[#3AAFA9]/10 p-3 border border-[#3AAFA9]/20">
+                          <div className="text-xs uppercase text-[#2B7A78] font-medium">Asking Price</div>
+                          <div className="font-semibold text-gray-900 mt-1">
                             {formatCurrencyDisplay(
                               deal.financialDetails?.askingPrice,
                               deal.financialDetails?.askingPriceCurrency
@@ -1924,25 +2137,65 @@ export default function MarketPlace() {
                           </div>
                         </div>
                       )}
-                      <div className="rounded-lg bg-gray-50 p-3 col-span-2">
-                        <div className="text-xs uppercase text-gray-500">Avg. 3-Year Revenue Growth</div>
-                        <div className="font-medium text-gray-900">{formatPercentDisplay(deal.financialDetails?.avgRevenueGrowth)}</div>
+                      <div className="rounded-lg bg-gradient-to-br from-[#3AAFA9]/5 to-[#3AAFA9]/10 p-3 border border-[#3AAFA9]/20 col-span-2">
+                        <div className="text-xs uppercase text-[#2B7A78] font-medium">Avg. 3-Year Revenue Growth</div>
+                        <div className="font-semibold text-gray-900 mt-1">{formatPercentDisplay(deal.financialDetails?.avgRevenueGrowth)}</div>
                       </div>
                     </div>
 
-                    <div className="text-xs text-gray-500">
-                      {isRequested
-                        ? 'Request sent. We\'ll notify you when the seller responds.'
-                        : 'Seller details unlock after access is granted.'}
-                    </div>
+                    {isLOI ? (
+                      <div className="rounded-lg bg-yellow-100 border border-yellow-300 p-4 text-center">
+                        <p className="text-sm font-semibold text-yellow-800">
+                          🔒 This deal is currently paused for LOI negotiations
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          The advisor will notify you when it becomes available again
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-gray-500 text-center">
+                          Click below to add this deal to your Active deals
+                        </p>
 
-                    <Button
-                      disabled={isLoading || isRequested}
-                      onClick={() => handleRequestAccess(deal._id)}
-                      className={`w-full ${isLoading ? 'opacity-70 cursor-wait' : isRequested ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    >
-                      {buttonLabel}
-                    </Button>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            disabled={isLoading || !!notInterestedLoading[deal._id]}
+                            onClick={() => handleRequestAccess(deal._id)}
+                            className={`w-full bg-[#3AAFA9] hover:bg-[#2d8f8a] text-white font-medium py-3 h-auto whitespace-normal text-center leading-tight transition-all duration-200 ${isLoading ? 'opacity-70 cursor-wait' : 'hover:shadow-md'}`}
+                          >
+                            {isLoading ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Adding...
+                              </span>
+                            ) : (
+                              <span>Request More Information and<br className="hidden sm:inline md:hidden lg:inline" /> Move to Active</span>
+                            )}
+                          </Button>
+                          <Button
+                            disabled={isLoading || !!notInterestedLoading[deal._id]}
+                            onClick={() => handleNotInterested(deal._id)}
+                            className={`w-full bg-red-500 hover:bg-red-600 text-white font-medium py-2.5 transition-all duration-200 ${notInterestedLoading[deal._id] ? 'opacity-70 cursor-wait' : 'hover:shadow-md'}`}
+                          >
+                            {notInterestedLoading[deal._id] ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Removing...
+                              </span>
+                            ) : (
+                              'Not Interested'
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}

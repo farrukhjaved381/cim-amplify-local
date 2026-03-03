@@ -6,28 +6,37 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function DevToolsNotice() {
+  const [mounted, setMounted] = useState(false)
   const [showNotice, setShowNotice] = useState(false)
-  const [isDev, setIsDev] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+
     // Only show in development mode
     if (process.env.NODE_ENV === "development") {
-      setIsDev(true)
-
       // Check if the user has dismissed the notice before
-      const dismissed = localStorage.getItem("devtools-notice-dismissed")
-      if (!dismissed) {
-        setShowNotice(true)
+      try {
+        const dismissed = localStorage.getItem("devtools-notice-dismissed")
+        if (!dismissed) {
+          setShowNotice(true)
+        }
+      } catch {
+        // localStorage might not be available
       }
     }
   }, [])
 
   const dismissNotice = () => {
-    localStorage.setItem("devtools-notice-dismissed", "true")
+    try {
+      localStorage.setItem("devtools-notice-dismissed", "true")
+    } catch {
+      // localStorage might not be available
+    }
     setShowNotice(false)
   }
 
-  if (!isDev || !showNotice) return null
+  // Don't render anything until mounted to prevent hydration issues
+  if (!mounted || !showNotice || process.env.NODE_ENV !== "development") return null
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-md">

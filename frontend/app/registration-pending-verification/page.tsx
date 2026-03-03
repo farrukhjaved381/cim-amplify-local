@@ -115,7 +115,6 @@ export default function RegistrationPendingVerificationPage() {
         variant: "success",
       });
     } catch (error: any) {
-      console.error("Resend verification error:", error);
       toast({
         title: "Error",
         description: error.message || "An error occurred while resending the email.",

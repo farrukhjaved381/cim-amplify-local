@@ -29,8 +29,12 @@ import {
   ChevronRight,
   LogOut,
   Settings,
-  Briefcase,Store
+  Briefcase,
+  Store,
+  User,
+  Menu,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import {
@@ -156,6 +160,7 @@ export default function CompanyProfilePage() {
 
   // Add a state variable to store the company profile ID
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Add a new state for field-specific errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -184,21 +189,14 @@ export default function CompanyProfilePage() {
       const cleanToken = urlToken.trim();
       localStorage.setItem("token", cleanToken);
       setAuthToken(cleanToken);
-      console.log(
-        "Company Profile - Token set from URL:",
-        cleanToken.substring(0, 10) + "..."
-      );
+     
     } else {
-      const storedToken = localStorage.getItem("token");
+      const storedToken = sessionStorage.getItem("token");
       if (storedToken) {
         const cleanToken = storedToken.trim();
         setAuthToken(cleanToken);
-        console.log(
-          "Company Profile - Token set from localStorage:",
-          cleanToken.substring(0, 10) + "..."
-        );
+       
       } else {
-        console.warn("Company Profile - No token found, redirecting to login");
         toast({
           title: "Authentication Required",
           description: "Please log in to access this page.",
@@ -214,16 +212,11 @@ export default function CompanyProfilePage() {
       const cleanUserId = urlUserId.trim();
       localStorage.setItem("userId", cleanUserId);
       setBuyerId(cleanUserId);
-      console.log("Company Profile - Buyer ID set from URL:", cleanUserId);
     } else {
       const storedUserId = localStorage.getItem("userId");
       if (storedUserId) {
         const cleanUserId = storedUserId.trim();
         setBuyerId(cleanUserId);
-        console.log(
-          "Company Profile - Buyer ID set from localStorage:",
-          cleanUserId
-        );
       }
     }
 
@@ -251,7 +244,6 @@ export default function CompanyProfilePage() {
         await fetchUserProfile();
         await fetchBuyerProfile();
       } catch (error) {
-        console.error("Error fetching data:", error);
         toast({
           title: "Data Loading Error",
           description: "Failed to load geography and industry data.",
@@ -272,8 +264,6 @@ useEffect(() => {
     const firstContact = formData.contacts[0];
     
     if (!firstContact.name && !firstContact.email && !firstContact.phone) {
-      console.log("Populating contact with buyer profile data");
-      
       setFormData(prevData => ({
         ...prevData,
         contacts: [
@@ -351,7 +341,6 @@ const fetchUserProfile = async () => {
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.log("No existing profile found, showing empty form");
         return;
       }
 
@@ -362,11 +351,9 @@ const fetchUserProfile = async () => {
     }
 
     const profileData = await response.json();
-    console.log("Existing profile loaded:", profileData);
 
     if (profileData && profileData._id) {
       setProfileId(profileData._id);
-      console.log("Company Profile ID stored for updates:", profileData._id);
     }
 
     if (profileData) {
@@ -473,7 +460,6 @@ const fetchUserProfile = async () => {
         }
       }
     } catch (error) {
-      console.error("Error fetching profile:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -485,9 +471,8 @@ const fetchUserProfile = async () => {
     if (!isClient) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       if (!token) {
-        console.warn("Company Profile - Missing token for profile fetch");
         return;
       }
 
@@ -511,9 +496,7 @@ const fetchUserProfile = async () => {
 
       const data = await response.json();
       setBuyerProfile(data);
-      console.log("Company Profile - Buyer profile fetched:", data);
     } catch (error) {
-      console.error("Error fetching buyer profile:", error);
     }
   };
 
@@ -1339,16 +1322,6 @@ const fetchUserProfile = async () => {
         ...formData,
       };
 
-      console.log(
-        "Company Profile - Updating profile at:",
-        `${apiUrl}/company-profiles/${profileId}`
-      );
-      console.log(
-        "Company Profile - Using token:",
-        authToken.substring(0, 10) + "..."
-      );
-      console.log("Company Profile - Profile ID:", profileId);
-
       const updateData = { ...profileData };
       // Normalize website to include protocol for backend IsUrl validation
       const ensureProtocol = (url: string | undefined) => {
@@ -1369,11 +1342,6 @@ const fetchUserProfile = async () => {
       if (updateData.agreements && (updateData.agreements as any).agreementsAcceptedAt) {
         delete (updateData.agreements as any).agreementsAcceptedAt;
       }
-
-      console.log(
-        "Company Profile - Update data:",
-        JSON.stringify(updateData, null, 2)
-      );
 
       let response: Response;
       if (!profileId) {
@@ -1398,11 +1366,8 @@ const fetchUserProfile = async () => {
         });
       }
 
-      console.log("Company Profile - Response status:", response.status);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("API Error Response:", errorData);
 
         if (response.status === 401) {
           localStorage.removeItem("token");
@@ -1426,7 +1391,6 @@ const fetchUserProfile = async () => {
       }
 
       const result = await response.json();
-      console.log("Company Profile - Update successful:", result);
 
       setSubmitStatus("success");
 
@@ -1435,7 +1399,6 @@ const fetchUserProfile = async () => {
         router.push("/buyer/deals");
       }, 2000);
     } catch (error: any) {
-      console.error("Update error:", error);
       setSubmitStatus("error");
       setErrorMessage(
         error.message || "An error occurred while updating your profile."
@@ -1637,6 +1600,8 @@ const fetchUserProfile = async () => {
   // Function to get the complete profile picture URL
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
+    // If it's a base64 image, return as-is
+    if (path.startsWith("data:image")) return path;
 
     const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
@@ -1656,7 +1621,6 @@ const fetchUserProfile = async () => {
   const handleLogout = () => {
     if (!isClient) return;
 
-    console.log("Company Profile - Logging out");
     dismiss();
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
@@ -1696,87 +1660,144 @@ const fetchUserProfile = async () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center space-x-10 pt-3 pb-1">
-            <Link href="/buyer/deals">
-              <div className="flex items-center">
-                <Image
-                  src="/logo.svg"
-                  width={200}
-                  height={400}
-                  alt="CIM Amplify"
-                  className="h-10"
-                />
-              </div>
+      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-4">
+          {/* Left side: Hamburger + Logo (desktop) + Title */}
+          <div className="flex items-center gap-3">
+            {/* Mobile Menu Button - on the LEFT */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                <SheetHeader>
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                {/* Logo inside the sidebar */}
+                <div className="mt-6 mb-6">
+                  <Link href="https://cimamplify.com/" onClick={() => setMobileMenuOpen(false)}>
+                    <Image src="/logo.svg" width={150} height={40} alt="CIM Amplify" className="h-10 w-auto" />
+                  </Link>
+                </div>
+                <nav className="flex flex-col space-y-2">
+                  <Link
+                    href="/buyer/deals"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <Briefcase className="mr-3 h-5 w-5" />
+                    <span>All Deals</span>
+                  </Link>
+                  <Link
+                    href="/buyer/marketplace"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <Store className="mr-3 h-5 w-5" />
+                    <span>MarketPlace</span>
+                  </Link>
+                  <Link
+                    href="/buyer/company-profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
+                  >
+                    <Settings className="mr-3 h-5 w-5" />
+                    <span>Company Profile</span>
+                  </Link>
+                  <Link
+                    href="/buyer/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <User className="mr-3 h-5 w-5" />
+                    <span>My Profile</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
+                  >
+                    <LogOut className="mr-3 h-5 w-5" />
+                    <span>Sign Out</span>
+                  </button>
+                </nav>
+              </SheetContent>
+            </Sheet>
+
+            {/* Logo - hidden on mobile, shown on desktop */}
+            <Link href="https://cimamplify.com/" className="hidden md:flex items-center">
+              <Image src="/logo.svg" width={150} height={40} alt="CIM Amplify" className="h-8 sm:h-10 w-auto" />
             </Link>
-            <h1 className="text-2xl font-semibold text-gray-800">
-              Company Profile
-            </h1>
+
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Company Profile</h1>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <div className="mr-2 text-right">
-                <div className="text-sm font-medium">
-                  {buyerProfile?.fullName || "User"}
-                </div>
-                {/* <div className="text-xs text-gray-500">{buyerProfile?.companyName || "Company"}</div> */}
+          {/* Right side: Profile */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="text-right hidden sm:block">
+              <div className="font-medium text-sm sm:text-base">
+                {buyerProfile?.fullName || "User"}
               </div>
-              <div className="relative">
-                {buyerProfile?.profilePicture ? (
-                  <img
-                    src={
-                      getProfilePictureUrl(buyerProfile.profilePicture) ||
-                      "/placeholder.svg"
-                    }
-                    alt={buyerProfile.fullName}
-                    className="h-8 w-8 rounded-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/placeholder.svg";
-                    }}
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-gray-600 text-sm">
-                      {buyerProfile?.fullName?.charAt(0) || "U"}
-                    </span>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
+              {buyerProfile?.profilePicture ? (
+                <img
+                  src={getProfilePictureUrl(buyerProfile.profilePicture) || "/placeholder.svg"}
+                  alt={buyerProfile.fullName}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "/placeholder.svg";
+                  }}
+                />
+              ) : (
+                <span className="text-gray-600 text-sm font-medium">
+                  {buyerProfile?.fullName?.charAt(0) || "U"}
+                </span>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-56 border-r border-gray-200 bg-white">
+      <div className="flex flex-col md:flex-row">
+        {/* Sidebar - Hidden on mobile */}
+        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white min-h-[calc(100vh-4rem)]">
           <nav className="flex flex-col p-4">
             <Link
               href="/buyer/deals"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100"
+              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Briefcase className="mr-3 h-5 w-5" />
               <span>All Deals</span>
             </Link>
             <Link
               href="/buyer/marketplace"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100"
+              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Store className="mr-3 h-5 w-5" />
               <span>MarketPlace</span>
             </Link>
             <Link
               href="/buyer/company-profile"
-              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600"
+              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
             >
               <Settings className="mr-3 h-5 w-5" />
               <span>Company Profile</span>
             </Link>
+            <Link
+              href="/buyer/profile"
+              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <User className="mr-3 h-5 w-5" />
+              <span>My Profile</span>
+            </Link>
             <button
               onClick={handleLogout}
-              className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 text-left w-full"
+              className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
             >
               <LogOut className="mr-3 h-5 w-5" />
               <span>Sign Out</span>

@@ -44,26 +44,22 @@ export default function RegisterPage() {
     if (urlToken) {
       const cleanToken = urlToken.trim()
       localStorage.setItem("token", cleanToken)
-      console.log("Register page - Token set from URL:", cleanToken.substring(0, 10) + "...")
     }
 
     if (urlUserId) {
       const cleanUserId = urlUserId.trim()
       localStorage.setItem("userId", cleanUserId)
-      console.log("Register page - User ID set from URL:", cleanUserId)
     }
 
     // If both token and userId are provided, redirect to deals
     if (urlToken && urlUserId) {
-      console.log("Register page - Redirecting to acquireprofile with token and userId from URL")
       router.push("/buyer/acquireprofile")
       return
     }
 
     // Check if already logged in
-    const storedToken = localStorage.getItem("token")
+    const storedToken = sessionStorage.getItem('token')
     if (storedToken) {
-      console.log("Register page - Token found in localStorage, redirecting to acquireprofile")
       router.push("/buyer/acquireprofile")
     }
   }, [searchParams, router])
@@ -109,8 +105,8 @@ export default function RegisterPage() {
 
     if (!formData.website.trim()) {
       newErrors.website = "Company website is required"
-    } else if (!/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/.test(formData.website)) {
-      newErrors.website = "Invalid website URL"
+    } else if (!/^(https?:\/\/)?(www\.)?[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+\/?.*$/.test(formData.website.trim())) {
+      newErrors.website = "Invalid website URL (e.g., www.example.com or https://example.com)"
     }
 
     setErrors(newErrors)
@@ -132,8 +128,6 @@ export default function RegisterPage() {
       // Get API URL from localStorage or use default
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
 
-      console.log("Register page - Submitting registration to:", apiUrl)
-
       const response = await fetch(`${apiUrl}/buyers/register`, {
         method: "POST",
         headers: {
@@ -154,7 +148,6 @@ export default function RegisterPage() {
       }
 
       const data = await response.json()
-      console.log("Registration response:", data)
 
       // The backend should return the user data and we'll generate a login token
       if (data) {
@@ -179,23 +172,19 @@ export default function RegisterPage() {
         // Store token - adapt this to match your API response format
         if (loginData.token) {
           localStorage.setItem("token", loginData.token)
-          console.log("Register page - Token stored from login:", loginData.token.substring(0, 10) + "...")
         } else if (loginData.access_token) {
           localStorage.setItem("token", loginData.access_token)
-          console.log("Register page - Token stored from login:", loginData.access_token.substring(0, 10) + "...")
         } else {
-          console.warn("Register page - Login response missing token")
+          // Token not found in login response
         }
 
         // Store userId - adapt this to match your API response format
         if (loginData.userId) {
           localStorage.setItem("userId", loginData.userId)
-          console.log("Register page - User ID stored from login:", loginData.userId)
         } else if (loginData.user && loginData.user.id) {
           localStorage.setItem("userId", loginData.user.id)
-          console.log("Register page - User ID stored from login:", loginData.user.id)
         } else {
-          console.warn("Register page - Login response missing userId")
+          // UserId not found in login response
         }
 
         toast({
@@ -211,7 +200,6 @@ export default function RegisterPage() {
         throw new Error("Registration response missing user data")
       }
     } catch (error: any) {
-      console.error("Registration error:", error)
       setErrors({ general: error.message || "Registration failed. Please try again." })
       toast({
         title: "Registration Failed",
@@ -227,8 +215,6 @@ export default function RegisterPage() {
   const handleGoogleLogin = () => {
     // Get API URL from localStorage or use default
     const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
-    console.log("Register page - Redirecting to Google OAuth:", `${apiUrl}/buyers/google`)
-
     // Redirect to Google OAuth endpoint
     window.location.href = `${apiUrl}/buyers/google`
   }

@@ -1,40 +1,14 @@
 "use client"
- import { useEffect } from "react";
+import { useEffect } from "react";
 import React, { useState, useRef } from "react";
 import {
-     Users,
+  Users,
   Pencil,
-  Handshake,
-  History,
-  LogOut,
   Eye,
   EyeOff,
   Camera,
   Loader2,
 } from "lucide-react";
-
-import {
-  
-  Building2,
-  BarChart3,
-  FileText,
-  Settings,
-  Bell,
-  Search,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  
-  Clock,
- 
-  Plus,
-  UserPlus,
-  Shield,
-  Database,
-  Activity
-} from "lucide-react";
-
-import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -42,8 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useSearchParams, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import Link from "next/link"
-import { Tag, ShoppingCart, Eye as EyeIcon } from "lucide-react";
+import { AdminProtectedRoute } from "@/components/admin/protected-route";
 
 
 
@@ -101,8 +74,9 @@ const [loading, setLoading] = useState(true);
 const fetchAdminProfile = async () => {
   setLoading(true);
   try {
-    const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:5001/admin/profile", {
+    const token = sessionStorage.getItem('token');
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+    const res = await fetch(`${apiUrl}/admin/profile`, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -137,8 +111,11 @@ useEffect(() => {
   const validateWebsite = (url: string) => {
     if (!url.trim()) return true;
     try {
-      const urlPattern = /^https?:\/\/.+/;
-      return urlPattern.test(url.trim());
+      const trimmedUrl = url.trim();
+      // Accept URLs with http/https, www prefix, or plain domain names
+      // Pattern accepts: https://example.com, http://example.com, www.example.com, example.com
+      const urlPattern = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+\/?.*$/;
+      return urlPattern.test(trimmedUrl);
     } catch {
       return false;
     }
@@ -150,7 +127,7 @@ useEffect(() => {
       errors.email = "Please enter a valid email address";
     }
     if (editValues && editValues.website && !validateWebsite(editValues.website)) {
-      errors.website = "Website must be a valid URL (e.g., https://example.com)";
+      errors.website = "Website must be a valid URL (e.g., www.example.com or https://example.com)";
     }
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -190,9 +167,10 @@ useEffect(() => {
           return;
         }
         // Send to backend
-        const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:5001/admin/profile", {
-          method: "PATCH",
+        const token = sessionStorage.getItem('token');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+        const res = await fetch(`${apiUrl}/admin/upload-profile-picture`, {
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -225,16 +203,16 @@ useEffect(() => {
     router.push("/admin/login")
   }
 
-// Helper to get image src with cache busting only for real URLs
+// Helper to get image src
 function getProfileImageSrc(src?: string | null) {
   if (!src) return undefined;
-  if (src.startsWith('data:')) return src;
-  return src + `?cb=${Date.now()}`;
+  return src;
 }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Toast Notification */}
+    <AdminProtectedRoute>
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Toast Notification */}
       {toastMessage && (
         <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
           toastType === "error" ? "bg-red-500 text-white" : "bg-green-500 text-white"
@@ -243,90 +221,18 @@ function getProfileImageSrc(src?: string | null) {
         </div>
       )}
 
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-        <div className="mb-8">
-          <Link href="/seller/dashboard">
-            <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
-          </Link>
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 p-3 px-4 lg:px-6 flex justify-between items-center sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl lg:text-4xl font-semibold text-gray-800">Profile</h1>
         </div>
-        <nav className="flex-1 flex flex-col gap-4">
-            <Link href="/admin/dashboard">
-            <Button variant="ghost" className="w-full justify-start gap-3 font-normal">
-              <Handshake className="h-5 w-5" />
-              <span>  Deals</span>
-            </Button>
-          </Link>
-          <Link href="/admin/buyers">
-            <Button variant="ghost" className="w-full justify-start gap-3 font-normal">
-              <Tag className="h-5 w-5" />
-              <span>Buyers</span>
-            </Button>
-          </Link>
-          <Link href="/admin/sellers">
-            <Button variant="ghost" className="w-full justify-start gap-3 font-normal">
-              <ShoppingCart className="h-5 w-5" />
-              <span>Sellers</span>
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-            onClick={() => router.push('/admin/viewprofile')}
-          >
-            <Eye className="h-5 w-5" />
-            <span>View Profile</span>
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Sign Out</span>
-          </Button>
-        </nav>
-      </div>
 
-      {/* Main content */}
-      <div className="flex-1">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-          <h1 className="text-4xl font-semibold text-gray-800">Profile</h1>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              {/* {!editMode ? (
-                <button
-                  onClick={handleEditToggle}
-                  className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors"
-                >
-                  <Pencil className="h-4 w-4" />
-                  Edit Profile
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSaveAll}
-                    disabled={updating}
-                    className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors"
-                  >
-                    {updating ? "Saving..." : "Save Changes"}
-                  </button>
-                  <button
-                    onClick={handleEditToggle}
-                    disabled={updating}
-                    className="border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )} */}
-
-              <div className="text-right">
-                <div className="font-medium">{profile?.fullName || "User"}</div>
+          <div className="flex items-center gap-2 lg:gap-6">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="text-right hidden sm:block">
+                <div className="font-medium text-sm lg:text-base">{profile?.fullName || "User"}</div>
               </div>
-              <div className="relative h-10 w-10 rounded-full bg-gray-300 overflow-hidden flex items-center justify-center text-white font-medium">
+              <div className="relative h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 overflow-hidden flex items-center justify-center text-white font-medium ring-2 ring-teal-200">
                 {profile?.profilePicture ? (
                   <img
                     src={getProfileImageSrc(profile.profilePicture)}
@@ -335,7 +241,7 @@ function getProfileImageSrc(src?: string | null) {
                     key={profile.profilePicture}
                   />
                 ) : (
-                  <span>
+                  <span className="text-sm lg:text-base">
                     {profile?.fullName ? profile.fullName.charAt(0) : "U"}
                   </span>
                 )}
@@ -345,7 +251,7 @@ function getProfileImageSrc(src?: string | null) {
         </header>
 
         {/* Profile content */}
-        <div className="p-8">
+        <div className="p-3 sm:p-4 lg:p-8 overflow-auto">
           <div className="bg-white rounded-lg shadow">
             <div className="p-6 flex flex-col md:flex-row gap-6">
               {/* Profile Picture */}
@@ -403,8 +309,6 @@ function getProfileImageSrc(src?: string | null) {
           </div>
         </div>
       </div>
-
-     
-    </div>
+    </AdminProtectedRoute>
   );
 }

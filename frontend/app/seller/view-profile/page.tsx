@@ -16,7 +16,11 @@ import {
   EyeOff,
   Camera,
   Loader2,
+  FileText,
+  Clock,
+  Menu,
 } from "lucide-react";
+import { triggerNavigationProgress } from "@/components/navigation-progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +36,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
 import SellerProtectedRoute from "@/components/seller/protected-route";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box";
 
 interface SellerProfile {
   id: string;
@@ -83,12 +89,15 @@ export default function ViewProfilePage() {
   const { logout } = useAuth();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Helper function to get profile picture URL
   const getProfilePictureUrl = (profilePicture: string | null) => {
     if (!profilePicture) return null;
-
-    if (profilePicture.startsWith("http")) return profilePicture;
+    // If it's a base64 image, return as-is
+    if (profilePicture.startsWith("data:image")) return profilePicture;
+    // If it's already a full URL, return as-is
+    if (profilePicture.startsWith("http://") || profilePicture.startsWith("https://")) return profilePicture;
 
     const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
     const formattedPath = profilePicture.replace(/\\/g, "/");
@@ -103,8 +112,11 @@ export default function ViewProfilePage() {
     if (!url.trim()) return true; // Empty is valid (optional field)
 
     try {
-      const urlPattern = /^https?:\/\/.+/;
-      return urlPattern.test(url.trim());
+      const trimmedUrl = url.trim();
+      // Accept URLs with http/https, www prefix, or plain domain names
+      // Pattern accepts: https://example.com, http://example.com, www.example.com, example.com
+      const urlPattern = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+\/?.*$/;
+      return urlPattern.test(trimmedUrl);
     } catch {
       return false;
     }
@@ -125,7 +137,7 @@ export default function ViewProfilePage() {
     // Validate website
     if (editValues.website && !validateWebsite(editValues.website)) {
       errors.website =
-        "Website must be a valid URL (e.g., https://example.com)";
+        "Website must be a valid URL (e.g., www.example.com or https://example.com)";
     }
 
     setValidationErrors(errors);
@@ -139,23 +151,17 @@ export default function ViewProfilePage() {
       try {
         setLoading(true);
 
-        const token = localStorage.getItem("token");
+        const token = sessionStorage.getItem("token");
         if (!token) {
-          console.error(
-            "View Profile - No authentication token found, redirecting to login"
-          );
           router.push("/seller/login?error=no_token");
           return;
         }
 
-        console.log("View Profile - Attempting to fetch profile");
         const data = await getSellerProfile();
-        console.log("Profile data:", data);
         setProfile(data);
         setEditValues(data);
         setError(null);
       } catch (err: any) {
-        console.error("Error fetching profile:", err);
         setError(err.message || "Failed to load profile");
         toast({
           title: "Error",
@@ -168,9 +174,6 @@ export default function ViewProfilePage() {
           err.message === "No authentication token found" ||
           err.message === "Failed to fetch profile: 403"
         ) {
-          console.log(
-            "View Profile - Authentication error, redirecting to login"
-          );
           router.push("/seller/login?error=auth_failed");
         }
       } finally {
@@ -203,7 +206,7 @@ export default function ViewProfilePage() {
 
     try {
       setUpdating(true);
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
 
       // Always send all editable fields including website
       const updatePayload: any = {
@@ -240,7 +243,6 @@ export default function ViewProfilePage() {
         description: "Profile updated successfully",
       });
     } catch (error: any) {
-      console.error("Error updating profile:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to update profile",
@@ -272,7 +274,7 @@ export default function ViewProfilePage() {
 
     try {
       setUpdating(true);
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
 
       // Send all editable fields + password including website
       const updatePayload: any = {
@@ -313,7 +315,6 @@ export default function ViewProfilePage() {
         description: "Password changed successfully",
       });
     } catch (error: any) {
-      console.error("Error changing password:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to change password",
@@ -354,58 +355,65 @@ export default function ViewProfilePage() {
     setUploadError(null);
 
     try {
-      const token = localStorage.getItem("token");
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64Image = e.target?.result as string;
+        
+        const token = sessionStorage.getItem("token");
+        // Get API URL from localStorage or use default
+        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
-      // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+        // Send base64 image to backend
+        const response = await fetch(`${apiUrl}/sellers/upload-profile-picture`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ profilePicture: base64Image }),
+        });
 
-      // Create form data with 'file' as the field name
-      const formData = new FormData();
-      formData.append("file", file);
-
-      // Upload the image
-      const response = await fetch(`${apiUrl}/sellers/upload-profile-picture`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Handle unauthorized
-          localStorage.removeItem("token");
-          localStorage.removeItem("userId");
-          router.push("/seller/login?session=expired");
-          throw new Error("Session expired. Please log in again.");
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Handle unauthorized
+            localStorage.removeItem("token");
+            localStorage.removeItem("userId");
+            router.push("/seller/login?session=expired");
+            throw new Error("Session expired. Please log in again.");
+          }
+          throw new Error(`Failed to upload profile picture: ${response.status}`);
         }
-        throw new Error(`Failed to upload profile picture: ${response.status}`);
-      }
 
-      const data = await response.json();
+        const data = await response.json();
 
-      // Update the seller profile with the new profile picture path
-      if (profile) {
-        setProfile({
-          ...profile,
-          profilePicture: data.profilePicture || profile.profilePicture,
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Update the seller profile with the new profile picture
+        if (profile) {
+          setProfile({
+            ...profile,
+            profilePicture: data.profilePicture || profile.profilePicture,
+          });
+          setEditValues({
+            ...editValues,
+            profilePicture: data.profilePicture || profile.profilePicture,
+          });
+        }
+
+        toast({
+          title: "Success",
+          description: "Profile picture uploaded successfully",
         });
-        setEditValues({
-          ...editValues,
-          profilePicture: data.profilePicture || profile.profilePicture,
-        });
-      }
 
-      toast({
-        title: "Success",
-        description: "Profile picture uploaded successfully",
-      });
-
-      // Refresh the profile data to get the updated profile picture
-      fetchSellerProfile();
+        // Refresh the profile data to get the updated profile picture
+        fetchSellerProfile();
+      };
+      
+      reader.readAsDataURL(file);
     } catch (err: any) {
-      console.error("Error uploading profile picture:", err);
       setUploadError(err.message || "Failed to upload profile picture");
       toast({
         title: "Error",
@@ -424,7 +432,7 @@ export default function ViewProfilePage() {
       setProfile(data);
       setEditValues(data);
     } catch (err) {
-      console.error("Error fetching seller profile:", err);
+      // Error fetching seller profile
     }
   };
 
@@ -433,90 +441,149 @@ export default function ViewProfilePage() {
   };
 
   const handleLogout = () => {
-    logout();
-    router.push("/seller/login");
+    logout(); // logout() from useAuth already handles redirect
   };
+
+  // Navigation component for reuse
+  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <>
+      <div className="mb-8">
+        <Link href="/seller/dashboard" onClick={onNavigate}>
+          <Image
+            src="/logo.svg"
+            alt="CIM Amplify Logo"
+            width={150}
+            height={50}
+            className="h-auto"
+          />
+        </Link>
+      </div>
+
+      <nav className="flex-1 space-y-6">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          data-navigate="/seller/dashboard"
+          onClick={() => {
+            triggerNavigationProgress();
+            onNavigate?.();
+            router.push("/seller/dashboard");
+          }}
+        >
+          <HandshakeIcon className="h-5 w-5" />
+          <span>MyDeals</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          data-navigate="/seller/loi-deals"
+          onClick={() => {
+            triggerNavigationProgress();
+            onNavigate?.();
+            router.push("/seller/loi-deals");
+          }}
+        >
+          <FileText className="h-5 w-5" />
+          <span>LOI - Deals</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal"
+          data-navigate="/seller/history"
+          onClick={() => {
+            triggerNavigationProgress();
+            onNavigate?.();
+            router.push("/seller/history");
+          }}
+        >
+          <Clock className="h-5 w-5" />
+          <span>Off Market</span>
+        </Button>
+
+        <Button
+          variant="secondary"
+          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
+          onClick={onNavigate}
+        >
+          <Eye className="h-5 w-5" />
+          <span>View Profile</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
+          onClick={() => {
+            onNavigate?.();
+            handleLogout();
+          }}
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Sign Out</span>
+        </Button>
+      </nav>
+
+      <AmplifyVenturesBox />
+    </>
+  );
 
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-          <div className="mb-8">
-            <Link href="/seller/dashboard">
-              <Image
-                src="/logo.svg"
-                alt="CIM Amplify Logo"
-                width={150}
-                height={50}
-                className="h-auto"
-              />
-            </Link>
-          </div>
-
-          <nav className="flex-1 space-y-6">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/seller/dashboard")}
-            >
-              <HandshakeIcon className="h-5 w-5" />
-              <span>Deals</span>
-            </Button>
-
-            <Button
-              variant="secondary"
-              className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-            >
-              <Pencil className="h-5 w-5" />
-              <span>View Profile</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal"
-              onClick={() => router.push("/seller/history")}
-            >
-              <History className="h-5 w-5" />
-              <span>Off Market</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-5 w-5" />
-              <span>Sign Out</span>
-            </Button>
-          </nav>
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex w-64 bg-white border-r border-gray-200 p-6 flex-col">
+          <NavigationContent />
         </div>
 
         {/* Main content */}
         <div className="flex-1">
           {/* Header */}
-          <header className="bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-            <h1 className="text-4xl font-semibold text-gray-800">Profile</h1>
+          <header className="bg-white border-b border-gray-200 p-3 sm:p-6 flex justify-between items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Mobile Menu Button */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] sm:w-[350px] flex flex-col h-full overflow-hidden">
+                  <SheetHeader>
+                    <SheetTitle>Menu</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 flex-1 overflow-y-auto pb-6">
+                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <h1 className="text-xl sm:text-2xl md:text-4xl font-semibold text-gray-800">Profile</h1>
+            </div>
 
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {!editMode ? (
                   <Button
                     onClick={handleEditToggle}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+                    size="sm"
                   >
-                    <Pencil className="h-4 w-4" />
-                    Edit Profile
+                    <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">Edit</span>
+                    <span className="hidden sm:inline">Profile</span>
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <Button onClick={handleSaveAll} disabled={updating}>
-                      {updating ? "Saving..." : "Save Changes"}
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <Button onClick={handleSaveAll} disabled={updating} size="sm" className="text-xs sm:text-sm">
+                      {updating ? "Saving..." : "Save"}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={handleEditToggle}
                       disabled={updating}
+                      size="sm"
+                      className="text-xs sm:text-sm"
                     >
                       Cancel
                     </Button>
@@ -525,18 +592,17 @@ export default function ViewProfilePage() {
 
                 {loading ? (
                   <>
-                    <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <Skeleton className="hidden sm:block h-5 w-32" />
+                    <Skeleton className="h-8 w-8 sm:h-10 sm:w-10 rounded-full" />
                   </>
                 ) : (
                   <>
-                    <div className="text-right">
-                      <div className="font-medium">
+                    <div className="text-right hidden sm:block">
+                      <div className="font-medium text-sm">
                         {profile?.fullName || "User"}
                       </div>
                     </div>
-                    <div className="relative h-10 w-10 rounded-full bg-gray-300 overflow-hidden flex items-center justify-center text-white font-medium">
+                    <div className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-300 overflow-hidden flex items-center justify-center text-white font-medium">
                       {profile?.profilePicture ? (
                         <img
                           src={
@@ -563,35 +629,35 @@ export default function ViewProfilePage() {
           </header>
 
           {/* Profile content */}
-          <div className="p-8">
+          <div className="p-3 sm:p-6 md:p-8">
             {loading ? (
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex gap-6">
-                  <Skeleton className="h-40 w-40 rounded-lg" />
-                  <div className="flex-1 space-y-4">
-                    <Skeleton className="h-8 w-64" />
-                    <Skeleton className="h-6 w-32" />
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                  <Skeleton className="h-32 w-32 sm:h-40 sm:w-40 rounded-lg mx-auto sm:mx-0" />
+                  <div className="flex-1 space-y-3 sm:space-y-4">
+                    <Skeleton className="h-6 sm:h-8 w-48 sm:w-64" />
+                    <Skeleton className="h-5 sm:h-6 w-24 sm:w-32" />
                     <div className="space-y-2">
-                      <Skeleton className="h-5 w-48" />
-                      <Skeleton className="h-5 w-40" />
+                      <Skeleton className="h-4 sm:h-5 w-40 sm:w-48" />
+                      <Skeleton className="h-4 sm:h-5 w-32 sm:w-40" />
                     </div>
                   </div>
                 </div>
-                <div className="mt-8 space-y-4">
-                  <Skeleton className="h-6 w-48" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Skeleton className="h-5 w-full" />
-                    <Skeleton className="h-5 w-full" />
+                <div className="mt-6 sm:mt-8 space-y-3 sm:space-y-4">
+                  <Skeleton className="h-5 sm:h-6 w-40 sm:w-48" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <Skeleton className="h-4 sm:h-5 w-full" />
+                    <Skeleton className="h-4 sm:h-5 w-full" />
                   </div>
                 </div>
               </div>
             ) : error ? (
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-center py-8">
-                  <div className="text-red-500 text-lg mb-2">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                <div className="text-center py-6 sm:py-8">
+                  <div className="text-red-500 text-base sm:text-lg mb-2">
                     Error loading profile
                   </div>
-                  <p className="text-gray-600">{error}</p>
+                  <p className="text-gray-600 text-sm sm:text-base">{error}</p>
                   <Button
                     className="mt-4"
                     onClick={() => window.location.reload()}
@@ -602,9 +668,9 @@ export default function ViewProfilePage() {
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow">
-                <div className="p-6 flex flex-col md:flex-row gap-6">
+                <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6">
                   {/* Profile Picture */}
-                  <div className="relative h-40 w-40 rounded-lg bg-gray-200 overflow-hidden shrink-0">
+                  <div className="relative h-32 w-32 sm:h-40 sm:w-40 rounded-lg bg-gray-200 overflow-hidden shrink-0 mx-auto sm:mx-0">
                     {profile?.profilePicture ? (
                       <img
                         src={
@@ -612,7 +678,7 @@ export default function ViewProfilePage() {
                           "/placeholder.svg"
                         }
                         alt={profile?.fullName || "Profile"}
-                        className="h-40 w-40 rounded-lg object-cover"
+                        className="h-32 w-32 sm:h-40 sm:w-40 rounded-lg object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src =
                             "/placeholder.svg";
@@ -622,18 +688,18 @@ export default function ViewProfilePage() {
                       <img
                         src="/placeholder.svg"
                         alt="Profile"
-                        className="h-40 w-40 rounded-lg object-cover"
+                        className="h-32 w-32 sm:h-40 sm:w-40 rounded-lg object-cover"
                       />
                     )}
                     <button
                       onClick={triggerFileInput}
-                      className="absolute bottom-2 right-2 bg-teal-500 hover:bg-teal-600 text-white p-2 rounded-full shadow-md"
+                      className="absolute bottom-2 right-2 bg-teal-500 hover:bg-teal-600 text-white p-1.5 sm:p-2 rounded-full shadow-md"
                       disabled={uploadingImage}
                     >
                       {uploadingImage ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                       ) : (
-                        <Camera className="h-5 w-5" />
+                        <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
                       )}
                     </button>
                     <input
@@ -646,9 +712,9 @@ export default function ViewProfilePage() {
                   </div>
 
                   {/* Profile Info */}
-                  <div className="flex-1 flex flex-col justify-center space-y-3 text-gray-800 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-24">Name:</span>
+                  <div className="flex-1 flex flex-col justify-center space-y-2 sm:space-y-3 text-gray-800 text-xs sm:text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium sm:w-24">Name:</span>
                       {editMode ? (
                         <div className="flex-1">
                           <Input
@@ -675,8 +741,8 @@ export default function ViewProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-24">Company:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium sm:w-24">Company:</span>
                       {editMode ? (
                         <div className="flex-1">
                           <Input
@@ -705,8 +771,8 @@ export default function ViewProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-24">Title:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium sm:w-24">Title:</span>
                       {editMode ? (
                         <div className="flex-1">
                           <Input
@@ -733,8 +799,8 @@ export default function ViewProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-24">Email:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium sm:w-24">Email:</span>
                       {editMode ? (
                         <div className="flex-1">
                           <Input
@@ -764,8 +830,8 @@ export default function ViewProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-24">Phone:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium sm:w-24">Phone:</span>
                       {editMode ? (
                         <div className="flex-1">
                           <Input
@@ -794,8 +860,8 @@ export default function ViewProfilePage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium w-24">Website:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span className="font-medium sm:w-24">Website:</span>
                       {editMode ? (
                         <div className="flex-1">
                           <Input

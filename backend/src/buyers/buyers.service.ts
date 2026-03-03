@@ -11,7 +11,7 @@ import { CompanyProfile, CompanyProfileDocument } from "../company-profile/schem
 
 import { AuthService } from "../auth/auth.service";
 import { MailService, ILLUSTRATION_ATTACHMENT } from "../mail/mail.service";
-import { genericEmailTemplate } from "../mail/generic-email.template";
+import { genericEmailTemplate, emailButton } from "../mail/generic-email.template";
 
 @Injectable()
 export class BuyersService {
@@ -62,13 +62,13 @@ export class BuyersService {
       const emailContent = `
         <p>If you have run into any issues please reply to this email with what is happening and we will help to solve the problem.</p>
         <p>If you did not receive a validation email from us please use this link to request a new one: </p>
-        
-        <p><a href="http://localhost:5000/resend-verification" style="background-color: #3aafa9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Resend Verification Email</a></p>
+
+        ${emailButton('Resend Verification Email', `${process.env.FRONTEND_URL}/resend-verification`)}
 
         <p>Then check your inbox or spam for an email from deals@amp-ven.com</p>
 
         <p style="color: red;"><b>If you don't plan to complete your profile please reply delete to this email and we will remove your registration.</b></p>
-       
+
         <p>If you have questions check out our FAQ section at https://cimamplify.com/#FAQs or reply to this email.</p>
       `;
 
@@ -89,7 +89,7 @@ export class BuyersService {
 
     const existingBuyer = await this.buyerModel.findOne({ email }).exec();
     if (existingBuyer) {
-      throw new ConflictException("Email already exists");
+      throw new ConflictException("An account with this email already exists. Please try logging in instead.");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -97,6 +97,7 @@ export class BuyersService {
     const newBuyer = new this.buyerModel({
       ...createBuyerDto,
       password: hashedPassword,
+      isEmailVerified: true, // Auto-verify since we removed email verification
     });
 
     let savedBuyer = await newBuyer.save();
@@ -112,7 +113,8 @@ export class BuyersService {
     savedBuyer.companyProfileId = savedCompanyProfile._id as Types.ObjectId;
     savedBuyer = await savedBuyer.save();
 
-    await this.authService.sendVerificationEmail(savedBuyer);
+    // Send welcome email instead of verification email
+    await this.authService.sendWelcomeEmail(savedBuyer, 'buyer');
 
     // Notify project owner
     const ownerSubject = `New Buyer ${savedBuyer.companyName}`;
@@ -136,8 +138,11 @@ export class BuyersService {
   }
 
   async findAll(page: number = 1, limit: number = 10, search: string = '', sortBy: string = '', dealStatus: string = ''): Promise<any> {
+    console.log('[BUYERS SERVICE] === findAll called ===');
+    console.log('[BUYERS SERVICE] Parameters:', { page, limit, search, sortBy, dealStatus });
+
     const skip = (page - 1) * limit;
-    
+
     // Build search query
     const searchQuery: any = search ? {
       $or: [
@@ -148,8 +153,47 @@ export class BuyersService {
       ]
     } : {};
     
-    // Add deal status filter if provided
+    // Add deal status filter if provided - USE DENORMALIZED COUNTS
     if (dealStatus && (dealStatus === 'active' || dealStatus === 'pending' || dealStatus === 'rejected')) {
+      console.log('[BUYERS SERVICE] Using OPTIMIZED query with denormalized counts');
+
+      // Use denormalized count fields instead of complex aggregation
+      const dealCountField = dealStatus === 'active' ? 'activeDealsCount' :
+                             dealStatus === 'pending' ? 'pendingDealsCount' :
+                             'rejectedDealsCount';
+
+      searchQuery[dealCountField] = { $gt: 0 };
+
+      // Simple query using denormalized fields
+      const buyers = await this.buyerModel
+        .find(searchQuery)
+        .populate("companyProfileId")
+        .sort({ _id: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec();
+
+      const totalBuyers = await this.buyerModel.countDocuments(searchQuery).exec();
+
+      console.log('[BUYERS SERVICE] Optimized query completed. Found:', buyers.length);
+
+      return {
+        data: buyers.map((buyer: any) => ({
+          ...buyer,
+          companyProfile: buyer.companyProfileId,
+          activeDealsCount: buyer.activeDealsCount,
+          pendingDealsCount: buyer.pendingDealsCount,
+          rejectedDealsCount: buyer.rejectedDealsCount
+        })),
+        total: totalBuyers,
+        page,
+        lastPage: Math.ceil(totalBuyers / limit),
+      };
+    }
+
+    // OLD COMPLEX AGGREGATION (FALLBACK - REMOVE AFTER MIGRATION)
+    if (false && dealStatus && (dealStatus === 'active' || dealStatus === 'pending' || dealStatus === 'rejected')) {
       const responseKey = dealStatus === 'active' ? 'accepted' : dealStatus;
       // Use aggregation to filter by deal status and include per-buyer invitationStatus counts
       const pipeline = [
@@ -305,8 +349,25 @@ export class BuyersService {
         },
         { $addFields: { companyProfileId: { $arrayElemAt: ['$companyProfileId', 0] } } }
       ];
-      
-      const buyers = await this.buyerModel.aggregate(pipeline).exec();
+
+      // Use native MongoDB collection to ensure allowDiskUse is properly applied
+      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Executing buyer aggregation');
+      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Pipeline length:', pipeline.length);
+      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Using allowDiskUse: true');
+      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] DealStatus:', dealStatus, 'ResponseKey:', responseKey);
+      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Page:', page, 'Limit:', limit, 'Skip:', skip);
+
+      let buyers;
+      try {
+        buyers = await this.buyerModel.collection.aggregate(pipeline, { allowDiskUse: true }).toArray();
+        console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Buyer aggregation completed successfully');
+        console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Found buyers count:', buyers.length);
+      } catch (error) {
+        console.error('[BUYERS SERVICE - DEAL STATUS FILTER] Aggregation error:', error);
+        console.error('[BUYERS SERVICE - DEAL STATUS FILTER] Error name:', error.name);
+        console.error('[BUYERS SERVICE - DEAL STATUS FILTER] Error message:', error.message);
+        throw error;
+      }
       const totalBuyersPipeline = [
         { $match: searchQuery },
         { $addFields: { buyerIdStr: { $toString: '$_id' } } },
@@ -353,10 +414,25 @@ export class BuyersService {
             }
           }
         },
-        { $match: { filteredDealsCount: { $gt: 0 } } }
+        { $match: { filteredDealsCount: { $gt: 0 } } },
+        { $count: 'count' }
       ];
-      const totalBuyers = await this.buyerModel.aggregate(totalBuyersPipeline).count('count').exec();
-      const totalCount = totalBuyers.length > 0 ? totalBuyers[0].count : 0;
+
+      console.log('[BUYERS SERVICE - TOTAL COUNT] Executing total buyers count aggregation');
+      console.log('[BUYERS SERVICE - TOTAL COUNT] Using allowDiskUse: true');
+
+      let totalBuyersResult;
+      try {
+        totalBuyersResult = await this.buyerModel.collection.aggregate(totalBuyersPipeline, { allowDiskUse: true }).toArray();
+        const totalCount = totalBuyersResult.length > 0 ? totalBuyersResult[0].count : 0;
+        console.log('[BUYERS SERVICE - TOTAL COUNT] Total count:', totalCount);
+      } catch (error) {
+        console.error('[BUYERS SERVICE - TOTAL COUNT] Aggregation error:', error);
+        console.error('[BUYERS SERVICE - TOTAL COUNT] Error name:', error.name);
+        console.error('[BUYERS SERVICE - TOTAL COUNT] Error message:', error.message);
+        throw error;
+      }
+      const totalCount = totalBuyersResult.length > 0 ? totalBuyersResult[0].count : 0;
       
       return {
         data: buyers.map((buyer: any) => ({
@@ -423,8 +499,24 @@ export class BuyersService {
           }
         }
       ];
-      
-      const buyers = await this.buyerModel.aggregate(pipeline).exec();
+
+      // Use native MongoDB collection to ensure allowDiskUse is properly applied
+      console.log('[BUYERS SERVICE - DEAL SORT] Executing buyer aggregation with deal sorting');
+      console.log('[BUYERS SERVICE - DEAL SORT] Pipeline length:', pipeline.length);
+      console.log('[BUYERS SERVICE - DEAL SORT] Using allowDiskUse: true');
+      console.log('[BUYERS SERVICE - DEAL SORT] SortBy:', sortBy, 'Field:', field, 'Order:', order);
+
+      let buyers;
+      try {
+        buyers = await this.buyerModel.collection.aggregate(pipeline, { allowDiskUse: true }).toArray();
+        console.log('[BUYERS SERVICE - DEAL SORT] Buyer aggregation completed successfully');
+        console.log('[BUYERS SERVICE - DEAL SORT] Found buyers count:', buyers.length);
+      } catch (error) {
+        console.error('[BUYERS SERVICE - DEAL SORT] Aggregation error:', error);
+        console.error('[BUYERS SERVICE - DEAL SORT] Error name:', error.name);
+        console.error('[BUYERS SERVICE - DEAL SORT] Error message:', error.message);
+        throw error;
+      }
       const totalBuyers = await this.buyerModel.countDocuments(searchQuery).exec();
       
       return {
@@ -499,12 +591,82 @@ export class BuyersService {
       throw new NotFoundException("Buyer not found");
     }
 
-    if (updateBuyerDto.password) {
-      updateBuyerDto.password = await bcrypt.hash(updateBuyerDto.password, 10);
+    // Create a clean update object, removing fields that shouldn't be updated directly
+    const updateData: any = { ...updateBuyerDto };
+
+    // Remove read-only fields
+    delete updateData._id;
+    delete updateData.role;
+
+    // Handle phoneNumber -> phone mapping (frontend uses phoneNumber, schema uses phone)
+    if (updateData.phoneNumber !== undefined) {
+      updateData.phone = updateData.phoneNumber;
+      delete updateData.phoneNumber;
     }
 
-    Object.assign(buyer, updateBuyerDto);
-    return buyer.save();
+    // Hash password if being updated, otherwise remove it to prevent overwriting
+    if (updateData.password && updateData.password.trim() !== '') {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    } else {
+      delete updateData.password;
+    }
+
+    // Remove undefined/null values to prevent overwriting existing data
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    // Only update fields that are actually provided
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined) {
+        buyer[key] = updateData[key];
+      }
+    });
+
+    await buyer.save();
+
+    // Sync to company profile if exists
+    if (buyer.companyProfileId) {
+      const companyProfile = await this.companyProfileModel.findById(buyer.companyProfileId).exec();
+      if (companyProfile) {
+        let profileUpdated = false;
+
+        // Update company-level fields
+        if (updateData.companyName) {
+          companyProfile.companyName = updateData.companyName;
+          profileUpdated = true;
+        }
+        if (updateData.website) {
+          companyProfile.website = updateData.website;
+          profileUpdated = true;
+        }
+
+        // Update first contact with buyer info
+        if (updateData.fullName || updateData.email || updateData.phone) {
+          if (!companyProfile.contacts || companyProfile.contacts.length === 0) {
+            companyProfile.contacts = [{
+              name: updateData.fullName || buyer.fullName || '',
+              email: updateData.email || buyer.email || '',
+              phone: updateData.phone || buyer.phone || ''
+            }];
+          } else {
+            // Update first contact
+            if (updateData.fullName) companyProfile.contacts[0].name = updateData.fullName;
+            if (updateData.email) companyProfile.contacts[0].email = updateData.email;
+            if (updateData.phone) companyProfile.contacts[0].phone = updateData.phone;
+          }
+          profileUpdated = true;
+        }
+
+        if (profileUpdated) {
+          await companyProfile.save();
+        }
+      }
+    }
+
+    return buyer;
   }
 
   async remove(id: string): Promise<void> {
@@ -579,5 +741,67 @@ export class BuyersService {
 
     buyer.profilePicture = profilePicturePath;
     return buyer.save();
+  }
+
+  /**
+   * Update denormalized deal counts for a buyer
+   * Call this method whenever a deal's invitation status changes
+   */
+  async updateBuyerDealCounts(buyerId: string): Promise<void> {
+    const dealModel = this.buyerModel.db.model('Deal');
+
+    // Get all non-completed deals for this buyer
+    const deals = await dealModel.find({
+      targetedBuyers: buyerId,
+      status: { $ne: 'completed' }
+    }).lean().exec();
+
+    // Calculate counts
+    let activeCount = 0;
+    let pendingCount = 0;
+    let rejectedCount = 0;
+
+    for (const deal of deals) {
+      const invitationStatus = deal.invitationStatus || {};
+      const buyerStatus = invitationStatus[buyerId];
+
+      if (buyerStatus) {
+        if (buyerStatus.response === 'accepted') activeCount++;
+        else if (buyerStatus.response === 'pending') pendingCount++;
+        else if (buyerStatus.response === 'rejected') rejectedCount++;
+      }
+    }
+
+    // Update buyer document
+    await this.buyerModel.updateOne(
+      { _id: buyerId },
+      {
+        $set: {
+          activeDealsCount: activeCount,
+          pendingDealsCount: pendingCount,
+          rejectedDealsCount: rejectedCount
+        }
+      }
+    ).exec();
+
+    console.log(`[BUYERS SERVICE] Updated deal counts for buyer ${buyerId}: active=${activeCount}, pending=${pendingCount}, rejected=${rejectedCount}`);
+  }
+
+  /**
+   * Bulk update deal counts for multiple buyers
+   * More efficient when updating many buyers at once
+   */
+  async bulkUpdateBuyerDealCounts(buyerIds: string[]): Promise<void> {
+    console.log(`[BUYERS SERVICE] Bulk updating deal counts for ${buyerIds.length} buyers`);
+
+    for (const buyerId of buyerIds) {
+      try {
+        await this.updateBuyerDealCounts(buyerId);
+      } catch (error) {
+        console.error(`[BUYERS SERVICE] Error updating counts for buyer ${buyerId}:`, error);
+      }
+    }
+
+    console.log(`[BUYERS SERVICE] Bulk update completed`);
   }
 }

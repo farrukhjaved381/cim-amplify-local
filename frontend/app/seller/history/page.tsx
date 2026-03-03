@@ -1,14 +1,19 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
-import { Search, Eye, Clock, Settings, LogOut, Pencil, Check, X } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Eye, Clock, LogOut, FileText, Menu, TrendingUp, Building2, MapPin, Calendar, DollarSign, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { triggerNavigationProgress } from "@/components/navigation-progress"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useAuth } from "@/contexts/auth-context"
+import SellerProtectedRoute from "@/components/seller/protected-route"
 
 interface Deal {
   id: string
@@ -25,79 +30,163 @@ interface Deal {
   trailingRevenueAmount?: number
   closedWithBuyerCompany?: string
   closedWithBuyerEmail?: string
+  wasLOIDeal?: boolean
+}
+
+// Helper to get API URL
+const getApiUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem("apiUrl") || "http://localhost:5001";
+  }
+  return "http://localhost:5001";
+};
+
+function getProfilePictureUrl(path: string | null) {
+  if (!path) return null
+  if (path.startsWith("data:image")) return path
+  if (path.startsWith("http://") || path.startsWith("https://")) return path
+  const apiUrl = getApiUrl()
+  const formattedPath = path.replace(/\\/g, "/")
+  return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.slice(1) : formattedPath}`
 }
 
 function DealCard({ deal }: { deal: Deal }) {
+  const formatCurrency = (amount: number | undefined): string => {
+    if (amount === undefined || amount === null) return "N/A"
+    return `$${amount.toLocaleString()}`
+  }
+
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{deal.title}</h3>
-      <p className="text-gray-600 text-sm mb-4">{deal.description}</p>
-      <div className="space-y-2 text-sm">
-        <div>
-          <span className="text-gray-500">Industry Sector: </span>
-          <span className="font-medium text-gray-900">{deal.industrySector || "N/A"}</span>
-        </div>
-        <div>
-          <span className="text-gray-500">Location: </span>
-          <span className="font-medium text-gray-900">{deal.geographySelection || "N/A"}</span>
-        </div>
-        <div>
-          <span className="text-gray-500">Avg Revenue Growth: </span>
-          <span className="font-medium text-gray-900">
-            {deal.avgRevenueGrowth !== undefined ? `${deal.avgRevenueGrowth}%` : "N/A"}
+    <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-teal-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+      {/* Teal Header with title and badges */}
+      <div className="bg-gradient-to-r from-teal-600 to-teal-500 px-4 sm:px-5 py-3 sm:py-4 flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2">
+        <h2 className="text-white font-semibold text-base sm:text-lg line-clamp-2 xs:truncate xs:pr-4 w-full xs:w-auto">
+          {deal.title}
+        </h2>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {deal.wasLOIDeal && (
+            <span className="inline-flex items-center text-xs px-2.5 sm:px-3 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-medium shadow-sm">
+              LOI
+            </span>
+          )}
+          <span className="inline-flex items-center text-xs px-2.5 sm:px-3 py-1 rounded-full bg-white text-teal-700 font-medium shadow-sm">
+            Completed
           </span>
         </div>
-        <div>
-          <span className="text-gray-500">Trailing 12 Revenue Amount: </span>
-          <span className="font-medium text-gray-900">
-            {deal.trailingRevenueAmount !== undefined && deal.trailingRevenueAmount !== null
-              ? `${deal.trailingRevenueAmount.toLocaleString()}`
-              : "N/A"}
-          </span>
-        </div>
-        <div>
-          <span className="text-gray-500">Trailing 12 EBITDA: </span>
-          <span className="font-medium text-gray-900">
-            {deal.trailingEBITDAAmount !== undefined
-              ? `$${deal.trailingEBITDAAmount.toLocaleString()}`
-              : "N/A"}
-          </span>
-        </div>
-        <div>
-          <span className="text-gray-500">Closing Date: </span>
-          <span className="font-medium text-gray-900">{deal.updatedAt}</span>
-        </div>
-        <div>
-          <span className="text-gray-500">Final Sale Price: </span>
-          <span className="font-medium text-gray-900">{deal.finalSalePrice}</span>
-        </div>
-        {/* Show buyer company and email if present */}
-        {deal.closedWithBuyerCompany && (
-          <div>
-            <span className="text-gray-500">Buyer Company: </span>
-            <span className="font-medium text-gray-900">{deal.closedWithBuyerCompany}</span>
-          </div>
+      </div>
+
+      {/* Card Content */}
+      <div className="p-4 sm:p-5">
+        {/* Description */}
+        {deal.description && (
+          <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">
+            {deal.description}
+          </p>
         )}
-        {deal.closedWithBuyerEmail && (
-          <div>
-            <span className="text-gray-500">Buyer Email: </span>
-            <span className="font-medium text-gray-900">{deal.closedWithBuyerEmail}</span>
+
+        {/* Info Grid - Label on left, value on right */}
+        <div className="space-y-2.5 sm:space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+              <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Industry</span>
+              <span className="xs:hidden">Ind.</span>
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-teal-600 truncate text-right">{deal.industrySector || "N/A"}</span>
           </div>
-        )}
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+              <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Location</span>
+              <span className="xs:hidden">Loc.</span>
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-gray-700 truncate text-right">{deal.geographySelection || "N/A"}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Revenue Growth</span>
+              <span className="xs:hidden">Growth</span>
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-gray-700">
+              {deal.avgRevenueGrowth !== undefined ? `${deal.avgRevenueGrowth}%` : "N/A"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              T12 Revenue
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-gray-700">
+              {formatCurrency(deal.trailingRevenueAmount)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              T12 EBITDA
+            </span>
+            <span className="text-xs sm:text-sm font-medium text-gray-700">
+              {formatCurrency(deal.trailingEBITDAAmount)}
+            </span>
+          </div>
+
+          <div className="border-t border-gray-100 pt-2.5 sm:pt-3 mt-2.5 sm:mt-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Closing Date</span>
+                <span className="xs:hidden">Closed</span>
+              </span>
+              <span className="text-xs sm:text-sm font-medium text-gray-700">{deal.updatedAt || "N/A"}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Final Sale Price</span>
+              <span className="xs:hidden">Sale Price</span>
+            </span>
+            <span className={`text-xs sm:text-sm font-medium ${deal.finalSalePrice && deal.finalSalePrice !== "N/A" ? "text-teal-600" : "text-red-500"}`}>
+              {deal.finalSalePrice && deal.finalSalePrice !== "N/A" ? `$${deal.finalSalePrice}` : "N/A"}
+            </span>
+          </div>
+
+          {/* Buyer Information if available */}
+          {(deal.closedWithBuyerCompany || deal.closedWithBuyerEmail) && (
+            <div className="border-t border-gray-100 pt-2.5 sm:pt-3 mt-2.5 sm:mt-3">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2">
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Buyer Information
+              </div>
+              {deal.closedWithBuyerCompany && (
+                <p className="text-xs sm:text-sm font-medium text-gray-700 ml-5 sm:ml-6 truncate">{deal.closedWithBuyerCompany}</p>
+              )}
+              {deal.closedWithBuyerEmail && (
+                <p className="text-xs text-teal-600 ml-5 sm:ml-6 truncate">{deal.closedWithBuyerEmail}</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
 export default function DealsHistoryPage() {
+  const router = useRouter()
+  const { logout } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
-  const [activeTab, setActiveTab] = useState("history")
-  const [userProfile, setUserProfile] = useState<any>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [sellerProfile, setSellerProfile] = useState<any>(null)
-  const [editingProfile, setEditingProfile] = useState<string | null>(null)
-  const [profileName, setProfileName] = useState("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isUploading, setIsUploading] = useState(false)
   const [deals, setDeals] = useState<Deal[]>([])
   const [isLoadingDeals, setIsLoadingDeals] = useState(true)
   const [dealsError, setDealsError] = useState<string | null>(null)
@@ -106,8 +195,8 @@ export default function DealsHistoryPage() {
   useEffect(() => {
     const fetchSellerProfile = async () => {
       try {
-        const token = localStorage.getItem("token")
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const token = sessionStorage.getItem("token")
+        const apiUrl = getApiUrl()
 
         const response = await fetch(`${apiUrl}/sellers/profile`, {
           headers: {
@@ -118,18 +207,10 @@ export default function DealsHistoryPage() {
 
         if (response.ok) {
           const data = await response.json()
-          console.log("Deals API response:", data);
           setSellerProfile(data)
-          setUserProfile({
-            fullName: data.fullName,
-            location: data.companyName,
-            phone: data.email,
-            profilePicture: data.profilePicture,
-          })
-          setProfileName(data.fullName)
         }
       } catch (error) {
-        console.error("Error fetching seller profile:", error)
+        // Error fetching seller profile
       }
     }
     fetchSellerProfile()
@@ -141,8 +222,8 @@ export default function DealsHistoryPage() {
       try {
         setIsLoadingDeals(true)
         setDealsError(null)
-        const token = localStorage.getItem("token")
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const token = sessionStorage.getItem("token")
+        const apiUrl = getApiUrl()
 
         const response = await fetch(`${apiUrl}/deals/completed`, {
           headers: {
@@ -153,46 +234,45 @@ export default function DealsHistoryPage() {
 
         if (response.ok) {
           const data = await response.json()
-           console.log("Deals API response:", data); 
           // Map backend fields to frontend Deal interface
-       const mappedDeals: Deal[] = data.map((deal: any, idx: number) => ({
-  id: deal.id || deal._id || `deal-${idx}`,
-  title: deal.title,
-  description: deal.companyDescription,
-  industrySector: deal.industrySector,
-  geographySelection: deal.geographySelection,
-  avgRevenueGrowth: deal.financialDetails?.avgRevenueGrowth,
-  trailingEBITDAAmount: deal.financialDetails?.trailingEBITDAAmount,
-  trailingRevenueAmount: deal.financialDetails?.trailingRevenueAmount,
-  buyersActive: deal.interestedBuyers?.length || 0,
-  buyersPassed:
-    (deal.targetedBuyers?.length || 0) - (deal.interestedBuyers?.length || 0),
-  updatedAt:
-    deal.timeline?.completedAt
-      ? new Date(deal.timeline.completedAt).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : deal.updatedAt
-      ? new Date(deal.updatedAt).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "N/A",
-  finalSalePrice: deal.financialDetails?.finalSalePrice
-    ? deal.financialDetails.finalSalePrice.toLocaleString()
-    : "N/A",
-  closedWithBuyerCompany: deal.closedWithBuyerCompany,
-  closedWithBuyerEmail: deal.closedWithBuyerEmail,
-}))
+          const mappedDeals: Deal[] = data.map((deal: any, idx: number) => ({
+            id: deal.id || deal._id || `deal-${idx}`,
+            title: deal.title,
+            description: deal.companyDescription,
+            industrySector: deal.industrySector,
+            geographySelection: deal.geographySelection,
+            avgRevenueGrowth: deal.financialDetails?.avgRevenueGrowth,
+            trailingEBITDAAmount: deal.financialDetails?.trailingEBITDAAmount,
+            trailingRevenueAmount: deal.financialDetails?.trailingRevenueAmount,
+            buyersActive: deal.interestedBuyers?.length || 0,
+            buyersPassed:
+              (deal.targetedBuyers?.length || 0) - (deal.interestedBuyers?.length || 0),
+            updatedAt:
+              deal.timeline?.completedAt
+                ? new Date(deal.timeline.completedAt).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : deal.updatedAt
+                ? new Date(deal.updatedAt).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "N/A",
+            finalSalePrice: deal.financialDetails?.finalSalePrice
+              ? deal.financialDetails.finalSalePrice.toLocaleString()
+              : null,
+            closedWithBuyerCompany: deal.closedWithBuyerCompany,
+            closedWithBuyerEmail: deal.closedWithBuyerEmail,
+            wasLOIDeal: deal.wasLOIDeal || false,
+          }))
           setDeals(mappedDeals)
         } else {
           setDealsError("Failed to fetch deals")
         }
       } catch (error) {
-        console.error("Error fetching deals:", error)
         setDealsError("Error loading deals")
       } finally {
         setIsLoadingDeals(false)
@@ -207,262 +287,226 @@ export default function DealsHistoryPage() {
       (deal.description?.toLowerCase() || "").includes(searchTerm.toLowerCase()),
   )
 
-  const getProfilePictureUrl = (path: string | null) => {
-    if (!path) return null
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
-    const formattedPath = path.replace(/\\/g, "/")
-    return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.slice(1) : formattedPath}`
-  }
-  // Add router hook at the top of the component
-  const router = useRouter()
-
-  // Add handleLogout function
   const handleLogout = () => {
-    // If you have a logout function from a context, use it here
-    // For now, clear token and redirect to login
-    localStorage.removeItem("token")
-    router.push("/seller/login")
+    logout() // logout() from useAuth already handles redirect
   }
 
-  const handleProfileImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setIsUploading(true)
-
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const token = localStorage.getItem("token")
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
-
-      const response = await fetch(`${apiUrl}/sellers/upload-profile-picture`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error("Upload failed")
-      }
-
-      const result = await response.json()
-
-      setUserProfile((prev: any) => ({
-        ...prev,
-        profilePicture: result.profilePicture,
-      }))
-    } catch (error) {
-      console.error("Upload failed")
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleUpdateName = async () => {
-    if (profileName.trim()) {
-      try {
-        const token = localStorage.getItem("token")
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
-
-        const response = await fetch(`${apiUrl}/sellers/${sellerProfile?._id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ fullName: profileName }),
-        })
-
-        if (response.ok) {
-          setUserProfile((prev: any) => ({
-            ...prev,
-            fullName: profileName,
-          }))
-          setEditingProfile(null)
-        }
-      } catch (error) {
-        console.error("Update failed")
-      }
-    }
-  }
-
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
-        <div className="mb-8">
-          <Link href="/seller/dashboard">
-            <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
-          </Link>
-        </div>
-
-        <nav className="flex-1 space-y-6">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900"
-            onClick={() => router.push("/seller/dashboard")}
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>My Deals</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900"
-            onClick={() => router.push("/seller/view-profile")}
-          >
-            <Eye className="h-5 w-5" />
-            <span>View Profile</span>
-          </Button>
-
-          <Button
-            variant="secondary"
-            className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-          >
-            <Clock className="h-5 w-5" />
-            <span>Off Market
-</span>
-          </Button>
-
-          {/* <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900"
-            onClick={() => router.push("/seller/settings")}
-          >
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
-          </Button> */}
-
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Sign Out</span>
-          </Button>
-        </nav>
+  // Navigation component to avoid duplication
+  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <>
+      <div className="mb-8">
+        <Link href="https://cimamplify.com/" onClick={onNavigate} className="block">
+          <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
+        </Link>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">Deals Now Off Market</h1>
+      <nav className="flex-1 space-y-2">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+          onClick={() => {
+            triggerNavigationProgress()
+            onNavigate?.()
+            router.push("/seller/dashboard")
+          }}
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>MyDeals</span>
+        </Button>
 
-          <div className="flex items-center justify-start gap-60">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+          onClick={() => {
+            triggerNavigationProgress()
+            onNavigate?.()
+            router.push("/seller/loi-deals")
+          }}
+        >
+          <FileText className="h-5 w-5" />
+          <span>LOI - Deals</span>
+        </Button>
+
+        <Button
+          variant="secondary"
+          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
+          onClick={onNavigate}
+        >
+          <Clock className="h-5 w-5" />
+          <span>Off Market</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+          onClick={() => {
+            triggerNavigationProgress()
+            onNavigate?.()
+            router.push("/seller/view-profile")
+          }}
+        >
+          <Eye className="h-5 w-5" />
+          <span>View Profile</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={() => {
+            onNavigate?.()
+            handleLogout()
+          }}
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Sign Out</span>
+        </Button>
+      </nav>
+
+      <AmplifyVenturesBox />
+    </>
+  )
+
+  return (
+    <SellerProtectedRoute>
+      <div className="flex min-h-screen bg-gray-50">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:block w-64 flex-shrink-0">
+          <div className="sticky top-0 h-screen bg-white border-r border-gray-200 p-6 flex flex-col overflow-y-auto">
+            <NavigationContent />
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col">
+          {/* Header */}
+          <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              {/* Mobile Menu Button */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden flex-shrink-0">
+                    <Menu className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
+                    <span className="sr-only">Toggle menu</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] sm:w-[350px] flex flex-col h-full overflow-hidden">
+                  <SheetHeader>
+                    <SheetTitle className="text-gray-800">Menu</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 flex-1 overflow-y-auto pb-6">
+                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 truncate">Off Market Deals</h1>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Search */}
+            <div className="relative hidden md:block">
               <Input
-                type="search"
-                placeholder="Search here..."
-                className="pl-10 w-80 bg-gray-100 border-0"
+                type="text"
+                placeholder="Search deals..."
+                className="w-48 lg:w-64 pl-10 bg-gray-50 border-gray-200 text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-medium flex items-center">
-                  {editingProfile === "name" ? (
-                    <div className="flex items-center">
-                      <Input
-                        value={profileName}
-                        onChange={(e) => setProfileName(e.target.value)}
-                        className="mr-2 w-40"
-                      />
-                      <Button variant="ghost" size="icon" onClick={handleUpdateName} className="h-6 w-6 mr-1">
-                        <Check className="h-4 w-4 text-green-500" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setEditingProfile(null)} className="h-6 w-6"/>
-                        <X className="h-4 w-4 text-red-500" />
-                      </div>
-                  ) : (
-                    <>
-                      {userProfile?.fullName || sellerProfile?.fullName || "User"}
-                      {/* <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingProfile("name")}
-                        className="ml-1 h-6 w-6"
-                      >
-                        <Pencil className="h-3 w-3 text-gray-400" />
-                      </Button> */}
-                    </>
-                  )}
-                </div>
-                {/* <div className="text-sm text-gray-500">
-                  {userProfile?.location || sellerProfile?.companyName || "Company"}
-                </div> */}
+            {/* Profile */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-xs sm:text-sm font-medium text-gray-700 hidden lg:block">
+                {sellerProfile?.fullName || "User"}
+              </span>
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-medium overflow-hidden ring-2 ring-white shadow-md">
+                {sellerProfile?.profilePicture ? (
+                  <img
+                    src={getProfilePictureUrl(sellerProfile.profilePicture) || "/placeholder.svg"}
+                    alt={sellerProfile.fullName}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = "/placeholder.svg"
+                    }}
+                  />
+                ) : (
+                  <span className="text-xs sm:text-sm">{(sellerProfile?.fullName || "U").charAt(0).toUpperCase()}</span>
+                )}
               </div>
-              <div className="relative h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-medium overflow-hidden">
-  {sellerProfile?.profilePicture ? (
-    <img
-      src={getProfilePictureUrl(sellerProfile.profilePicture) || "/placeholder.svg"}
-      alt={sellerProfile.fullName}
-      className="h-full w-full object-cover"
-      onError={(e) => {
-        (e.currentTarget as HTMLImageElement).src = "/placeholder.svg"
-      }}
-    />
-  ) : (
-    (sellerProfile?.fullName || "U").charAt(0)
-  )}
-</div>
             </div>
           </div>
         </header>
 
+        {/* Mobile Search */}
+        <div className="md:hidden px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b border-gray-200">
+          <div className="relative">
+            <Input
+              type="text"
+              placeholder="Search deals..."
+              className="w-full pl-9 sm:pl-10 bg-gray-50 border-gray-200 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          </div>
+        </div>
+
         {/* Content */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-3 sm:p-4 md:p-6">
           {isLoadingDeals ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">Loading deals...</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl sm:rounded-2xl border-2 border-teal-100 overflow-hidden">
+                  <Skeleton className="h-12 sm:h-14 w-full" />
+                  <div className="p-4 sm:p-5 space-y-2.5 sm:space-y-3">
+                    <Skeleton className="h-3.5 sm:h-4 w-full" />
+                    <Skeleton className="h-3.5 sm:h-4 w-3/4" />
+                    <Skeleton className="h-3.5 sm:h-4 w-1/2" />
+                    <Skeleton className="h-3.5 sm:h-4 w-2/3" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : dealsError ? (
-            <div className="text-center py-12">
-              <p className="text-red-500 mb-4">{dealsError}</p>
-              <Button onClick={() => window.location.reload()} variant="outline">
+            <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-red-200 p-6 sm:p-8 text-center">
+              <div className="text-red-600 text-base sm:text-lg font-semibold mb-2">Error loading deals</div>
+              <p className="text-gray-500 text-sm sm:text-base mb-4">{dealsError}</p>
+              <Button onClick={() => window.location.reload()} variant="outline" className="rounded-xl">
                 Try Again
               </Button>
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredDeals.map((deal) => (
-                  <DealCard key={deal.id} deal={deal} />
-                ))}
+          ) : filteredDeals.length === 0 && deals.length > 0 ? (
+            <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-8 sm:p-12 text-center">
+              <Search className="w-10 h-10 sm:w-12 sm:h-12 text-gray-300 mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">No deals match your search</h3>
+              <p className="text-gray-500 text-sm sm:text-base">Try adjusting your search terms</p>
+            </div>
+          ) : deals.length === 0 ? (
+            <div className="bg-white rounded-xl sm:rounded-2xl border-2 border-teal-100 p-8 sm:p-12 text-center">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 bg-gradient-to-br from-teal-100 to-teal-50 rounded-2xl flex items-center justify-center">
+                <Clock className="w-7 h-7 sm:w-8 sm:h-8 text-teal-600" />
               </div>
-
-              {filteredDeals.length === 0 && deals.length > 0 && (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No deals found matching your search.</p>
-                </div>
-              )}
-
-              {deals.length === 0 && !isLoadingDeals && !dealsError && (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No completed deals found.</p>
-                </div>
-              )}
-            </>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">No completed deals yet</h3>
+              <p className="text-gray-500 text-sm sm:text-base max-w-sm mx-auto">When you close or complete deals, they will appear here</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+              {filteredDeals.map((deal) => (
+                <DealCard key={deal.id} deal={deal} />
+              ))}
+            </div>
           )}
         </main>
       </div>
     </div>
+    </SellerProtectedRoute>
   )
 }

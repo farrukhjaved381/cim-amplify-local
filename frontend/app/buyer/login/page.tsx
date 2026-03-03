@@ -6,13 +6,14 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Mail, Lock } from "lucide-react";
+import { AnimatedButton } from "@/components/ui/animated-button";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
 import Header from "@/components/ui/auth-header";
 import Footer from "@/components/ui/auth-footer";
+import { ErrorHandler } from "@/lib/error-handler";
 
 export default function BuyerLoginPage() {
   const [email, setEmail] = useState("");
@@ -20,9 +21,52 @@ export default function BuyerLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
   const { login, isLoggedIn } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Validate email format
+  const validateEmail = (value: string): string | undefined => {
+    if (!value.trim()) return "Email is required";
+    if (!/\S+@\S+\.\S+/.test(value)) return "Please enter a valid email address";
+    return undefined;
+  };
+
+  // Validate password
+  const validatePassword = (value: string): string | undefined => {
+    if (!value) return "Password is required";
+    return undefined;
+  };
+
+  // Handle email change with validation
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (touched.email) {
+      setFieldErrors(prev => ({ ...prev, email: validateEmail(value) }));
+    }
+    if (error) setError("");
+  };
+
+  // Handle password change with validation
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (touched.password) {
+      setFieldErrors(prev => ({ ...prev, password: validatePassword(value) }));
+    }
+    if (error) setError("");
+  };
+
+  // Handle field blur for validation
+  const handleBlur = (field: "email" | "password") => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    if (field === "email") {
+      setFieldErrors(prev => ({ ...prev, email: validateEmail(email) }));
+    } else {
+      setFieldErrors(prev => ({ ...prev, password: validatePassword(password) }));
+    }
+  };
 
   // Check for token and userId in URL parameters
   useEffect(() => {
@@ -41,41 +85,31 @@ export default function BuyerLoginPage() {
     const urlUserId = searchParams?.get("userId");
 
     if (urlToken && urlUserId) {
-      console.log("Login page - Token and UserID found in URL, cleaning up...");
+      // Step 1: Clear old auth from sessionStorage only
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("refreshToken");
+      sessionStorage.removeItem("userId");
+      sessionStorage.removeItem("userRole");
 
-      // Step 1: Clear old auth
-      localStorage.removeItem("token");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("userRole");
-
-      // Step 2: Store new values
+      // Step 2: Store new values in sessionStorage only
       const cleanToken = urlToken.trim();
       const cleanUserId = urlUserId.trim();
 
-      localStorage.setItem("token", cleanToken);
-      localStorage.setItem("userId", cleanUserId);
-      localStorage.setItem("userRole", "buyer");
+      sessionStorage.setItem("token", cleanToken);
+      sessionStorage.setItem("userId", cleanUserId);
+      sessionStorage.setItem("userRole", "buyer");
 
-      console.log(
-        "Login page - Auth from URL stored:",
-        cleanToken.substring(0, 10) + "...",
-        cleanUserId
-      );
-
-      // Step 3: Redirect (clean URL using replace)
-      router.replace("/buyer/acquireprofile");
+      // Step 3: Redirect to deals page
+      router.replace("/buyer/deals");
       return;
     }
 
     // Already logged in (e.g. user refreshed login page)
-    const storedToken = localStorage.getItem("token");
-    const storedRole = localStorage.getItem("userRole");
+    const storedToken = sessionStorage.getItem("token");
+    const storedRole = sessionStorage.getItem("userRole");
 
     if (storedToken && storedRole === "buyer") {
-      console.log("Login page - Already logged in as buyer, redirecting...");
-      router.push("/buyer/acquireprofile");
-    } else {
-      console.log("Login page - No auth or wrong role, stay on login page.");
+      router.push("/buyer/deals");
     }
   }, [searchParams, router]);
 
@@ -83,19 +117,21 @@ export default function BuyerLoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Validate all fields before submission
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+
+    setFieldErrors({ email: emailError, password: passwordError });
+    setTouched({ email: true, password: true });
+
+    if (emailError || passwordError) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // Basic validation
-      if (!email.trim()) {
-        throw new Error("Email is required");
-      }
-      if (!password) {
-        throw new Error("Password is required");
-      }
-
-      console.log("Login page - Attempting login with:", email);
-
       // Get API URL from localStorage or use default
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
 
@@ -114,50 +150,26 @@ export default function BuyerLoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `Login failed with status: ${response.status}`
-        );
+        const errorMessage = ErrorHandler.getAuthErrorMessage({ response: { status: response.status, data: errorData } });
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log("Login response:", data);
 
-      // Store token - adapt this to match your API response format
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-        console.log(
-          "Login page - Login successful, token stored:",
-          data.token.substring(0, 10) + "..."
-        );
-      } else if (data.access_token) {
-        localStorage.setItem("token", data.access_token);
-        console.log(
-          "Login page - Login successful, token stored:",
-          data.access_token.substring(0, 10) + "..."
-        );
-      } else {
+      // Extract token
+      const token = data.token || data.access_token;
+      if (!token) {
         throw new Error("Login response missing token");
       }
 
-      // Store userId - adapt this to match your API response format
-      if (data.userId) {
-        localStorage.setItem("userId", data.userId);
-        console.log(
-          "Login page - Login successful, userId stored:",
-          data.userId
-        );
-      } else if (data.user && data.user.id) {
-        localStorage.setItem("userId", data.user.id);
-        console.log(
-          "Login page - Login successful, userId stored:",
-          data.user.id
-        );
-      } else {
-        console.warn("Login page - Login response missing userId");
-      }
+      // Extract userId
+      const userId = data.userId || (data.user && data.user.id);
 
-      // Set user role
-      localStorage.setItem("userRole", "buyer");
+      // Extract refresh token if available
+      const refreshToken = data.refresh_token;
+
+      // Use auth context login function to store tokens and set up auto-refresh
+      login(token, userId || "", "buyer", refreshToken);
 
       toast({
         title: "Login Successful",
@@ -169,12 +181,11 @@ export default function BuyerLoginPage() {
         router.push("/buyer/deals");
       }, 1000);
     } catch (err: any) {
-      console.error("Login error:", err);
-      setError(err.message || "Login failed. Please check your credentials.");
+      const errorMessage = ErrorHandler.getAuthErrorMessage(err);
+      setError(errorMessage);
       toast({
         title: "Login Failed",
-        description:
-          err.message || "Login failed. Please check your credentials.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -187,18 +198,13 @@ export default function BuyerLoginPage() {
     try {
       // Get API URL from localStorage or use default
       const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
-      console.log(
-        "Login page - Redirecting to Google OAuth:",
-        `${apiUrl}/buyers/google`
-      );
 
       // Store the current page as the return URL
       localStorage.setItem("authReturnUrl", "/buyer/deals");
 
       // Redirect to Google OAuth endpoint
       window.location.href = `${apiUrl}/buyers/google`;
-    } catch (error) {
-      console.error("Error initiating Google login:", error);
+    } catch {
       toast({
         title: "Login Error",
         description: "Failed to initiate Google login. Please try again.",
@@ -239,45 +245,64 @@ export default function BuyerLoginPage() {
             {/* Divider */}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
+              {/* Email Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
                   Email Address
                 </label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder=""
-                  required
-                  className="w-full py-6"
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className={`h-5 w-5 transition-colors duration-200 ${fieldErrors.email && touched.email ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    onBlur={() => handleBlur("email")}
+                    placeholder=""
+                    required
+                    className={`pl-10 h-12 transition-all duration-200 ${fieldErrors.email && touched.email ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                  />
+                </div>
+                {fieldErrors.email && touched.email && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {fieldErrors.email}
+                  </p>
+                )}
               </div>
 
-              <div>
+              {/* Password Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
                   Password
                 </label>
-                <div className="relative">
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className={`h-5 w-5 transition-colors duration-200 ${fieldErrors.password && touched.password ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
+                    onBlur={() => handleBlur("password")}
                     placeholder=""
                     required
-                    className="w-full pr-10 py-6"
+                    className={`pl-10 pr-10 h-12 transition-all duration-200 ${fieldErrors.password && touched.password ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 "
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors duration-200"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? (
                       <EyeOffIcon className="h-5 w-5" />
@@ -286,33 +311,40 @@ export default function BuyerLoginPage() {
                     )}
                   </button>
                 </div>
+                {fieldErrors.password && touched.password && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {fieldErrors.password}
+                  </p>
+                )}
                 {/* Forgot Password Link */}
                 <div className="text-right mt-2">
                   <Link
                     href="/buyer/forgot-password"
-                    className="text-sm text-[#3aafa9] hover:text-[#2a9d8f] underline"
+                    className="text-sm text-teal-600 hover:text-teal-700 hover:underline transition-colors duration-200"
                   >
                     Forgot password?
                   </Link>
                 </div>
               </div>
 
-              <Button
+              <AnimatedButton
                 type="submit"
-                className="w-full bg-[#3aafa9] hover:bg-[#2a9d8f] text-white py-6 rounded-3xl"
-                disabled={isLoading}
+                className="w-full bg-teal-500 hover:bg-teal-600 text-white h-12 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200"
+                isLoading={isLoading}
+                loadingText="Logging in..."
               >
-                {isLoading ? "Logging in..." : "Login my account"}
-              </Button>
+                Login to my account
+              </AnimatedButton>
             </form>
 
             <p className="mt-6 text-center text-sm text-gray-600">
               Don't have an account?{" "}
               <Link
                 href="/buyer/register"
-                className="text-[#3aafa9] hover:underline font-medium"
+                className="text-teal-600 hover:text-teal-700 hover:underline font-medium transition-colors duration-200"
               >
-                signup
+                Sign up
               </Link>
             </p>
           </div>

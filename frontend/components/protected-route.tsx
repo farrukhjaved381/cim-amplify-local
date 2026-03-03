@@ -2,18 +2,30 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context";
 
+// Get login page based on current path
+const getLoginPageFromPath = (pathname: string): string => {
+  if (pathname.startsWith("/seller")) return "/seller/login"
+  if (pathname.startsWith("/admin")) return "/admin/login"
+  if (pathname.startsWith("/buyer")) return "/buyer/login"
+  return "/login"
+}
+
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, isLoading, userRole } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !isLoggedIn) {
-      router.push("/buyer/login");
+    if (!isLoading && !isLoggedIn && !hasRedirected) {
+      setHasRedirected(true);
+      const loginPage = getLoginPageFromPath(pathname);
+      router.push(`${loginPage}?session=expired`);
     }
-  }, [isLoading, isLoggedIn, router]);
+  }, [isLoading, isLoggedIn, router, pathname, hasRedirected]);
 
   if (isLoading) {
     return (

@@ -6,8 +6,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EyeIcon, EyeOffIcon, Mail, User, Building2, Globe, Phone, Lock, CheckCircle2, Briefcase } from "lucide-react";
+import { AnimatedButton } from "@/components/ui/animated-button";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { sellerRegister } from "@/services/api";
@@ -23,7 +24,18 @@ interface RegisterFormData {
   title: string;
   phoneNumber: string;
   website: string;
+  referralSource: string;
 }
+
+const REFERRAL_SOURCES = [
+  "AI Search",
+  "Email from CIM Amplify",
+  "LinkedIn",
+  "Reddit",
+  "Referral",
+  "Search result",
+  "Other",
+];
 
 export default function SellerRegisterPage() {
   const router = useRouter();
@@ -37,6 +49,7 @@ export default function SellerRegisterPage() {
     title: "",
     phoneNumber: "",
     website: "",
+    referralSource: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -57,34 +70,23 @@ export default function SellerRegisterPage() {
       const cleanToken = urlToken.trim();
       localStorage.setItem("token", cleanToken);
       localStorage.setItem("userRole", "seller");
-      console.log(
-        "Register page - Token set from URL:",
-        cleanToken.substring(0, 10) + "..."
-      );
     }
 
     if (urlUserId) {
       const cleanUserId = urlUserId.trim();
       localStorage.setItem("userId", cleanUserId);
-      console.log("Register page - User ID set from URL:", cleanUserId);
     }
 
     // If token is provided, redirect to dashboard
     if (urlToken) {
-      console.log(
-        "Register page - Redirecting to dashboard with token from URL"
-      );
       localStorage.setItem("userRole", "seller");
       router.push("/seller/dashboard");
       return;
     }
 
     // Check if already logged in
-    const storedToken = localStorage.getItem("token");
+    const storedToken = sessionStorage.getItem("token");
     if (storedToken) {
-      console.log(
-        "Register page - Token found in localStorage, redirecting to dashboard"
-      );
       router.push("/seller/dashboard");
     }
   }, [searchParams, router]);
@@ -128,6 +130,10 @@ export default function SellerRegisterPage() {
       newErrors.companyName = "Company name is required";
     }
 
+    if (!formData.referralSource) {
+      newErrors.referralSource = "Please tell us how you heard about us";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -144,10 +150,10 @@ export default function SellerRegisterPage() {
     setIsSubmitting(true);
 
     try {
-      console.log("Register page - Submitting registration");
+
 
       // Use the API service
-      await sellerRegister({
+      const response = await sellerRegister({
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
@@ -155,28 +161,57 @@ export default function SellerRegisterPage() {
         title: formData.title,
         phoneNumber: formData.phoneNumber,
         website: formData.website,
+        referralSource: formData.referralSource,
       });
+
+      // Store token and user info if returned from registration
+      if (response?.token) {
+        localStorage.setItem("token", response.token);
+      }
+      if (response?.userId || response?._id) {
+        localStorage.setItem("userId", response.userId || response._id);
+      }
+      localStorage.setItem("userRole", "seller");
 
       toast({
-        title: "Registration Successful",
+        title: "Welcome to CIM Amplify!",
         description:
-          "Please check your email to verify your account before logging in.",
+          "Your account has been created. We've sent you a welcome email.",
       });
 
-      // Redirect to dashboard page
-      router.push("/registration-pending-verification");
-    } catch (error: any) {
-      console.error("Registration error:", error);
-      setErrors({
-        general:
-          error.response?.data?.message ||
-          "Registration failed. Please try again.",
+      // Redirect to email confirmation page with user details
+      const params = new URLSearchParams({
+        email: formData.email.trim(),
+        fullName: formData.fullName.trim(),
+        role: "seller",
       });
+      if (response?.userId) params.set("userId", response.userId);
+      if (response?._id) params.set("userId", response._id);
+      if (response?.token) params.set("token", response.token);
+      if (formData.companyName.trim()) params.set("companyName", formData.companyName.trim());
+      if (formData.phoneNumber.trim()) params.set("phone", formData.phoneNumber.trim());
+      if (formData.website.trim()) params.set("website", formData.website.trim());
+
+      router.push(`/email-confirmation?${params.toString()}`);
+    } catch (error: any) {
+      let errorMessage = "Registration failed. Please try again.";
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message && error.message.includes("Email already exists")) {
+        errorMessage = "An account with this email already exists. Please try logging in instead.";
+      } else if (error.message && error.message.includes("Network Error")) {
+        errorMessage = "Network connection error. Please check your internet connection and try again.";
+      } else if (error.response?.status === 409) {
+        errorMessage = "An account with this email already exists. Please try logging in instead.";
+      } else if (error.response?.status >= 500) {
+        errorMessage = "Server error. Please try again in a few minutes.";
+      }
+      
+      setErrors({ general: errorMessage });
       toast({
         title: "Registration Failed",
-        description:
-          error.response?.data?.message ||
-          "Registration failed. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -186,7 +221,6 @@ export default function SellerRegisterPage() {
 
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
-    console.log("Register page - Redirecting to Google OAuth")
     window.location.href = "http://localhost:5001/sellers/google/callback"
   }
 
@@ -222,201 +256,339 @@ export default function SellerRegisterPage() {
             {/* Google signup button */}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
+              {/* Email Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Email Address
+                  Email Address <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder=""
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className={`h-5 w-5 transition-colors duration-200 ${errors.email ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email"
+                    className={`pl-10 h-12 transition-all duration-200 ${errors.email ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
+                  />
+                  {formData.email && !errors.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) && (
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    </div>
+                  )}
+                </div>
                 {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {errors.email}
+                  </p>
                 )}
               </div>
 
-              <div>
+              {/* Company Name Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="companyName"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Company Name
+                  Company Name <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="companyName"
-                  name="companyName"
-                  type="text"
-                  value={formData.companyName}
-                  onChange={handleChange}
-                  placeholder=""
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Building2 className={`h-5 w-5 transition-colors duration-200 ${errors.companyName ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="companyName"
+                    name="companyName"
+                    type="text"
+                    value={formData.companyName}
+                    onChange={handleChange}
+                    placeholder="Enter your company name"
+                    className={`pl-10 h-12 transition-all duration-200 ${errors.companyName ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
+                  />
+                </div>
                 {errors.companyName && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
                     {errors.companyName}
                   </p>
                 )}
               </div>
 
-              <div>
+              {/* Full Name Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="fullName"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Full Name
+                  Full Name <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  type="text"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  placeholder=""
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className={`h-5 w-5 transition-colors duration-200 ${errors.fullName ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    placeholder="Enter your First and Last Names"
+                    className={`pl-10 h-12 transition-all duration-200 ${errors.fullName ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
+                  />
+                </div>
                 {errors.fullName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {errors.fullName}
+                  </p>
                 )}
               </div>
 
-              <div>
+              {/* Title Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="title"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Title
+                  Title <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="title"
-                  name="title"
-                  type="text"
-                  value={formData.title}
-                  onChange={handleChange}
-                  placeholder=""
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Briefcase className={`h-5 w-5 transition-colors duration-200 ${errors.title ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="title"
+                    name="title"
+                    type="text"
+                    value={formData.title}
+                    onChange={handleChange}
+                    placeholder="Enter your title"
+                    className={`pl-10 h-12 transition-all duration-200 ${errors.title ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
+                  />
+                </div>
                 {errors.title && (
-                  <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {errors.title}
+                  </p>
                 )}
               </div>
 
-              <div>
+              {/* Phone Number Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="phoneNumber"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Phone Number
+                  Phone Number <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  type="text"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  placeholder=""
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className={`h-5 w-5 transition-colors duration-200 ${errors.phoneNumber ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    value={formData.phoneNumber}
+                    onChange={handleChange}
+                    placeholder="+1 403 555-1212"
+                    className={`pl-10 h-12 transition-all duration-200 ${errors.phoneNumber ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
+                  />
+                </div>
                 {errors.phoneNumber && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
                     {errors.phoneNumber}
                   </p>
                 )}
               </div>
 
-              <div>
+              {/* Website Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="website"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Website
+                  Website <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="website"
-                  name="website"
-                  type="text"
-                  value={formData.website}
-                  onChange={handleChange}
-                  placeholder=""
-                />
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Globe className={`h-5 w-5 transition-colors duration-200 ${errors.website ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
+                  <Input
+                    id="website"
+                    name="website"
+                    type="text"
+                    value={formData.website}
+                    onChange={handleChange}
+                    placeholder="Enter your company website"
+                    className={`pl-10 h-12 transition-all duration-200 ${errors.website ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
+                  />
+                </div>
                 {errors.website && (
-                  <p className="mt-1 text-sm text-red-600">{errors.website}</p>
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {errors.website}
+                  </p>
                 )}
               </div>
 
-              <div>
+              {/* Referral Source Dropdown */}
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="referralSource"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  How did you hear about CIM Amplify? <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={formData.referralSource}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, referralSource: value }));
+                    if (errors.referralSource) {
+                      setErrors((prev) => ({ ...prev, referralSource: undefined }));
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    className={`w-full h-12 rounded-lg transition-all duration-200 ${
+                      errors.referralSource
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                        : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"
+                    } focus:ring-2 ${
+                      !formData.referralSource ? "text-gray-500" : "text-gray-900"
+                    }`}
+                  >
+                    <SelectValue placeholder="Select an option" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
+                    {REFERRAL_SOURCES.map((source) => (
+                      <SelectItem
+                        key={source}
+                        value={source}
+                        className="cursor-pointer hover:bg-teal-50 focus:bg-teal-50 focus:text-teal-900 py-2.5 px-3"
+                      >
+                        {source}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.referralSource && (
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {errors.referralSource}
+                  </p>
+                )}
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Password
+                  Password <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className={`h-5 w-5 transition-colors duration-200 ${errors.password ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
                   <Input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder=""
+                    placeholder="Enter your password"
+                    className={`pl-10 pr-10 h-12 transition-all duration-200 ${errors.password ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 px-4 flex items-center focus:outline-none"
                     onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors duration-200"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? (
-                      <EyeOffIcon className="h-5 w-5 text-gray-500" />
+                      <EyeOffIcon className="h-5 w-5" />
                     ) : (
-                      <EyeIcon className="h-5 w-5 text-gray-500" />
+                      <EyeIcon className="h-5 w-5" />
                     )}
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
+                    {errors.password}
+                  </p>
                 )}
               </div>
 
-              <div>
+              {/* Confirm Password Field */}
+              <div className="space-y-1.5">
                 <label
                   htmlFor="confirmPassword"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Confirm Password
+                  Confirm Password <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className={`h-5 w-5 transition-colors duration-200 ${errors.confirmPassword ? "text-red-400" : "text-gray-400 group-focus-within:text-teal-500"}`} />
+                  </div>
                   <Input
                     id="confirmPassword"
                     name="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    placeholder=""
+                    placeholder="Confirm your password"
+                    className={`pl-10 pr-10 h-12 transition-all duration-200 ${errors.confirmPassword ? "border-red-300 focus:border-red-500 focus:ring-red-200" : "border-gray-300 focus:border-teal-500 focus:ring-teal-200"} focus:ring-2`}
+                    required
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 px-4 flex items-center focus:outline-none"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-teal-600 transition-colors duration-200"
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                   >
                     {showConfirmPassword ? (
-                      <EyeOffIcon className="h-5 w-5 text-gray-500" />
+                      <EyeOffIcon className="h-5 w-5" />
                     ) : (
-                      <EyeIcon className="h-5 w-5 text-gray-500" />
+                      <EyeIcon className="h-5 w-5" />
                     )}
                   </button>
                 </div>
                 {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="text-sm text-red-600 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 bg-red-500 rounded-full"></span>
                     {errors.confirmPassword}
                   </p>
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Creating Account..." : "Create Account"}
-              </Button>
+              <AnimatedButton
+                type="submit"
+                className="w-full bg-teal-500 hover:bg-teal-600 text-white h-12 rounded-lg mt-6 font-medium shadow-sm hover:shadow-md transition-all duration-200"
+                isLoading={isSubmitting}
+                loadingText="Creating Account..."
+              >
+                Create Account
+              </AnimatedButton>
             </form>
 
             <div className="text-center mt-4">
