@@ -6,6 +6,8 @@ import { useToast, toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/sonner";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
+import { BuyerProtectedRoute } from "@/components/buyer/protected-route";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,11 +117,12 @@ const BUSINESS_MODELS = [
   "Asset Heavy",
 ];
 
-const DEFAULT_API_URL = "http://localhost:5001";
+const DEFAULT_API_URL = "https://cim-backend.vercel.app";
 
 export default function AcquireProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { logout: authLogout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -170,7 +173,7 @@ export default function AcquireProfilePage() {
       ebitdaMax: undefined,
       transactionSizeMin: undefined,
       transactionSizeMax: undefined,
-      revenueGrowth: undefined,
+
       minStakePercent: undefined,
       minYearsInBusiness: undefined,
       preferredBusinessModels: [], // Ensure this is always an array
@@ -354,7 +357,7 @@ export default function AcquireProfilePage() {
             ebitdaMax: profileData.targetCriteria?.ebitdaMax || undefined,
             transactionSizeMin: profileData.targetCriteria?.transactionSizeMin || undefined,
             transactionSizeMax: profileData.targetCriteria?.transactionSizeMax || undefined,
-            revenueGrowth: profileData.targetCriteria?.revenueGrowth || undefined,
+
             minStakePercent: profileData.targetCriteria?.minStakePercent || undefined,
             minYearsInBusiness: profileData.targetCriteria?.minYearsInBusiness || undefined,
             preferredBusinessModels, // Use the ensured array
@@ -446,8 +449,7 @@ const validateField = (field: string, value: any): string | null => {
       return value === undefined || value === "" ? "Minimum transaction size is required" : null;
     case "targetCriteria.transactionSizeMax":
       return value === undefined || value === "" ? "Maximum transaction size is required" : null;
-    case "targetCriteria.revenueGrowth":
-      return value === undefined || value === "" ? "Minimum 3 Year Average Revenue Growth is required" : null;
+
     case "targetCriteria.minYearsInBusiness":
       return value === undefined || value === "" ? "Minimum years in business is required" : null;
     case "targetCriteria.minStakePercent":
@@ -865,7 +867,7 @@ const validateField = (field: string, value: any): string | null => {
     "targetCriteria.ebitdaMax",
     "targetCriteria.transactionSizeMin",
     "targetCriteria.transactionSizeMax",
-    "targetCriteria.revenueGrowth",
+
     "targetCriteria.minYearsInBusiness",
     "targetCriteria.preferredBusinessModels",
     "targetCriteria.description",
@@ -976,21 +978,8 @@ const validateField = (field: string, value: any): string | null => {
     }
   };
 
-  const { dismiss } = useToast();
   const handleLogout = () => {
-   
-    dismiss();
-    // Clear sessionStorage
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("refreshToken");
-    sessionStorage.removeItem("userId");
-    sessionStorage.removeItem("userRole");
-    // Clear localStorage (legacy)
-    localStorage.removeItem("token");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userRole");
-    router.push("/buyer/login");
+    authLogout();
   };
 
   // Filter industry data based on search term
@@ -1075,7 +1064,7 @@ const validateField = (field: string, value: any): string | null => {
   errors["targetCriteria.ebitdaMax"] = validateField("targetCriteria.ebitdaMax", formData.targetCriteria.ebitdaMax) || "";
   errors["targetCriteria.transactionSizeMin"] = validateField("targetCriteria.transactionSizeMin", formData.targetCriteria.transactionSizeMin) || "";
   errors["targetCriteria.transactionSizeMax"] = validateField("targetCriteria.transactionSizeMax", formData.targetCriteria.transactionSizeMax) || "";
-  errors["targetCriteria.revenueGrowth"] = validateField("targetCriteria.revenueGrowth", formData.targetCriteria.revenueGrowth) || "";
+
   errors["targetCriteria.minYearsInBusiness"] = validateField("targetCriteria.minYearsInBusiness", formData.targetCriteria.minYearsInBusiness) || "";
   errors["targetCriteria.minStakePercent"] = validateField("targetCriteria.minStakePercent", formData.targetCriteria.minStakePercent) || "";
   errors["targetCriteria.countries"] = validateField("targetCriteria.countries", formData.targetCriteria.countries) || "";
@@ -1178,7 +1167,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         ebitdaMax: formData.targetCriteria.ebitdaMax,
         transactionSizeMin: formData.targetCriteria.transactionSizeMin,
         transactionSizeMax: formData.targetCriteria.transactionSizeMax,
-        revenueGrowth: formData.targetCriteria.revenueGrowth,
+
         minStakePercent: formData.targetCriteria.minStakePercent,
         minYearsInBusiness: formData.targetCriteria.minYearsInBusiness,
         preferredBusinessModels: formData.targetCriteria.preferredBusinessModels,
@@ -1344,82 +1333,175 @@ const handleSubmit = async (e: React.FormEvent) => {
     );
   };
 
-  // Render hierarchical geography selection
+  // Toggle a single state value in the buyer's countries array
+  const toggleGeoValue = (value: string) => {
+    setFormData((prev) => {
+      const current = prev.targetCriteria.countries || [];
+      const exists = current.includes(value);
+      return {
+        ...prev,
+        targetCriteria: {
+          ...prev.targetCriteria,
+          countries: exists ? current.filter((c) => c !== value) : [...current, value],
+        },
+      };
+    });
+  };
+
+  // Toggle a country — selects/deselects the country AND all its states
+  const toggleCountryWithStates = (countryName: string, countryCode: string) => {
+    const states = State.getStatesOfCountry(countryCode);
+    const stateValues = states.map((s) => `${countryName} > ${s.name}`);
+
+    setFormData((prev) => {
+      const current = prev.targetCriteria.countries || [];
+      const isSelected = current.includes(countryName);
+
+      let next: string[];
+      if (isSelected) {
+        const toRemove = new Set([countryName, ...stateValues]);
+        next = current.filter((c) => !toRemove.has(c));
+      } else {
+        next = [...new Set([...current, countryName, ...stateValues])];
+      }
+
+      return {
+        ...prev,
+        targetCriteria: { ...prev.targetCriteria, countries: next },
+      };
+    });
+  };
+
+  // Render hierarchical geography selection with states (multi-select checkboxes)
   const renderGeographySelection = () => {
+    const search = countrySearchTerm.trim().toLowerCase();
     const allCountries = Country.getAllCountries();
+
+    const filtered = allCountries.filter((country) => {
+      if (!search) return true;
+      if (country.name.toLowerCase().includes(search)) return true;
+      const states = State.getStatesOfCountry(country.isoCode);
+      return states.some((s) => s.name.toLowerCase().includes(search));
+    });
+
+    const priorityCodes = ["CA", "US", "MX"];
+    const priority = filtered.filter((c) => priorityCodes.includes(c.isoCode));
+    const rest = filtered.filter((c) => !priorityCodes.includes(c.isoCode));
+    priority.sort((a, b) => priorityCodes.indexOf(a.isoCode) - priorityCodes.indexOf(b.isoCode));
+    rest.sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...priority, ...rest];
+
+    const selectedCountries = formData.targetCriteria.countries || [];
+
     return (
-      <div className="space-y-2 font-poppins">
-        {allCountries.map((country) => (
-          <div key={country.isoCode} className="border-b border-gray-100 pb-1">
-            <div className="flex items-center">
-              <input
-                type="radio"
-                id={`geo-${country.isoCode}`}
-                name="geography"
-                checked={(formData.targetCriteria.countries || []).includes(country.name)}
-                onChange={() => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    targetCriteria: { ...prev.targetCriteria, countries: [country.name] },
-                  }));
-                }}
-                className="mr-2 h-4 w-4 text-[#3aafa9] focus:ring-[#3aafa9] checked:bg-[#3aafa9] checked:border-[#3aafa9]"
-              />
-              <div
-                className="flex items-center cursor-pointer flex-1"
-                onClick={() => setExpandedCountries((prev) => ({ ...prev, [country.isoCode]: !prev[country.isoCode] }))}
-              >
-                {expandedCountries[country.isoCode] ? (
-                  <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
-                )}
-                <Label htmlFor={`geo-${country.isoCode}`} className="text-[#344054] cursor-pointer font-medium">
-                  {country.name}
-                </Label>
-              </div>
-            </div>
-            {expandedCountries[country.isoCode] && (
-              <div className="ml-6 mt-1 space-y-1">
-                {getStates(country.isoCode).map((state) => (
-                  <div key={state.isoCode} className="pl-2">
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        id={`geo-${country.isoCode}-${state.isoCode}`}
-                        name="geography"
-                        checked={(formData.targetCriteria.countries || []).includes(`${country.name} > ${state.name}`)}
-                        onChange={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            targetCriteria: { ...prev.targetCriteria, countries: [`${country.name} > ${state.name}`] },
-                          }));
-                        }}
-                        className="mr-2 h-4 w-4 text-[#3aafa9] focus:ring-[#3aafa9] checked:bg-[#3aafa9] checked:border-[#3aafa9]"
-                      />
-                      <Label
-                        htmlFor={`geo-${country.isoCode}-${state.isoCode}`}
-                        className="text-[#344054] cursor-pointer"
-                      >
-                        {state.name}
-                      </Label>
-                    </div>
+      <>
+        <style jsx>{`
+          .geo-checkbox {
+            appearance: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #D1D5DB;
+            border-radius: 0.25rem;
+            background-color: white;
+            cursor: pointer;
+            position: relative;
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+          }
+          .geo-checkbox:checked {
+            background-color: #3AAFA9;
+            border-color: #3AAFA9;
+          }
+          .geo-checkbox:checked::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 45%;
+            width: 0.25rem;
+            height: 0.5rem;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: translate(-50%, -50%) rotate(45deg);
+          }
+          .geo-checkbox:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(58, 175, 169, 0.2);
+          }
+        `}</style>
+        <div className="space-y-2 font-poppins">
+          {sorted.map((country) => {
+            const states = State.getStatesOfCountry(country.isoCode);
+            const hasStates = states.length > 0;
+
+            return (
+              <div key={country.isoCode} className="border-b border-gray-100 pb-1">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`geo-${country.isoCode}`}
+                    checked={selectedCountries.includes(country.name)}
+                    onChange={() => toggleCountryWithStates(country.name, country.isoCode)}
+                    className="geo-checkbox"
+                  />
+                  <div
+                    className="flex items-center cursor-pointer flex-1"
+                    onClick={() => {
+                      if (hasStates) {
+                        setExpandedContinents((prev) => ({
+                          ...prev,
+                          [country.isoCode]: !prev[country.isoCode],
+                        }));
+                      }
+                    }}
+                  >
+                    {hasStates ? (
+                      expandedContinents[country.isoCode] ? (
+                        <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
+                      )
+                    ) : null}
+                    <Label htmlFor={`geo-${country.isoCode}`} className="text-[#344054] cursor-pointer font-medium">
+                      {country.name}
+                    </Label>
                   </div>
-                ))}
+                </div>
+                {hasStates && expandedContinents[country.isoCode] && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {states.map((state) => {
+                      const stateValue = `${country.name} > ${state.name}`;
+                      return (
+                        <div key={state.isoCode} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`geo-${country.isoCode}-${state.isoCode}`}
+                              checked={selectedCountries.includes(stateValue)}
+                              onChange={() => toggleGeoValue(stateValue)}
+                              className="geo-checkbox"
+                            />
+                            <Label
+                              htmlFor={`geo-${country.isoCode}-${state.isoCode}`}
+                              className="text-[#344054] cursor-pointer"
+                            >
+                              {state.name}
+                            </Label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      </>
     );
   };
 
-  // Helper to load states for a country
-  const getStates = (countryCode: string) => {
-    return State.getStatesOfCountry(countryCode);
-  };
-
   return (
+    <BuyerProtectedRoute>
     <div className="min-h-screen bg-[#f0f4f8] py-8 px-4 font-poppins">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
@@ -1727,57 +1809,10 @@ const handleSubmit = async (e: React.FormEvent) => {
         onChange={e => setCountrySearchTerm(e.target.value)}
       />
     </div>
-    {/* Pills block below search bar */}
-    {/* {formData.targetCriteria.countries.length > 0 && (
-      <div className="mb-4">
-        <div className="text-sm text-[#667085] mb-1">Selected</div>
-        <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-          {formData.targetCriteria.countries.map((country, index) => (
-            <span
-              key={`selected-country-${index}`}
-              className="bg-gray-100 text-[#344054] text-xs rounded-full px-2 py-0.5 flex items-center group"
-            >
-              {country}
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    targetCriteria: {
-                      ...prev.targetCriteria,
-                      countries: prev.targetCriteria.countries.filter((c, i) => i !== index),
-                    },
-                  }))
-                }
-                className="ml-1 text-gray-400 hover:text-gray-600 focus:outline-none"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-3 w-3"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      </div>
-    )} */}
-    {/* Dropdown (GeographySelector) */}
-    <GeographySelector
-      selectedCountries={formData.targetCriteria.countries}
-      onChange={countries => setFormData(prev => ({
-        ...prev,
-        targetCriteria: { ...prev.targetCriteria, countries },
-      }))}
-      searchTerm={countrySearchTerm}
-    />
+    {/* Country + State selection */}
+    <div className="flex-1 overflow-y-auto min-h-0">
+      {renderGeographySelection()}
+    </div>
     {fieldErrors["targetCriteria.countries"] && (
   <p className="text-red-500 text-sm mt-1">
     {fieldErrors["targetCriteria.countries"]}
@@ -2233,29 +2268,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                   )}
               </div>
 
-              <div>
-                <Label className="text-[#667085] text-sm mb-1.5 block">
-                  Minimum 3 Year Average Revenue Growth (%) <span className="text-red-500">*</span>
-                </Label>
-                <div className="flex items-center">
-                  <Input
-                    id="revenueGrowth"
-                    type="text"
-                    className={`border-[#d0d5dd] ${fieldErrors["targetCriteria.revenueGrowth"] ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                    value={formatNumberWithCommas(formData.targetCriteria.revenueGrowth)}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/,/g, "");
-                      if (value === "" || /^\d+$/.test(value)) {
-                        handleNestedChange("targetCriteria", "revenueGrowth", value ? Number(value) : undefined);
-                      }
-                    }}
-                    required
-                  />
-                </div>
-                {fieldErrors["targetCriteria.revenueGrowth"] && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors["targetCriteria.revenueGrowth"]}</p>
-                )}
-              </div>
+
+
 
               <div>
                 <Label
@@ -2412,7 +2426,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   }
                 />
                 <Label htmlFor="allowBuyerLikeDeals" className="text-[#344054]">
-                  Allow buy side fee deals (charged by seller above CIM Amplify
+                  Allow buy side fee deals (charged by advisor above CIM Amplify
                   Fees)
                 </Label>
               </div>
@@ -2486,5 +2500,6 @@ const handleSubmit = async (e: React.FormEvent) => {
       </div>
       <Toaster />
     </div>
+    </BuyerProtectedRoute>
   );
 }

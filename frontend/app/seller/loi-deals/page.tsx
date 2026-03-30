@@ -2,13 +2,11 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Search, Eye, Clock, LogOut, FileText, Loader2, Menu } from "lucide-react"
+import { Search, FileText, Loader2, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog"
-import Image from "next/image"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
@@ -17,10 +15,9 @@ import SellerProtectedRoute from "@/components/seller/protected-route"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useLOIDeals, useSellerProfile } from "@/hooks/use-seller-deals"
 import { useQueryClient } from "@tanstack/react-query"
-import { triggerNavigationProgress } from "@/components/navigation-progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SellerNav } from "@/components/seller/seller-nav"
 
 interface Deal {
   _id: string
@@ -80,9 +77,9 @@ const getApiUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (typeof window !== 'undefined') {
-    return localStorage.getItem("apiUrl") || "http://localhost:5001";
+    return localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
   }
-  return "http://localhost:5001";
+  return "https://cim-backend.vercel.app";
 };
 
 function getProfilePictureUrl(path: string | null) {
@@ -488,96 +485,13 @@ export default function LOIDealsPage() {
     return []
   }
 
-  // Navigation component to avoid duplication
-  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <>
-      <div className="mb-8">
-        <Link href="https://cimamplify.com/" onClick={onNavigate} className="block">
-          <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
-        </Link>
-      </div>
-
-      <nav className="flex-1 space-y-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-          onClick={() => {
-            triggerNavigationProgress()
-            onNavigate?.()
-            router.push("/seller/dashboard")
-          }}
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span>MyDeals</span>
-        </Button>
-
-        <Button
-          variant="secondary"
-          className="w-full justify-start gap-3 font-normal bg-amber-100 text-amber-700 hover:bg-amber-200"
-          onClick={onNavigate}
-        >
-          <FileText className="h-5 w-5" />
-          <span>LOI - Deals</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-          onClick={() => {
-            triggerNavigationProgress()
-            onNavigate?.()
-            router.push("/seller/history")
-          }}
-        >
-          <Clock className="h-5 w-5" />
-          <span>Off Market</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-          onClick={() => {
-            triggerNavigationProgress()
-            onNavigate?.()
-            router.push("/seller/view-profile")
-          }}
-        >
-          <Eye className="h-5 w-5" />
-          <span>View Profile</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={() => {
-            onNavigate?.()
-            handleLogout()
-          }}
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Sign Out</span>
-        </Button>
-      </nav>
-
-      <AmplifyVenturesBox />
-    </>
-  )
-
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64 flex-shrink-0">
           <div className="sticky top-0 h-screen bg-white border-r border-gray-200 p-6 flex flex-col overflow-y-auto">
-            <NavigationContent />
+            <SellerNav activePage="loi-deals" onLogout={handleLogout} />
           </div>
         </div>
 
@@ -599,7 +513,7 @@ export default function LOIDealsPage() {
                     <SheetTitle className="text-gray-800">Menu</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6 flex-1 overflow-y-auto pb-6">
-                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                    <SellerNav activePage="loi-deals" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
                   </div>
                 </SheetContent>
               </Sheet>

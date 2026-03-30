@@ -4,6 +4,8 @@ import type React from "react";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import { BuyerProtectedRoute } from "@/components/buyer/protected-route";
 import type { CompanyProfile } from "@/types/company-profile";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -26,13 +28,14 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  LogOut,
-  Settings,
-  Briefcase,
-  Store,
   Menu,
-  User,
+  Store,
+  SlidersHorizontal,
+  MapPin,
+  Building2,
+  X,
 } from "lucide-react";
+import { BuyerNav } from "@/components/buyer/buyer-nav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/use-toast";
@@ -53,6 +56,7 @@ import {
 } from "@/lib/industry-data";
 import GeographySelector from "@/components/GeographySelector";
 import { Country, State } from "country-state-city";
+import { API_BASE_URL } from "@/lib/api-config";
 
 const COMPANY_TYPES = [
   "Buy Side Mandate",
@@ -72,8 +76,6 @@ const BUSINESS_MODELS = [
   "Asset Heavy",
 ];
 
-// Default API URL
-const DEFAULT_API_URL = "http://localhost:5001";
 
 // Type for hierarchical selection
 interface HierarchicalSelection {
@@ -101,14 +103,14 @@ interface BuyerProfile {
 export default function MarketPlace() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { logout: authLogout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
     "idle" | "success" | "error"
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // API configuration
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
+  const apiUrl = API_BASE_URL;
 
   // Authentication state
   const [authToken, setAuthToken] = useState("");
@@ -174,11 +176,45 @@ export default function MarketPlace() {
   const [dealsLoading, setDealsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notInterestedLoading, setNotInterestedLoading] = useState<Record<string, boolean>>({});
+  const [marketplaceLocationQuery, setMarketplaceLocationQuery] = useState("");
+  const [marketplaceIndustryQuery, setMarketplaceIndustryQuery] = useState("");
+  const [debouncedMarketplaceLocationQuery, setDebouncedMarketplaceLocationQuery] = useState("");
+  const [debouncedMarketplaceIndustryQuery, setDebouncedMarketplaceIndustryQuery] = useState("");
 
   // Check if we're on the client side
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMarketplaceLocationQuery(marketplaceLocationQuery.trim());
+      setDebouncedMarketplaceIndustryQuery(marketplaceIndustryQuery.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [marketplaceLocationQuery, marketplaceIndustryQuery]);
+
+  const fetchMarketplaceDeals = async (token: string, location?: string, industry?: string) => {
+    setDealsLoading(true);
+    const params = new URLSearchParams();
+    if (location) params.set("location", location);
+    if (industry) params.set("industry", industry);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+
+    const resp = await fetch(`${apiUrl}/deals/marketplace${suffix}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (resp.ok) {
+      const payload = await resp.json();
+      const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+      setDeals(list);
+    } else {
+      setDeals([]);
+    }
+    setDealsLoading(false);
+  };
 
   const formatCurrencyDisplay = (amount?: number | null, currency?: string) => {
     if (amount === undefined || amount === null) return 'Not provided';
@@ -255,11 +291,6 @@ export default function MarketPlace() {
       }
     }
 
-    // Set API URL from localStorage or use default
-    const storedApiUrl = localStorage.getItem("apiUrl");
-    if (storedApiUrl) {
-      setApiUrl(storedApiUrl);
-    }
   }, [searchParams, router, isClient]);
 
   useEffect(() => {
@@ -279,16 +310,6 @@ export default function MarketPlace() {
         await fetchUserProfile();
         await fetchBuyerProfile();
 
-        // Fetch marketplace deals
-        setDealsLoading(true);
-        const resp = await fetch(`${apiUrl}/deals/marketplace`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          setDeals(data || []);
-        }
-        setDealsLoading(false);
       } catch (error) {
 
         toast({
@@ -301,6 +322,11 @@ export default function MarketPlace() {
 
     fetchData();
   }, [authToken, isClient]);
+
+  useEffect(() => {
+    if (!isClient || !authToken) return;
+    fetchMarketplaceDeals(authToken, debouncedMarketplaceLocationQuery, debouncedMarketplaceIndustryQuery);
+  }, [authToken, isClient, debouncedMarketplaceLocationQuery, debouncedMarketplaceIndustryQuery]);
 
   const handleRequestAccess = async (dealId: string) => {
     try {
@@ -387,7 +413,7 @@ export default function MarketPlace() {
       ebitdaMax: undefined,
       transactionSizeMin: undefined,
       transactionSizeMax: undefined,
-      revenueGrowth: undefined,
+
       minStakePercent: undefined,
       minYearsInBusiness: undefined,
       preferredBusinessModels: [],
@@ -552,8 +578,6 @@ export default function MarketPlace() {
         return;
       }
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
-
       const response = await fetch(`${apiUrl}/buyers/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -643,10 +667,7 @@ export default function MarketPlace() {
         return value === undefined || value === ""
           ? "Maximum transaction size is required"
           : null;
-      case "targetCriteria.revenueGrowth":
-        return value === undefined || value === ""
-          ? "Minimum 3 Year Average Revenue Growth is required"
-          : null;
+
       default:
         return null;
     }
@@ -1339,11 +1360,6 @@ export default function MarketPlace() {
         "Maximum transaction size cannot be less than minimum transaction size";
     }
 
-    errors["targetCriteria.revenueGrowth"] =
-      validateField(
-        "targetCriteria.revenueGrowth",
-        formData.targetCriteria.revenueGrowth
-      ) || "";
 
     setFieldErrors(errors);
 
@@ -1696,8 +1712,6 @@ export default function MarketPlace() {
     // If it's a base64 image, return as-is
     if (path.startsWith("data:image")) return path;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
-
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;
     }
@@ -1711,12 +1725,7 @@ export default function MarketPlace() {
 
   // Handle logout
   const handleLogout = () => {
-    if (!isClient) return;
-
-
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    router.push("/buyer/login");
+    authLogout();
   };
 
   // Add expansion state for countries and states for the geography selector UI
@@ -1781,7 +1790,7 @@ export default function MarketPlace() {
       profile.targetCriteria.ebitdaMax === undefined ||
       profile.targetCriteria.transactionSizeMin === undefined ||
       profile.targetCriteria.transactionSizeMax === undefined ||
-      profile.targetCriteria.revenueGrowth === undefined ||
+
       profile.targetCriteria.minYearsInBusiness === undefined ||
       !profile.targetCriteria.preferredBusinessModels ||
       profile.targetCriteria.preferredBusinessModels.length === 0 ||
@@ -1826,9 +1835,10 @@ export default function MarketPlace() {
   }
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <BuyerProtectedRoute>
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
+      <header className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-50">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-4">
           {/* Left side: Hamburger + Logo (desktop) + Title */}
           <div className="flex items-center gap-3">
@@ -1849,50 +1859,7 @@ export default function MarketPlace() {
                     <Image src="/logo.svg" width={150} height={40} alt="CIM Amplify" className="h-10 w-auto" />
                   </Link>
                 </div>
-                <nav className="flex flex-col space-y-2">
-                  <Link
-                    href="/buyer/deals"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Briefcase className="mr-3 h-5 w-5" />
-                    <span>All Deals</span>
-                  </Link>
-                  <Link
-                    href="/buyer/marketplace"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
-                  >
-                    <Store className="mr-3 h-5 w-5" />
-                    <span>MarketPlace</span>
-                  </Link>
-                  <Link
-                    href="/buyer/company-profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Settings className="mr-3 h-5 w-5" />
-                    <span>Company Profile</span>
-                  </Link>
-                  <Link
-                    href="/buyer/profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <User className="mr-3 h-5 w-5" />
-                    <span>My Profile</span>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleLogout();
-                    }}
-                    className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
-                  >
-                    <LogOut className="mr-3 h-5 w-5" />
-                    <span>Sign Out</span>
-                  </button>
-                </nav>
+                <BuyerNav activePage="marketplace" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
               </SheetContent>
             </Sheet>
 
@@ -1935,51 +1902,98 @@ export default function MarketPlace() {
         {/* Sidebar - Sticky */}
         <aside className="hidden md:block w-56 flex-shrink-0">
           <div className="sticky top-[4rem] h-[calc(100vh-4rem)] border-r border-gray-200 bg-white overflow-y-auto">
-            <nav className="flex flex-col p-4">
-            <Link
-              href="/buyer/deals"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Briefcase className="mr-3 h-5 w-5" />
-              <span>All Deals</span>
-            </Link>
-            <Link
-              href="/buyer/marketplace"
-              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
-            >
-              <Store className="mr-3 h-5 w-5" />
-              <span>MarketPlace</span>
-            </Link>
-            <Link
-              href="/buyer/company-profile"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Settings className="mr-3 h-5 w-5" />
-              <span>Company Profile</span>
-            </Link>
-            <Link
-              href="/buyer/profile"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span>My Profile</span>
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
-            >
-              <LogOut className="mr-3 h-5 w-5" />
-              <span>Sign Out</span>
-            </button>
-            </nav>
+            <BuyerNav activePage="marketplace" onLogout={handleLogout} />
           </div>
         </aside>
 
         {/* Main content */}
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-gray-50">
+          <div className="mb-6 rounded-xl border border-gray-200 border-t-2 border-t-[#3AAFA9] bg-white p-5 shadow-sm">
+            {/* Filter Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-5 w-5 text-[#3AAFA9]" />
+                <h2 className="text-base font-semibold text-gray-800">Filter Deals</h2>
+              </div>
+              {!dealsLoading && profileComplete !== false && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#3AAFA9]/10 text-[#2B7A78]">
+                  {visibleMarketplaceDeals.length} {visibleMarketplaceDeals.length === 1 ? 'deal' : 'deals'} found
+                </span>
+              )}
+            </div>
+
+            {/* Filter Inputs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  value={marketplaceLocationQuery}
+                  onChange={(e) => setMarketplaceLocationQuery(e.target.value)}
+                  placeholder="Search by location..."
+                  className="pl-9 bg-gray-50 hover:border-gray-400 focus-visible:ring-[#3AAFA9] focus-visible:border-[#3AAFA9] focus:bg-white transition-colors h-10"
+                />
+              </div>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  value={marketplaceIndustryQuery}
+                  onChange={(e) => setMarketplaceIndustryQuery(e.target.value)}
+                  placeholder="Search by industry..."
+                  className="pl-9 bg-gray-50 hover:border-gray-400 focus-visible:ring-[#3AAFA9] focus-visible:border-[#3AAFA9] focus:bg-white transition-colors h-10"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setMarketplaceLocationQuery("");
+                  setMarketplaceIndustryQuery("");
+                }}
+                className={`h-10 transition-all duration-200 ${
+                  marketplaceLocationQuery || marketplaceIndustryQuery
+                    ? 'border-[#3AAFA9] text-[#3AAFA9] hover:bg-[#3AAFA9]/5 hover:text-[#2d8f8a]'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <X className="h-4 w-4 mr-1.5" />
+                Clear Filters
+              </Button>
+            </div>
+
+            {/* Active Filter Tags */}
+            {(marketplaceLocationQuery || marketplaceIndustryQuery) && (
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                <span className="text-xs text-gray-500 font-medium">Active:</span>
+                {marketplaceLocationQuery && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+                    <MapPin className="h-3 w-3" />
+                    {marketplaceLocationQuery}
+                    <button
+                      type="button"
+                      onClick={() => setMarketplaceLocationQuery("")}
+                      className="ml-0.5 hover:text-teal-900 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {marketplaceIndustryQuery && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                    <Building2 className="h-3 w-3" />
+                    {marketplaceIndustryQuery}
+                    <button
+                      type="button"
+                      onClick={() => setMarketplaceIndustryQuery("")}
+                      className="ml-0.5 hover:text-blue-900 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Show warning if profile incomplete */}
           {profileComplete === false && (
             <div className="mb-6 rounded-lg bg-yellow-50 p-4 text-yellow-800 border border-yellow-200">
@@ -2137,10 +2151,8 @@ export default function MarketPlace() {
                           </div>
                         </div>
                       )}
-                      <div className="rounded-lg bg-gradient-to-br from-[#3AAFA9]/5 to-[#3AAFA9]/10 p-3 border border-[#3AAFA9]/20 col-span-2">
-                        <div className="text-xs uppercase text-[#2B7A78] font-medium">Avg. 3-Year Revenue Growth</div>
-                        <div className="font-semibold text-gray-900 mt-1">{formatPercentDisplay(deal.financialDetails?.avgRevenueGrowth)}</div>
-                      </div>
+
+
                     </div>
 
                     {isLOI ? (
@@ -2205,5 +2217,6 @@ export default function MarketPlace() {
         </main>
       </div>
     </div>
+    </BuyerProtectedRoute>
   );
 }

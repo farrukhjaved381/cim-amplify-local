@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIM Amplify — Advisor Monthly Activity Report</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --teal-primary:   #2B7A78;
+    --teal-secondary: #3AAFA9;
+    --teal-light:     #DEF2F1;
+    --teal-pale:      #f0faf9;
+    --navy:           #17252A;
+    --white:          #FEFFFF;
+    --border:         #d4ecea;
+    --text-primary:   #17252A;
+    --text-secondary: #3d6065;
+    --text-muted:     #7ba5a8;
+    --active-bg:      #e8f9f8;
+    --active-text:    #0f5a58;
+    --pending-bg:     #fff8e6;
+    --pending-text:   #7a5200;
+    --passed-bg:      #f5f5f5;
+    --passed-text:    #666;
+    --loi-bg:         #fff3cd;
+    --loi-text:       #7a4f00;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #f2f6f6;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 0 60px;
+  }
+
+  /* ── HEADER ─────────────────────────────────── */
+  .header {
+    background: var(--navy);
+    padding: 28px 36px 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .header-logo {
+    width: 38px;
+    height: 38px;
+    background: var(--teal-secondary);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .header-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--teal-secondary);
+    margin-bottom: 2px;
+  }
+
+  .header-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: #fff;
+    line-height: 1.2;
+  }
+
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .header-meta {
+    text-align: right;
+  }
+
+  .header-period {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--teal-light);
+    margin-bottom: 3px;
+  }
+
+  .header-advisor {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 2px;
+  }
+
+  .header-firm {
+    font-size: 12px;
+    color: var(--teal-secondary);
+  }
+
+  .btn-new-deal {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--teal-secondary);
+    border: none;
+    color: #fff;
+    letter-spacing: 0.02em;
+    transition: background 0.15s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .btn-new-deal:hover {
+    background: #2e9690;
+  }
+
+  /* ── SUMMARY STRIP ──────────────────────────── */
+  .summary-strip {
+    background: var(--teal-primary);
+    padding: 16px 36px;
+    display: flex;
+    gap: 0;
+  }
+
+  .summary-item {
+    flex: 1;
+    text-align: center;
+    border-right: 1px solid rgba(255,255,255,0.18);
+  }
+
+  .summary-item:last-child { border-right: none; }
+
+  .summary-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .summary-lbl {
+    font-size: 11px;
+    color: var(--teal-light);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── SECTION HEADING ────────────────────────── */
+  .section-head {
+    padding: 28px 36px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 18px;
+    color: var(--navy);
+  }
+
+  .section-count {
+    font-size: 12px;
+    color: var(--teal-primary);
+    font-weight: 500;
+    background: var(--teal-pale);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 12px;
+  }
+
+  /* ── DEAL CARD ──────────────────────────────── */
+  .deal-card {
+    margin: 0 36px 28px;
+    background: var(--white);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .deal-card-header {
+    background: var(--teal-pale);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .deal-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 16px;
+    color: var(--navy);
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+
+  .deal-financials {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .deal-fin-item {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .deal-fin-item strong {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  /* ── BADGES ─────────────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .badge-active { background: var(--active-bg); color: var(--active-text); }
+  .badge-loi    { background: var(--loi-bg);    color: var(--loi-text); }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* ── STATS ROW ──────────────────────────────── */
+  .deal-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-cell {
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+  }
+
+  .stat-cell:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 30px;
+    line-height: 1;
+    margin-bottom: 3px;
+  }
+
+  .stat-num-active { color: var(--active-text); }
+  .stat-num-passed { color: #999; }
+
+  .stat-lbl {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+  }
+
+  .stat-lbl-active { color: var(--active-text); }
+  .stat-lbl-passed { color: #999; }
+
+  /* ── CTA BUTTONS ────────────────────────────── */
+  .deal-cta-row {
+    padding: 12px 20px;
+    display: flex;
+    gap: 10px;
+    background: #fafefe;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+
+  .btn-loi {
+    background: var(--loi-bg);
+    border-color: #e8c84e;
+    color: var(--loi-text);
+  }
+
+  .btn-loi:hover { background: #ffedaa; }
+
+  .btn-offmkt {
+    background: #f5f5f5;
+    border-color: #ccc;
+    color: #444;
+  }
+
+  .btn-offmkt:hover { background: #e8e8e8; }
+
+  .btn-icon {
+    width: 13px;
+    height: 13px;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  /* ── ACTIVE BUYERS TABLE ────────────────────── */
+  .subsection-heading {
+    padding: 11px 20px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    background: #fafcfc;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .buyers-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .buyers-table thead tr {
+    background: #f7fafa;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .buyers-table th {
+    padding: 8px 16px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .buyers-table th:last-child { text-align: right; }
+
+  .buyers-table tbody tr {
+    border-bottom: 1px solid #f0f7f6;
+  }
+
+  .buyers-table tbody tr:last-child { border-bottom: none; }
+
+  .buyers-table tbody tr:hover { background: var(--teal-pale); }
+
+  .buyers-table td {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+
+  .buyers-table td:last-child { text-align: right; }
+
+  .buyer-name {
+    font-weight: 500;
+    color: var(--navy);
+    display: block;
+    font-size: 13px;
+  }
+
+  .buyer-company {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: block;
+  }
+
+  .btn-flag-inactive {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: #fff3f0;
+    border: 1.5px solid #f0b8ac;
+    color: #a02808;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-flag-inactive:hover {
+    background: #ffe0d8;
+    border-color: #d08070;
+  }
+
+  /* ── MOVEMENTS (per-card) ───────────────────── */
+  .movements-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .movements-table thead tr {
+    background: #f2f8f7;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .movements-table th {
+    padding: 8px 16px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-align: left;
+  }
+
+  .movements-table tbody tr {
+    border-bottom: 1px solid #f0f7f6;
+  }
+
+  .movements-table tbody tr:last-child { border-bottom: none; }
+
+  .movements-table tbody tr:hover { background: var(--teal-pale); }
+
+  .movements-table td {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+
+  .move-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pill {
+    padding: 2px 9px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .pill-from     { background: #f0f0f0; color: #666; }
+  .pill-active   { background: var(--active-bg); color: var(--active-text); }
+  .pill-passed   { background: var(--passed-bg); color: var(--passed-text); }
+  .pill-loi      { background: var(--loi-bg); color: var(--loi-text); }
+
+  .move-date {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* ── FOOTER ─────────────────────────────────── */
+  .footer {
+    margin: 32px 36px 0;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-brand {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .footer-brand strong { color: var(--teal-primary); font-weight: 600; }
+
+  .footer-links { display: flex; gap: 16px; }
+
+  .footer-link {
+    font-size: 12px;
+    color: var(--teal-primary);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .footer-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ════════════════════════════
+       HEADER
+       DATA: advisor.fullName, advisor.companyName,
+             report.month/year
+             newDealUrl = /advisor/deals/new
+  ═══════════════════════════════════ -->
+  <div class="header">
+    <div class="header-brand">
+      <div class="header-logo">C</div>
+      <div>
+        <div class="header-label">CIM Amplify</div>
+        <div class="header-title">Monthly Deal Report</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="header-meta">
+        <div class="header-period">March 2026</div>
+        <div class="header-advisor">Blake Taylor</div>
+        <div class="header-firm">Synergy Business Brokers</div>
+      </div>
+      <a href="#" class="btn-new-deal">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Add a New Deal
+      </a>
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════
+       SUMMARY STRIP
+       DATA: count(active deals), sum(interestedBuyers), count(movements this month)
+       NOTE: pending removed per request
+  ═══════════════════════════════════ -->
+  <div class="summary-strip">
+    <div class="summary-item">
+      <div class="summary-num">3</div>
+      <div class="summary-lbl">Active Deals</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-num">26</div>
+      <div class="summary-lbl">Buyer Interest</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-num">14</div>
+      <div class="summary-lbl">Movements This Month</div>
+    </div>
+  </div>
+
+
+  <div class="section-head">
+    <div class="section-title">Your Active Listings</div>
+    <div class="section-count">2 deals</div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════
+       DEAL CARD #1 — Active (Draft status)
+       NOTE: off-market (completed) deals not shown
+  ══════════════════════════════════════════════ -->
+  <div class="deal-card">
+
+    <!-- Header: title + financials + badge -->
+    <div class="deal-card-header">
+      <div>
+        <div class="deal-title">Growing Commercial Contractor For Sale</div>
+        <div class="deal-financials">
+          <span class="deal-fin-item">Revenue: <strong>$30M</strong></span>
+          <span class="deal-fin-item">EBITDA: <strong>$3M</strong></span>
+          <span class="deal-fin-item">Listed: <strong>Dec 3, 2025</strong></span>
+        </div>
+      </div>
+      <span class="badge badge-active">
+        <span class="badge-dot"></span>Active Listing
+      </span>
+    </div>
+
+    <!-- Stats: Active / Passed (pending removed) -->
+    <div class="deal-stats">
+      <div class="stat-cell">
+        <div class="stat-num stat-num-active">8</div>
+        <div class="stat-lbl stat-lbl-active">Active Buyers</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num stat-num-passed">16</div>
+        <div class="stat-lbl stat-lbl-passed">Passed</div>
+      </div>
+    </div>
+
+    <!-- Deal CTAs -->
+    <div class="deal-cta-row">
+      <button class="btn btn-loi">
+        <svg class="btn-icon" viewBox="0 0 14 14" fill="none">
+          <path d="M1 11h12M7 1v7M4 5l3-4 3 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Mark as Under LOI
+      </button>
+      <button class="btn btn-offmkt">
+        <svg class="btn-icon" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M4 7h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Mark as Off Market
+      </button>
+    </div>
+
+    <!-- Active Buyers Table -->
+    <!-- No initials, no last-viewed -->
+    <div class="subsection-heading">Active Buyers</div>
+    <table class="buyers-table">
+      <thead>
+        <tr>
+          <th>Buyer</th>
+          <th>Interested Since</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="buyer-name">Sanjay Gulati</span>
+            <span class="buyer-company">Surge PE</span>
+          </td>
+          <td>Jan 24, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">David Wu</span>
+            <span class="buyer-company">Clearwater Capital</span>
+          </td>
+          <td>Jan 24, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Marcus Reynolds</span>
+            <span class="buyer-company">Summit Road Partners</span>
+          </td>
+          <td>Feb 1, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">James Torres</span>
+            <span class="buyer-company">Bridgepoint Acquisitions</span>
+          </td>
+          <td>Feb 4, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Patricia Walsh</span>
+            <span class="buyer-company">Redwood Holdings</span>
+          </td>
+          <td>Feb 4, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Aaron Lee</span>
+            <span class="buyer-company">Pinnacle Equity Group</span>
+          </td>
+          <td>Mar 2, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Lena Fischer</span>
+            <span class="buyer-company">Northbrook Capital</span>
+          </td>
+          <td>Mar 6, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Kevin Park</span>
+            <span class="buyer-company">Ironwood Growth Partners</span>
+          </td>
+          <td>Mar 7, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Buyer Movements for this deal this month -->
+    <!-- No buyer initials/avatars -->
+    <div class="subsection-heading" style="border-top: 1px solid var(--border);">Buyer Movements — March 2026</div>
+    <table class="movements-table">
+      <thead>
+        <tr>
+          <th>Buyer</th>
+          <th>Movement</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="buyer-name">Marcus Reynolds</span>
+            <span class="buyer-company">Summit Road Partners</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Pending</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-active">Active</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 2, 2026</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Aaron Lee</span>
+            <span class="buyer-company">Pinnacle Equity Group</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Pending</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-active">Active</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 2, 2026</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Brian Tang</span>
+            <span class="buyer-company">Westgate Equity</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Pending</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-passed">Passed</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 3, 2026</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">James Alvarez</span>
+            <span class="buyer-company">Summit Equity</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Active</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-passed">Passed</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 20, 2026</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div><!-- /deal-card #1 -->
+
+
+  <!-- ═════════════════════════════════════════
+       DEAL CARD #2 — Under LOI
+  ══════════════════════════════════════════════ -->
+  <div class="deal-card">
+
+    <div class="deal-card-header">
+      <div>
+        <div class="deal-title">Concrete &amp; Masonry Contractor — 20–25% YoY Growth</div>
+        <div class="deal-financials">
+          <span class="deal-fin-item">Revenue: <strong>$16M</strong></span>
+          <span class="deal-fin-item">EBITDA: <strong>$4.5M</strong></span>
+          <span class="deal-fin-item">Listed: <strong>Dec 3, 2025</strong></span>
+        </div>
+      </div>
+      <span class="badge badge-loi">
+        <span class="badge-dot"></span>Under LOI
+      </span>
+    </div>
+
+    <div class="deal-stats">
+      <div class="stat-cell">
+        <div class="stat-num stat-num-active">6</div>
+        <div class="stat-lbl stat-lbl-active">Active Buyers</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num stat-num-passed">10</div>
+        <div class="stat-lbl stat-lbl-passed">Passed</div>
+      </div>
+    </div>
+
+    <div class="deal-cta-row">
+      <button class="btn btn-loi" disabled style="opacity:0.5; cursor:default;">
+        <svg class="btn-icon" viewBox="0 0 14 14" fill="none">
+          <path d="M1 11h12M7 1v7M4 5l3-4 3 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Currently Under LOI
+      </button>
+      <button class="btn btn-offmkt">
+        <svg class="btn-icon" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M4 7h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Mark as Off Market
+      </button>
+    </div>
+
+    <div class="subsection-heading">Active Buyers</div>
+    <table class="buyers-table">
+      <thead>
+        <tr>
+          <th>Buyer</th>
+          <th>Interested Since</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="buyer-name">Sanjay Gulati</span>
+            <span class="buyer-company">Surge PE</span>
+          </td>
+          <td>Jan 24, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Karen Petrov</span>
+            <span class="buyer-company">Ironwood Growth Partners</span>
+          </td>
+          <td>Feb 4, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Aaron Lee</span>
+            <span class="buyer-company">Pinnacle Equity Group</span>
+          </td>
+          <td>Mar 7, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Michael Chan</span>
+            <span class="buyer-company">Clearwater Capital</span>
+          </td>
+          <td>Feb 14, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Rachel Moore</span>
+            <span class="buyer-company">Summit Road Partners</span>
+          </td>
+          <td>Feb 22, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">David Wu</span>
+            <span class="buyer-company">Bridgepoint Acquisitions</span>
+          </td>
+          <td>Mar 4, 2026</td>
+          <td><button class="btn-flag-inactive">This Buyer is not Active</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="subsection-heading" style="border-top: 1px solid var(--border);">Buyer Movements — March 2026</div>
+    <table class="movements-table">
+      <thead>
+        <tr>
+          <th>Buyer</th>
+          <th>Movement</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="buyer-name">Aaron Lee</span>
+            <span class="buyer-company">Pinnacle Equity Group</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Pending</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-active">Active</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 7, 2026</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">David Wu</span>
+            <span class="buyer-company">Bridgepoint Acquisitions</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Pending</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-active">Active</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 4, 2026</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Patricia Walsh</span>
+            <span class="buyer-company">Redwood Holdings</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Pending</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-passed">Passed</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 11, 2026</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="buyer-name">Kyle Norris</span>
+            <span class="buyer-company">Northbrook Capital</span>
+          </td>
+          <td>
+            <div class="move-arrow">
+              <span class="pill pill-from">Active</span>
+              <span style="color:#bbb;">→</span>
+              <span class="pill pill-passed">Passed</span>
+            </div>
+          </td>
+          <td class="move-date">Mar 9, 2026</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div><!-- /deal-card #2 -->
+
+
+  <!-- ════════════════════════════
+       FOOTER
+  ═══════════════════════════════════ -->
+  <div class="footer">
+    <div class="footer-brand">
+      <strong>CIM Amplify</strong> · Monthly Advisor Report · Amplify Ventures Inc.
+    </div>
+    <div class="footer-links">
+      <a href="https://app.cimamplify.com" class="footer-link">Advisor Dashboard</a>
+      <a href="mailto:johnm@cimamplify.com" class="footer-link">Contact Support</a>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!--
+=================================================================
+  DEV IMPLEMENTATION NOTES — v2
+  ─────────────────────────────────────────────────────────────
+  ROUTE:  GET /advisor/monthly-report/:advisorId?month=YYYY-MM
+          Emailed on 1st of each month.
+
+  DATA BINDINGS:
+
+  Header:
+    advisor.fullName          → "Blake Taylor"
+    advisor.companyName       → "Synergy Business Brokers"
+    report.month              → "March 2026"
+    newDealUrl                → /advisor/deals/new
+
+  Summary Strip (3 stats, no pending):
+    activeDealsCount          → deals WHERE seller=advisorId AND status IN ['draft','loi']
+    totalActiveInterest       → sum of accepted invitationStatuses across all deals
+    movementsThisMonth        → count of invitationStatus respondedAt in period
+
+  Deal Cards (foreach deal WHERE seller=advisorId AND status IN ['draft','loi']):
+    — Off-market (status='completed') deals are NOT rendered —
+    deal.title
+    deal.financialDetails.trailingRevenueAmount
+    deal.financialDetails.trailingEBITDAAmount
+    deal.createdAt
+    deal.status → badge:
+      'draft'  = Active Listing (badge-active)
+      'loi'    = Under LOI (badge-loi)
+
+    Stats (2 columns only):
+      activeCount  = count invitationStatus WHERE response='accepted'
+      passedCount  = count invitationStatus WHERE response='rejected'
+
+  CTA Buttons:
+    "Mark as Under LOI"  → POST /deals/:id/status { status:'loi' }
+      disabled if deal.status already='loi'
+    "Mark as Off Market" → POST /deals/:id/status { status:'completed' }
+
+  Active Buyers Table (response='accepted'):
+    buyer.fullName
+    buyer.companyName
+    invitationStatus[].respondedAt  → "Interested Since"
+    — No firm type, no last viewed, no avatars —
+
+    "This Buyer is not Active" button:
+      POST /deals/:id/buyer/:buyerId/mark-inactive
+      Sets invitationStatus[buyerId].response = 'rejected'
+      notes: "Marked inactive by advisor"
+
+  Buyer Movements (per deal, inline below buyers):
+    Source: invitationStatus WHERE respondedAt >= monthStart AND <= monthEnd
+    Display:
+      pending  → accepted  : "Pending → Active"
+      pending  → rejected  : "Pending → Passed"
+      accepted → rejected  : "Active → Passed"
+    — No buyer avatars/initials —
+=================================================================
+-->
+
+</body>
+</html>

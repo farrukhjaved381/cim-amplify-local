@@ -4,7 +4,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios"
 const getApiUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   if (!apiUrl) {
-    return "http://localhost:5001" // Default local backend URL
+    return "https://cim-backend.vercel.app" // Default local backend URL
   }
   return apiUrl
 }

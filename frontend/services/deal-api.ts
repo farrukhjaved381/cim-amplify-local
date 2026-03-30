@@ -1,3 +1,5 @@
+import { API_ENDPOINTS, buildApiUrl } from "@/lib/api-config";
+
 interface UpdateDealStatusParams {
   dealId: string
   status: "completed" | "off-market" | "active"
@@ -6,7 +8,6 @@ interface UpdateDealStatusParams {
 
 export async function updateDealStatus({ dealId, status, finalSalePrice }: UpdateDealStatusParams) {
   const token = localStorage.getItem("token")
-  const apiUrl = localStorage.getItem("apiUrl") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"
 
   if (!token) {
     throw new Error("Authentication required")
@@ -21,7 +22,7 @@ export async function updateDealStatus({ dealId, status, finalSalePrice }: Updat
     }
   }
 
-  const response = await fetch(`${apiUrl}/deals/${dealId}`, {
+  const response = await fetch(buildApiUrl(API_ENDPOINTS.deals.byId(dealId)), {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

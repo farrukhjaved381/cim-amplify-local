@@ -14,6 +14,7 @@ import Link from "next/link";
 import Header from "@/components/ui/auth-header";
 import Footer from "@/components/ui/auth-footer";
 import { ErrorHandler } from "@/lib/error-handler";
+import { API_BASE_URL } from "@/lib/api-config";
 
 export default function BuyerLoginPage() {
   const [email, setEmail] = useState("");
@@ -132,8 +133,7 @@ export default function BuyerLoginPage() {
     setIsLoading(true);
 
     try {
-      // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = API_BASE_URL;
 
       // Use fetch directly for more control
       const response = await fetch(`${apiUrl}/auth/login`, {
@@ -168,17 +168,38 @@ export default function BuyerLoginPage() {
       // Extract refresh token if available
       const refreshToken = data.refresh_token;
 
+      // Check if user is a team member
+      const user = data.user || {}
+      const isTeamMemberLogin = user.isTeamMember === true
+      const role = user.role || "buyer"
+
       // Use auth context login function to store tokens and set up auto-refresh
-      login(token, userId || "", "buyer", refreshToken);
+      login(
+        token,
+        userId || "",
+        role,
+        refreshToken,
+        isTeamMemberLogin ? {
+          isTeamMember: true,
+          ownerId: user.ownerId,
+          ownerType: user.ownerType,
+          permissions: user.permissions || [],
+          isTemporaryPassword: user.isTemporaryPassword || false,
+        } : undefined,
+      );
 
       toast({
         title: "Login Successful",
         description: "You have been successfully logged in.",
       });
 
-      // Redirect to deals page
+      // Redirect: team members with temp password go to profile, otherwise deals
+      const redirectPath = isTeamMemberLogin && user.isTemporaryPassword
+        ? "/buyer/member-profile"
+        : "/buyer/deals"
+
       setTimeout(() => {
-        router.push("/buyer/deals");
+        router.push(redirectPath);
       }, 1000);
     } catch (err: any) {
       const errorMessage = ErrorHandler.getAuthErrorMessage(err);
@@ -196,8 +217,7 @@ export default function BuyerLoginPage() {
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
     try {
-      // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = API_BASE_URL;
 
       // Store the current page as the return URL
       localStorage.setItem("authReturnUrl", "/buyer/deals");

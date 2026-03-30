@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE_URL, API_ENDPOINTS } from "@/lib/api-config";
 
 // Types
 export interface SellerProfile {
@@ -43,6 +44,7 @@ export interface Deal {
   status: string;
   visibility?: string;
   isPublic?: boolean;
+  requiresBuyerFeeAboveAmplifyFees?: boolean;
   industrySector: string;
   geographySelection: string;
   yearsInBusiness: number;
@@ -66,20 +68,20 @@ export interface Deal {
 
 // API Helper Functions
 const getApiUrl = () => {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("apiUrl") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
-  }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+  return API_BASE_URL;
 };
 
 const getAuthHeaders = () => {
-  if (typeof window === "undefined") return {};
+  if (typeof window === "undefined") {
+    return { "Content-Type": "application/json" } as Record<string, string>;
+  }
   // Check sessionStorage first (current session), then localStorage
   const token = sessionStorage.getItem("token") || localStorage.getItem("token");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 // Helper to handle auth errors
@@ -106,7 +108,7 @@ const handleAuthResponse = async (response: Response) => {
 // API Functions
 async function fetchSellerDeals(): Promise<Deal[]> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/my-deals`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.myDeals}`, {
     headers: getAuthHeaders(),
   });
 
@@ -121,7 +123,7 @@ async function fetchSellerDeals(): Promise<Deal[]> {
 
 async function fetchLOIDeals(): Promise<Deal[]> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/loi-deals`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.loiDeals}`, {
     headers: getAuthHeaders(),
   });
 
@@ -136,7 +138,7 @@ async function fetchLOIDeals(): Promise<Deal[]> {
 
 async function fetchCompletedDeals(): Promise<Deal[]> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/completed`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.completed}`, {
     headers: getAuthHeaders(),
   });
 
@@ -151,7 +153,7 @@ async function fetchCompletedDeals(): Promise<Deal[]> {
 
 async function fetchSellerProfile(): Promise<SellerProfile> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/sellers/profile`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.sellers.profile}`, {
     headers: getAuthHeaders(),
   });
 
@@ -175,7 +177,7 @@ async function updateDealStatus(params: {
   const apiUrl = getApiUrl();
   const { dealId, ...updateData } = params;
 
-  const response = await fetch(`${apiUrl}/deals/${dealId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.byId(dealId)}`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify(updateData),
@@ -192,7 +194,7 @@ async function updateDealStatus(params: {
 
 async function pauseDealForLOI(dealId: string): Promise<Deal> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${dealId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.byId(dealId)}`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify({ status: "loi" }),
@@ -209,7 +211,7 @@ async function pauseDealForLOI(dealId: string): Promise<Deal> {
 
 async function reviveDeal(dealId: string): Promise<Deal> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${dealId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.byId(dealId)}`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify({ status: "active" }),
@@ -234,7 +236,7 @@ async function markDealOffMarket(params: {
   const apiUrl = getApiUrl();
   const { dealId, ...updateData } = params;
 
-  const response = await fetch(`${apiUrl}/deals/${dealId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.byId(dealId)}`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -399,7 +401,7 @@ async function fetchMatchingBuyers(dealId: string): Promise<any[]> {
 
 async function fetchDealStatusSummary(dealId: string): Promise<any> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${dealId}/status-summary`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.statusSummary(dealId)}`, {
     headers: getAuthHeaders(),
   });
 

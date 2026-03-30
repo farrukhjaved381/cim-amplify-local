@@ -8,8 +8,6 @@ import {
   Briefcase,
   Activity,
   CheckCircle,
-  Clock,
-  XCircle,
   ArrowUpRight,
   ArrowDownRight,
   BarChart3,
@@ -20,9 +18,6 @@ import {
   Globe,
   DollarSign,
   TrendingUp as TrendUp,
-  Bell,
-  Search,
-  RefreshCw,
   Handshake,
   Eye
 } from "lucide-react";
@@ -46,11 +41,8 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   Area,
   AreaChart,
-  Legend,
 } from "recharts";
 
 // Types
@@ -63,7 +55,16 @@ interface DashboardStats {
   totalSellers: number;
   dealsThisMonth: number;
   dealsLastMonth: number;
-  // marketplaceDeals: number;
+  dealsPreviousWeek: number;
+  buyersPreviousWeek: number;
+  dealsCurrentWeek: number;
+  buyersCurrentWeek: number;
+  previousWeekStart: string;
+  previousWeekEnd: string;
+  currentWeekStart: string;
+  buyerReferralSources: Array<{ name: string; value: number }>;
+  sellerReferralSources: Array<{ name: string; value: number }>;
+  industryBreakdown: Array<{ name: string; value: number }>;
 }
 
 interface DealSummary {
@@ -111,7 +112,15 @@ const CHART_COLORS = {
   gray: "#6b7280",
 };
 
-const PIE_COLORS = ["#14b8a6", "#10b981", "#6b7280"];
+// Pie chart color palettes - distinct contrasting colors for readability
+const PIE_COLORS_BUYER = [
+  "#7c3aed", "#3b82f6", "#14b8a6", "#f59e0b", "#ef4444",
+  "#ec4899", "#8b5cf6", "#06b6d4", "#84cc16", "#f97316",
+];
+const PIE_COLORS_ADVISOR = [
+  "#d97706", "#0891b2", "#7c3aed", "#dc2626", "#059669",
+  "#db2777", "#2563eb", "#ca8a04", "#9333ea", "#0d9488",
+];
 
 interface AdminProfile {
   _id: string;
@@ -151,7 +160,15 @@ const getTimeAgo = (dateString: string): string => {
   return date.toLocaleDateString();
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+const formatDateShort = (dateString: string): string => {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
 
 // API fetch functions
 const fetchStats = async (): Promise<DashboardStats> => {
@@ -199,19 +216,9 @@ const fetchAdminProfile = async (): Promise<AdminProfile> => {
   return res.json();
 };
 
-// Simple Progress Bar Component
-const ProgressBar = ({ value, className = "" }: { value: number; className?: string }) => (
-  <div className={`h-2 bg-gray-100 rounded-full overflow-hidden ${className}`}>
-    <div
-      className="h-full bg-teal-500 rounded-full transition-all duration-300"
-      style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
-    />
-  </div>
-);
-
 export default function AdminOverviewPage() {
   const router = useRouter();
-  const { logout, isLoggedIn, isLoading: authLoading } = useAuth();
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   // Set mounted state to true after hydration
@@ -331,11 +338,11 @@ export default function AdminOverviewPage() {
     ].filter(item => item.value > 0);
   }, [stats]);
 
-  // Chart data for Deal Exclusivity (Pie Chart)
+  // Chart data for Deal Exclusivity (Pie Chart) - distinct colors so Fruit/Bloom are easy to tell apart
   const exclusivityChartData = useMemo(() => {
     return [
-      { name: "Fruit", value: dealsByRewardLevel.Fruit, color: CHART_COLORS.emerald },
-      { name: "Bloom", value: dealsByRewardLevel.Bloom, color: CHART_COLORS.teal },
+      { name: "Fruit", value: dealsByRewardLevel.Fruit, color: "#f59e0b" },  // amber/gold
+      { name: "Bloom", value: dealsByRewardLevel.Bloom, color: "#8b5cf6" },  // purple
       { name: "Seed", value: dealsByRewardLevel.Seed, color: CHART_COLORS.gray },
     ].filter(item => item.value > 0);
   }, [dealsByRewardLevel]);
@@ -356,6 +363,18 @@ export default function AdminOverviewPage() {
       { name: "Last Month", deals: stats.dealsLastMonth, fill: CHART_COLORS.gray },
       { name: "This Month", deals: stats.dealsThisMonth, fill: CHART_COLORS.teal },
     ];
+  }, [stats]);
+
+  const buyerSourceChartData = useMemo(() => {
+    return (stats?.buyerReferralSources || []).filter((item) => item.value > 0);
+  }, [stats]);
+
+  const advisorSourceChartData = useMemo(() => {
+    return (stats?.sellerReferralSources || []).filter((item) => item.value > 0);
+  }, [stats]);
+
+  const industryBreakdownChartData = useMemo(() => {
+    return (stats?.industryBreakdown || []).slice(0, 10);
   }, [stats]);
 
   // Deal value distribution data
@@ -412,18 +431,11 @@ export default function AdminOverviewPage() {
     return Object.entries(months).map(([month, deals]) => ({ month, deals }));
   }, [allDealsData]);
 
-  const handleLogout = () => {
-    logout();
-    router.push("/admin/login");
-  };
-
   // Calculate metrics
   const dealsGrowth = stats ? getPercentageChange(stats.dealsThisMonth, stats.dealsLastMonth) : 0;
   const responseRate = buyerEngagement.totalInvitations > 0
     ? Math.round((buyerEngagement.accepted / buyerEngagement.totalInvitations) * 100)
     : 0;
-
-  const totalExclusivityDeals = dealsByRewardLevel.Seed + dealsByRewardLevel.Bloom + dealsByRewardLevel.Fruit;
 
   const isLoading = !mounted || statsLoading || activeDealsLoading || completedDealsLoading || authLoading;
 
@@ -833,8 +845,186 @@ export default function AdminOverviewPage() {
             </Card>
           </div>
 
-          {/* Row 5: Monthly Comparison */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Row 5: Referral Source Pie Charts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {/* Buyer Referral Sources - Donut Chart */}
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-100 rounded-md">
+                    <PieChartIcon className="h-4 w-4 text-purple-600" />
+                  </div>
+                  Buyer Referral Sources
+                  <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 bg-purple-50 text-purple-600 border-purple-200">
+                    {buyerSourceChartData.length} sources
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {buyerSourceChartData.length > 0 ? (
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="h-[220px] w-full sm:w-1/2 min-w-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={buyerSourceChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={85}
+                            paddingAngle={3}
+                            dataKey="value"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          >
+                            {buyerSourceChartData.map((_: any, index: number) => (
+                              <Cell key={`buyer-cell-${index}`} fill={PIE_COLORS_BUYER[index % PIE_COLORS_BUYER.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: number, name: string) => [`${value}`, name]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="w-full sm:w-1/2 space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {buyerSourceChartData.map((item: any, index: number) => {
+                        const total = buyerSourceChartData.reduce((sum: number, i: any) => sum + i.value, 0);
+                        const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                        return (
+                          <div key={item.name} className="group">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: PIE_COLORS_BUYER[index % PIE_COLORS_BUYER.length] }} />
+                                <span className="text-xs text-gray-700 truncate" title={item.name}>{item.name}</span>
+                              </div>
+                              <span className="text-xs font-semibold text-gray-900 ml-2 flex-shrink-0">{item.value} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                            </div>
+                            <div className="ml-5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%`, backgroundColor: PIE_COLORS_BUYER[index % PIE_COLORS_BUYER.length] }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm">No data available</div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Advisor Referral Sources - Donut Chart */}
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <div className="p-1.5 bg-amber-100 rounded-md">
+                    <PieChartIcon className="h-4 w-4 text-amber-600" />
+                  </div>
+                  Advisor Referral Sources
+                  <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 bg-amber-50 text-amber-600 border-amber-200">
+                    {advisorSourceChartData.length} sources
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {advisorSourceChartData.length > 0 ? (
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="h-[220px] w-full sm:w-1/2 min-w-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={advisorSourceChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={85}
+                            paddingAngle={3}
+                            dataKey="value"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          >
+                            {advisorSourceChartData.map((_: any, index: number) => (
+                              <Cell key={`advisor-cell-${index}`} fill={PIE_COLORS_ADVISOR[index % PIE_COLORS_ADVISOR.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: number, name: string) => [`${value}`, name]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="w-full sm:w-1/2 space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {advisorSourceChartData.map((item: any, index: number) => {
+                        const total = advisorSourceChartData.reduce((sum: number, i: any) => sum + i.value, 0);
+                        const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                        return (
+                          <div key={item.name} className="group">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: PIE_COLORS_ADVISOR[index % PIE_COLORS_ADVISOR.length] }} />
+                                <span className="text-xs text-gray-700 truncate" title={item.name}>{item.name}</span>
+                              </div>
+                              <span className="text-xs font-semibold text-gray-900 ml-2 flex-shrink-0">{item.value} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                            </div>
+                            <div className="ml-5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%`, backgroundColor: PIE_COLORS_ADVISOR[index % PIE_COLORS_ADVISOR.length] }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm">No data available</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 5b: Industry Breakdown - Full Width */}
+          <div className="mb-6">
+            <Card className="bg-white hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-100 rounded-md">
+                    <BarChart3 className="h-4 w-4 text-blue-600" />
+                  </div>
+                  Industry Breakdown
+                  <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 bg-blue-50 text-blue-600 border-blue-200">
+                    {industryBreakdownChartData.length} industries
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={industryBreakdownChartData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#374151' }} axisLine={false} tickLine={false} width={160} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        formatter={(value: number) => [`${value} deals`, 'Count']}
+                      />
+                      <Bar dataKey="value" fill={CHART_COLORS.teal} radius={[0, 4, 4, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 6: Monthly Comparison & KPIs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {/* Monthly Comparison Bar Chart */}
             <Card className="bg-white hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
@@ -879,18 +1069,23 @@ export default function AdminOverviewPage() {
             </Card>
 
             {/* Key Performance Indicators */}
-            <Card className="bg-gradient-to-br from-teal-500 to-emerald-600 text-white hover:shadow-lg transition-shadow lg:col-span-2">
+            <Card className="bg-gradient-to-br from-teal-500 to-emerald-600 text-white hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
                   <Activity className="h-4 w-4" />
                   Key Performance Indicators
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <CardContent className="space-y-4">
+                {/* Overview KPIs */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="text-center p-3 bg-white/10 rounded-lg backdrop-blur-sm">
                     <div className="text-2xl font-bold">{stats?.totalDeals || 0}</div>
                     <div className="text-xs text-white/80">Total Deals</div>
+                  </div>
+                  <div className="text-center p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+                    <div className="text-2xl font-bold">{stats?.totalBuyers || 0}</div>
+                    <div className="text-xs text-white/80">Total Buyers</div>
                   </div>
                   <div className="text-center p-3 bg-white/10 rounded-lg backdrop-blur-sm">
                     <div className="text-2xl font-bold">{responseRate}%</div>
@@ -900,16 +1095,47 @@ export default function AdminOverviewPage() {
                     <div className="text-2xl font-bold">{formatCurrency(totalEbitdaSize)}</div>
                     <div className="text-xs text-white/80">Total EBITDA</div>
                   </div>
-                  <div className="text-center p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                    <div className="text-2xl font-bold">{stats?.totalBuyers || 0}</div>
-                    <div className="text-xs text-white/80">Active Buyers</div>
+                </div>
+                {/* Weekly KPIs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Current Week */}
+                  <div className="p-3 bg-white/15 rounded-lg backdrop-blur-sm">
+                    <div className="text-[11px] text-white/70 mb-2 font-medium">
+                      Current Week (from {formatDateShort(stats?.currentWeekStart || "")})
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-center p-2 bg-white/10 rounded-md">
+                        <div className="text-xl font-bold">{stats?.dealsCurrentWeek || 0}</div>
+                        <div className="text-[10px] text-white/80">Deals Added</div>
+                      </div>
+                      <div className="text-center p-2 bg-white/10 rounded-md">
+                        <div className="text-xl font-bold">{stats?.buyersCurrentWeek || 0}</div>
+                        <div className="text-[10px] text-white/80">Buyers Added</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Previous Week */}
+                  <div className="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+                    <div className="text-[11px] text-white/70 mb-2 font-medium">
+                      Previous Week: {formatDateShort(stats?.previousWeekStart || "")} - {formatDateShort(stats?.previousWeekEnd || "")}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-center p-2 bg-white/10 rounded-md">
+                        <div className="text-xl font-bold">{stats?.dealsPreviousWeek || 0}</div>
+                        <div className="text-[10px] text-white/80">Deals Added</div>
+                      </div>
+                      <div className="text-center p-2 bg-white/10 rounded-md">
+                        <div className="text-xl font-bold">{stats?.buyersPreviousWeek || 0}</div>
+                        <div className="text-[10px] text-white/80">Buyers Added</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Row 6: Recent Activity */}
+          {/* Row 7: Recent Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Recent Active Deals */}
             <Card className="bg-white hover:shadow-md transition-shadow">
@@ -944,8 +1170,8 @@ export default function AdminOverviewPage() {
                               <h4 className="text-sm font-medium text-gray-900 truncate">{deal.title}</h4>
                               {deal.rewardLevel && (
                                 <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
-                                  deal.rewardLevel === 'Fruit' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                  deal.rewardLevel === 'Bloom' ? 'bg-teal-50 text-teal-600 border-teal-200' :
+                                  deal.rewardLevel === 'Fruit' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                  deal.rewardLevel === 'Bloom' ? 'bg-purple-50 text-purple-600 border-purple-200' :
                                   'bg-gray-100 text-gray-600 border-gray-200'
                                 }`}>
                                   {deal.rewardLevel}

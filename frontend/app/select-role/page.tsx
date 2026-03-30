@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { ga4Events } from "@/lib/ga4"
 
 export default function SelectRolePage() {
   const router = useRouter()
@@ -44,10 +45,9 @@ export default function SelectRolePage() {
     e.preventDefault()
 
     if (isLoggedIn && userRole === "buyer") {
-
       router.push("/buyer/deals")
     } else {
-
+      ga4Events.formStartBuyer()
       router.push("/buyer/register")
     }
   }
@@ -57,10 +57,9 @@ export default function SelectRolePage() {
     e.preventDefault()
 
     if (isLoggedIn && userRole === "seller") {
-
       router.push("/seller/dashboard")
     } else {
-
+      ga4Events.formStartSeller()
       router.push("/seller/register")
     }
   }

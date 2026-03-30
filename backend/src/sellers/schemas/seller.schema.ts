@@ -34,7 +34,7 @@ export class Seller {
   fullName!: string;
 
   @ApiProperty({ description: "Email address of the seller" })
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email!: string;
 
   @ApiProperty({ description: "Company website" })
@@ -104,3 +104,33 @@ export class Seller {
 }
 
 export const SellerSchema = SchemaFactory.createForClass(Seller);
+
+SellerSchema.index({ companyName: 1 });
+SellerSchema.index({ fullName: 1 });
+SellerSchema.index({ phoneNumber: 1 });
+SellerSchema.index({ createdAt: -1 });
+
+SellerSchema.pre("save", function (next) {
+  if (this.email) {
+    this.email = this.email.toLowerCase().trim();
+  }
+  next();
+});
+
+SellerSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
+  const update = this.getUpdate() as Record<string, any> | undefined;
+  const normalize = (target: Record<string, any>) => {
+    if (typeof target.email === "string") {
+      target.email = target.email.toLowerCase().trim();
+    }
+  };
+
+  if (update) {
+    normalize(update);
+    if (update.$set && typeof update.$set === "object") {
+      normalize(update.$set);
+    }
+  }
+
+  next();
+});

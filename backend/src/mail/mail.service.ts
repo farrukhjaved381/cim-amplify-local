@@ -1,12 +1,14 @@
 // src/mail/mail.service.ts
 // src/mail/mail.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CommunicationLog, CommunicationLogDocument } from './schemas/communication-log.schema';
+import { EmailQueue, EmailQueueDocument } from './schemas/email-queue.schema';
 import { join } from 'path';
 import * as nodemailer from 'nodemailer';
 import { genericEmailTemplate, emailButton } from './generic-email.template';
+import { getAdminNotificationEmail } from '../common/admin-notification-email';
 
 export const ILLUSTRATION_ATTACHMENT = {
   filename: 'illustration.png',
@@ -17,9 +19,13 @@ export const ILLUSTRATION_ATTACHMENT = {
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
+
   constructor(
     @InjectModel(CommunicationLog.name)
     private communicationLogModel: Model<CommunicationLogDocument>,
+    @InjectModel(EmailQueue.name)
+    private emailQueueModel: Model<EmailQueueDocument>,
   ) {}
 
   private transporter = nodemailer.createTransport({
@@ -45,7 +51,7 @@ export class MailService {
         attachments,
       });
     } catch (error) {
-      console.error("Error sending email:", error);
+      this.logger.error(`Error sending email: ${error instanceof Error ? error.message : error}`);
       throw error;
     }
   }
@@ -58,6 +64,8 @@ export class MailService {
     attachments: any[] = [],
     relatedDealId?: string,
   ): Promise<void> {
+    await this.processQueue(10);
+
     try {
       await this.sendEmail(recipientEmail, subject, body, attachments);
 
@@ -72,6 +80,7 @@ export class MailService {
         relatedDealId,
       });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       await this.communicationLogModel.create({
         recipientEmail,
         recipientType,
@@ -82,7 +91,102 @@ export class MailService {
         status: 'failed',
         relatedDealId,
       });
+
+      await this.enqueueRetry({
+        recipientEmail,
+        recipientType,
+        subject,
+        body,
+        attachments,
+        relatedDealId,
+        lastError: errorMessage,
+      });
+      await this.notifyAdminQueueFailure(recipientEmail, subject, errorMessage);
       throw err;
+    }
+  }
+
+  private async enqueueRetry(params: {
+    recipientEmail: string;
+    recipientType: string;
+    subject: string;
+    body: string;
+    attachments?: any[];
+    relatedDealId?: string;
+    lastError: string;
+  }): Promise<void> {
+    await this.emailQueueModel.create({
+      recipientEmail: params.recipientEmail,
+      recipientType: params.recipientType,
+      subject: params.subject,
+      body: params.body,
+      attachments: params.attachments || [],
+      relatedDealId: params.relatedDealId,
+      attempts: 1,
+      maxAttempts: 5,
+      nextRetryAt: new Date(Date.now() + 5 * 60 * 1000),
+      lastError: params.lastError,
+      status: "pending",
+    });
+  }
+
+  private async notifyAdminQueueFailure(recipientEmail: string, subject: string, reason: string): Promise<void> {
+    try {
+      const alertSubject = "CIM Amplify Email Delivery Failure Alert";
+      const alertBody = genericEmailTemplate(
+        alertSubject,
+        "Admin",
+        `<p>Email delivery failed and was queued for retry.</p>
+         <p><strong>Recipient:</strong> ${recipientEmail}</p>
+         <p><strong>Subject:</strong> ${subject}</p>
+         <p><strong>Error:</strong> ${reason}</p>`,
+      );
+      await this.sendEmail(getAdminNotificationEmail(), alertSubject, alertBody, [ILLUSTRATION_ATTACHMENT]);
+    } catch {
+      // Intentionally ignore to avoid recursive failures.
+    }
+  }
+
+  async processQueue(limit = 20): Promise<void> {
+    const now = new Date();
+    const queuedItems = await this.emailQueueModel
+      .find({ status: "pending", nextRetryAt: { $lte: now } })
+      .sort({ nextRetryAt: 1 })
+      .limit(limit)
+      .exec();
+
+    for (const queued of queuedItems) {
+      try {
+        await this.sendEmail(queued.recipientEmail, queued.subject, queued.body, queued.attachments || []);
+
+        queued.status = "sent";
+        queued.lastError = null;
+        await queued.save();
+
+        await this.communicationLogModel.create({
+          recipientEmail: queued.recipientEmail,
+          recipientType: queued.recipientType,
+          subject: queued.subject,
+          body: queued.body,
+          sentAt: new Date(),
+          communicationType: "email",
+          status: "sent",
+          relatedDealId: queued.relatedDealId,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        queued.attempts += 1;
+        queued.lastError = errorMessage;
+
+        if (queued.attempts >= queued.maxAttempts) {
+          queued.status = "dead";
+          await this.notifyAdminQueueFailure(queued.recipientEmail, queued.subject, `Permanent failure: ${errorMessage}`);
+        } else {
+          const nextDelayMinutes = Math.min(60, Math.pow(2, queued.attempts) * 5);
+          queued.nextRetryAt = new Date(Date.now() + nextDelayMinutes * 60 * 1000);
+        }
+        await queued.save();
+      }
     }
   }
   async sendResetPasswordEmail(to: string, name: string, resetLink: string): Promise<void> {
@@ -155,7 +259,7 @@ export class MailService {
     const emailBody = genericEmailTemplate(subject, 'Support Team', emailContent);
 
     await this.sendEmailWithLogging(
-      'canotifications@amp-ven.com',
+      getAdminNotificationEmail(),
       'admin',
       subject,
       emailBody,

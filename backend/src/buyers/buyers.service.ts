@@ -1,5 +1,5 @@
 // src/buyers/buyers.service.ts
-import { Injectable, ConflictException, NotFoundException, Inject, forwardRef } from "@nestjs/common";
+import { Injectable, ConflictException, NotFoundException, Inject, forwardRef, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import * as bcrypt from "bcrypt";
@@ -12,9 +12,24 @@ import { CompanyProfile, CompanyProfileDocument } from "../company-profile/schem
 import { AuthService } from "../auth/auth.service";
 import { MailService, ILLUSTRATION_ATTACHMENT } from "../mail/mail.service";
 import { genericEmailTemplate, emailButton } from "../mail/generic-email.template";
+import { getAdminNotificationEmail } from "../common/admin-notification-email";
+import { getFrontendUrl } from "../common/frontend-url";
+
+const escapeRegexInput = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getFirstName = (fullName?: string | null): string => {
+  const trimmed = fullName?.trim();
+  if (!trimmed) return "there";
+  return trimmed.split(/\s+/)[0] || "there";
+};
 
 @Injectable()
 export class BuyersService {
+  private readonly logger = new Logger(BuyersService.name);
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
   constructor(
     @InjectModel(Buyer.name) private readonly buyerModel: Model<BuyerDocument>,
     @InjectModel(CompanyProfile.name) private readonly companyProfileModel: Model<CompanyProfileDocument>,
@@ -41,7 +56,6 @@ export class BuyersService {
       profile.targetCriteria?.ebitdaMax !== undefined &&
       profile.targetCriteria?.transactionSizeMin !== undefined &&
       profile.targetCriteria?.transactionSizeMax !== undefined &&
-      profile.targetCriteria?.revenueGrowth !== undefined &&
       profile.targetCriteria?.minStakePercent !== undefined &&
       profile.targetCriteria?.minYearsInBusiness !== undefined &&
       profile.targetCriteria?.preferredBusinessModels?.length > 0 &&
@@ -63,7 +77,7 @@ export class BuyersService {
         <p>If you have run into any issues please reply to this email with what is happening and we will help to solve the problem.</p>
         <p>If you did not receive a validation email from us please use this link to request a new one: </p>
 
-        ${emailButton('Resend Verification Email', `${process.env.FRONTEND_URL}/resend-verification`)}
+        ${emailButton('Resend Verification Email', `${getFrontendUrl()}/resend-verification`)}
 
         <p>Then check your inbox or spam for an email from deals@amp-ven.com</p>
 
@@ -72,7 +86,7 @@ export class BuyersService {
         <p>If you have questions check out our FAQ section at https://cimamplify.com/#FAQs or reply to this email.</p>
       `;
 
-      const emailBody = genericEmailTemplate(subject, (buyer.fullName || "").split(" ")[0] || "there", emailContent);
+      const emailBody = genericEmailTemplate(subject, getFirstName(buyer.fullName), emailContent);
 
       await this.mailService.sendEmailWithLogging(
         buyer.email,
@@ -85,9 +99,10 @@ export class BuyersService {
   }
 
   async create(createBuyerDto: CreateBuyerDto): Promise<Buyer> {
-    const { email, password, companyName, website } = createBuyerDto;
+    const normalizedEmail = this.normalizeEmail(createBuyerDto.email);
+    const { password, companyName, website } = createBuyerDto;
 
-    const existingBuyer = await this.buyerModel.findOne({ email }).exec();
+    const existingBuyer = await this.buyerModel.findOne({ email: normalizedEmail }).exec();
     if (existingBuyer) {
       throw new ConflictException("An account with this email already exists. Please try logging in instead.");
     }
@@ -96,6 +111,7 @@ export class BuyersService {
 
     const newBuyer = new this.buyerModel({
       ...createBuyerDto,
+      email: normalizedEmail,
       password: hashedPassword,
       isEmailVerified: true, // Auto-verify since we removed email verification
     });
@@ -127,7 +143,7 @@ export class BuyersService {
     `);
 
     await this.mailService.sendEmailWithLogging(
-      "canotifications@amp-ven.com",
+      getAdminNotificationEmail(),
       "admin",
       ownerSubject,
       ownerHtmlBody,
@@ -144,12 +160,13 @@ export class BuyersService {
     const skip = (page - 1) * limit;
 
     // Build search query
-    const searchQuery: any = search ? {
+    const safeSearch = search ? escapeRegexInput(search) : "";
+    const searchQuery: any = safeSearch ? {
       $or: [
-        { fullName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { companyName: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } }
+        { fullName: { $regex: safeSearch, $options: 'i' } },
+        { email: { $regex: safeSearch, $options: 'i' } },
+        { companyName: { $regex: safeSearch, $options: 'i' } },
+        { phone: { $regex: safeSearch, $options: 'i' } }
       ]
     } : {};
     
@@ -363,9 +380,7 @@ export class BuyersService {
         console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Buyer aggregation completed successfully');
         console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Found buyers count:', buyers.length);
       } catch (error) {
-        console.error('[BUYERS SERVICE - DEAL STATUS FILTER] Aggregation error:', error);
-        console.error('[BUYERS SERVICE - DEAL STATUS FILTER] Error name:', error.name);
-        console.error('[BUYERS SERVICE - DEAL STATUS FILTER] Error message:', error.message);
+        this.logger.error(`[DEAL STATUS FILTER] Aggregation error: ${error.name} - ${error.message}`);
         throw error;
       }
       const totalBuyersPipeline = [
@@ -427,9 +442,7 @@ export class BuyersService {
         const totalCount = totalBuyersResult.length > 0 ? totalBuyersResult[0].count : 0;
         console.log('[BUYERS SERVICE - TOTAL COUNT] Total count:', totalCount);
       } catch (error) {
-        console.error('[BUYERS SERVICE - TOTAL COUNT] Aggregation error:', error);
-        console.error('[BUYERS SERVICE - TOTAL COUNT] Error name:', error.name);
-        console.error('[BUYERS SERVICE - TOTAL COUNT] Error message:', error.message);
+        this.logger.error(`[TOTAL COUNT] Aggregation error: ${error.name} - ${error.message}`);
         throw error;
       }
       const totalCount = totalBuyersResult.length > 0 ? totalBuyersResult[0].count : 0;
@@ -512,9 +525,7 @@ export class BuyersService {
         console.log('[BUYERS SERVICE - DEAL SORT] Buyer aggregation completed successfully');
         console.log('[BUYERS SERVICE - DEAL SORT] Found buyers count:', buyers.length);
       } catch (error) {
-        console.error('[BUYERS SERVICE - DEAL SORT] Aggregation error:', error);
-        console.error('[BUYERS SERVICE - DEAL SORT] Error name:', error.name);
-        console.error('[BUYERS SERVICE - DEAL SORT] Error message:', error.message);
+        this.logger.error(`[DEAL SORT] Aggregation error: ${error.name} - ${error.message}`);
         throw error;
       }
       const totalBuyers = await this.buyerModel.countDocuments(searchQuery).exec();
@@ -570,7 +581,8 @@ export class BuyersService {
   }
 
   async findByEmail(email: string): Promise<Buyer> {
-    const buyer = await this.buyerModel.findOne({ email }).exec();
+    const normalizedEmail = this.normalizeEmail(email);
+    const buyer = await this.buyerModel.findOne({ email: normalizedEmail }).exec();
     if (!buyer) {
       throw new NotFoundException("Buyer not found");
     }
@@ -677,7 +689,8 @@ export class BuyersService {
   }
 
   async createFromGoogle(profile: any): Promise<{ buyer: Buyer; isNewUser: boolean }> {
-    const { email, name, sub } = profile;
+    const { name, sub } = profile;
+    const email = this.normalizeEmail(profile.email);
 
     let buyer = await this.buyerModel.findOne({ email }).exec();
     let isNewUser = false;
@@ -722,7 +735,7 @@ export class BuyersService {
       `);
 
       await this.mailService.sendEmailWithLogging(
-        "canotifications@amp-ven.com",
+        getAdminNotificationEmail(),
         "admin",
         ownerSubject,
         ownerHtmlBody,
@@ -798,7 +811,7 @@ export class BuyersService {
       try {
         await this.updateBuyerDealCounts(buyerId);
       } catch (error) {
-        console.error(`[BUYERS SERVICE] Error updating counts for buyer ${buyerId}:`, error);
+        this.logger.error(`Error updating counts for buyer ${buyerId}: ${error instanceof Error ? error.message : error}`);
       }
     }
 

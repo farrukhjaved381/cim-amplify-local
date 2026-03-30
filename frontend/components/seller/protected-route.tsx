@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -17,10 +17,27 @@ const isTokenExpired = (token: string): boolean => {
   }
 }
 
+// Map seller routes to their required permission keys
+const ROUTE_PERMISSION_MAP: Record<string, string> = {
+  "/seller/dashboard": "dashboard",
+  "/seller/deal": "dashboard",
+  "/seller/seller-form": "create-deal",
+  "/seller/edit-deal": "edit-deal",
+  "/seller/loi-deals": "loi-deals",
+  "/seller/history": "deal-history",
+  "/seller/view-profile": "view-profile",
+}
+
 export default function SellerProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
-  const { forceLogout, isLoading: authLoading } = useAuth()
+  const pathname = usePathname()
+  const { forceLogout, isLoading: authLoading, isTeamMember, isTemporaryPassword, permissions } = useAuth()
+
+  // Reset auth state on pathname change to prevent flash of unauthorized content
+  useEffect(() => {
+    setIsAuthenticated(null)
+  }, [pathname])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -48,8 +65,8 @@ export default function SellerProtectedRoute({ children }: { children: React.Rea
           return
         }
 
-        // Wrong role - redirect to appropriate login
-        if (userRole && userRole !== "seller") {
+        // Wrong role - redirect to appropriate login (allow seller-member too)
+        if (userRole && userRole !== "seller" && userRole !== "seller-member") {
           if (userRole === "buyer") {
             router.push("/buyer/login")
           } else if (userRole === "admin") {
@@ -60,6 +77,33 @@ export default function SellerProtectedRoute({ children }: { children: React.Rea
           return
         }
 
+        // Force password change for team members with temporary password
+        const storedIsTeamMember = sessionStorage.getItem("isTeamMember") === "true"
+        const storedIsTemporary = sessionStorage.getItem("isTemporaryPassword") === "true"
+        if (storedIsTeamMember && storedIsTemporary && pathname !== "/seller/member-profile") {
+          router.push("/seller/member-profile")
+          return
+        }
+
+        // Permission check for team members
+        if (storedIsTeamMember && pathname) {
+          const requiredPermission = ROUTE_PERMISSION_MAP[pathname]
+          if (requiredPermission) {
+            let memberPermissions: string[] = []
+            try {
+              memberPermissions = JSON.parse(sessionStorage.getItem("permissions") || "[]")
+            } catch { /* empty */ }
+            if (!memberPermissions.includes(requiredPermission)) {
+              // Redirect to first allowed page
+              const firstAllowed = Object.entries(ROUTE_PERMISSION_MAP).find(
+                ([, perm]) => memberPermissions.includes(perm)
+              )
+              router.push(firstAllowed ? firstAllowed[0] : "/seller/member-profile")
+              return
+            }
+          }
+        }
+
         // Authenticated as seller
         setIsAuthenticated(true)
       } catch {
@@ -68,7 +112,7 @@ export default function SellerProtectedRoute({ children }: { children: React.Rea
     }
 
     checkAuthentication()
-  }, [router, authLoading, forceLogout])
+  }, [router, authLoading, forceLogout, pathname])
 
   // Show loading state
   if (isAuthenticated === null || authLoading) {

@@ -8,6 +8,7 @@ import { Seller, SellerSchema } from '../sellers/schemas/seller.schema';
 import { Buyer, BuyerSchema } from '../buyers/schemas/buyer.schema';
 import { EmailVerification, EmailVerificationSchema } from '../auth/schemas/email-verification.schema';
 import { CompanyProfile, CompanyProfileSchema } from '../company-profile/schemas/company-profile.schema';
+import { Deal, DealSchema } from '../deals/schemas/deal.schema';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CompanyProfile, CompanyProfileSchema } from '../company-profile/schemas
       { name: Buyer.name, schema: BuyerSchema },
       { name: EmailVerification.name, schema: EmailVerificationSchema },
       { name: CompanyProfile.name, schema: CompanyProfileSchema },
+      { name: Deal.name, schema: DealSchema },
     ]),
   ],
   providers: [CronService],

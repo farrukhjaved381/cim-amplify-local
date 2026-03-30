@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { sellerRegister } from "@/services/api";
 import Header from "@/components/ui/auth-header";
+import { ga4Events } from "@/lib/ga4";
 import Footer from "@/components/ui/auth-footer";
 
 interface RegisterFormData {
@@ -173,6 +174,8 @@ export default function SellerRegisterPage() {
       }
       localStorage.setItem("userRole", "seller");
 
+      ga4Events.formEndSeller();
+
       toast({
         title: "Welcome to CIM Amplify!",
         description:
@@ -221,7 +224,7 @@ export default function SellerRegisterPage() {
 
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
-    window.location.href = "http://localhost:5001/sellers/google/callback"
+    window.location.href = "https://cim-backend.vercel.app/sellers/google/callback"
   }
 
   return (

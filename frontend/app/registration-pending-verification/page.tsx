@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL } from "@/lib/api-config";
 
 export default function RegistrationPendingVerificationPage() {
   const [isResending, setIsResending] = useState(false);
@@ -95,7 +96,7 @@ export default function RegistrationPendingVerificationPage() {
 
     setIsResending(true);
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = API_BASE_URL;
       const response = await fetch(`${apiUrl}/auth/resend-verification`, {
         method: "POST",
         headers: {

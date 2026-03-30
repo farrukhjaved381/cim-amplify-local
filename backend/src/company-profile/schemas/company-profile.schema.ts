@@ -165,3 +165,7 @@ export class CompanyProfile {
 }
 
 export const CompanyProfileSchema = SchemaFactory.createForClass(CompanyProfile)
+
+CompanyProfileSchema.index({ buyer: 1 }, { unique: true });
+CompanyProfileSchema.index({ companyName: 1 });
+CompanyProfileSchema.index({ createdAt: -1 });

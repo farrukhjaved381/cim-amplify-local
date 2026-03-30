@@ -4,12 +4,14 @@ import type React from "react";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { BuyerProtectedRoute } from "@/components/buyer/protected-route";
 import {
-  Search, LogOut, Briefcase, Store, User, Settings, Menu,
-  ChevronDown, ChevronUp, Building2, MapPin, TrendingUp,
+  Search, Briefcase, User, Menu,
+  ChevronDown, ChevronUp, Building2, MapPin,
   DollarSign, Loader2, CheckCircle2, XCircle,
   ArrowRight, RefreshCw, AlertTriangle, Phone, Mail
 } from "lucide-react";
+import { BuyerNav } from "@/components/buyer/buyer-nav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -26,7 +28,7 @@ interface Deal {
   yearsInBusiness: number;
   trailingRevenue: number;
   trailingEbitda: number;
-  averageGrowth: number;
+  averageGrowth?: number;
   netIncome: number;
   askingPrice: number;
   businessModel: string;
@@ -129,6 +131,15 @@ const getCurrencyLabel = (currency?: string, fallback?: string) => {
   return "USD($)";
 };
 
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
+
+const getApiBaseUrl = () => {
+  if (!API_BASE_URL) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+  }
+  return API_BASE_URL;
+};
+
 export default function DealsPage() {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
@@ -190,7 +201,7 @@ export default function DealsPage() {
         return [];
       }
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiBaseUrl();
 
       let endpoint = "";
       switch (status) {
@@ -243,7 +254,7 @@ export default function DealsPage() {
         yearsInBusiness: deal.yearsInBusiness,
         trailingRevenue: deal.financialDetails?.trailingRevenueAmount || 0,
         trailingEbitda: deal.financialDetails?.trailingEBITDAAmount || 0,
-        averageGrowth: deal.financialDetails?.avgRevenueGrowth || 0,
+
         netIncome: deal.financialDetails?.netIncome || 0,
         askingPrice: deal.financialDetails?.askingPrice || 0,
         businessModel: getBusinessModelString(deal.businessModel),
@@ -318,7 +329,7 @@ export default function DealsPage() {
         profile.targetCriteria.revenueMin === undefined || profile.targetCriteria.revenueMax === undefined ||
         profile.targetCriteria.ebitdaMin === undefined || profile.targetCriteria.ebitdaMax === undefined ||
         profile.targetCriteria.transactionSizeMin === undefined || profile.targetCriteria.transactionSizeMax === undefined ||
-        profile.targetCriteria.revenueGrowth === undefined || profile.targetCriteria.minYearsInBusiness === undefined ||
+        profile.targetCriteria.minYearsInBusiness === undefined ||
         !profile.targetCriteria.preferredBusinessModels || profile.targetCriteria.preferredBusinessModels.length === 0 ||
         !profile.targetCriteria.description) {
       return false;
@@ -334,7 +345,7 @@ export default function DealsPage() {
       setApiError(null);
       const token = sessionStorage.getItem("token");
       const currentBuyerId = sessionStorage.getItem("userId");
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiBaseUrl();
 
       if (!token || !currentBuyerId) {
         setApiError("Authentication required. Please log in again.");
@@ -505,7 +516,7 @@ export default function DealsPage() {
       const userId = sessionStorage.getItem("userId");
       if (!token || !userId) return;
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiBaseUrl();
       const response = await fetch(`${apiUrl}/company-profiles/my-profile`, {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
@@ -528,7 +539,7 @@ export default function DealsPage() {
       const token = sessionStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) return;
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiBaseUrl();
       const response = await fetch(`${apiUrl}/buyers/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -575,7 +586,7 @@ export default function DealsPage() {
       const token = sessionStorage.getItem("token");
       if (!token) return;
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiBaseUrl();
       const response = await fetch(`${apiUrl}/deals/${deal.id}/seller-contact`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -634,20 +645,18 @@ export default function DealsPage() {
   };
 
   const handleLogout = () => {
+    authLogout();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
       duration: 3000,
     });
-    setTimeout(() => {
-      authLogout();
-    }, 500);
   };
 
   const getProfilePictureUrl = (path: string | null) => {
     if (!path) return null;
     if (path.startsWith("data:image")) return path;
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+    const apiUrl = getApiBaseUrl();
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     const formattedPath = path.replace(/\\/g, "/");
     return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.substring(1) : formattedPath}`;
@@ -655,18 +664,22 @@ export default function DealsPage() {
 
   const fetchSellerInfo = async (sellerId: string) => {
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
-      const response = await fetch(`${apiUrl}/sellers/public/${sellerId}`);
+      const apiUrl = getApiBaseUrl();
+      const response = await fetch(`${apiUrl}/sellers/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerIds: [sellerId] }),
+      });
       if (!response.ok) throw new Error("Failed to fetch seller info");
-      const data = await response.json();
+      const [data] = await response.json();
       setSellerInfoMap(prev => ({
         ...prev,
         [sellerId]: {
-          name: data.fullName || "N/A",
-          email: data.email || "N/A",
-          phoneNumber: data.phoneNumber || "N/A",
-          companyName: data.companyName || "N/A",
-          website: data.website || "N/A",
+          name: data?.fullName || "N/A",
+          email: data?.email || "N/A",
+          phoneNumber: data?.phoneNumber || "N/A",
+          companyName: data?.companyName || "N/A",
+          website: data?.website || "N/A",
         },
       }));
     } catch {
@@ -691,33 +704,44 @@ export default function DealsPage() {
       }
 
       setSellerInfoLoading(true);
-      const token = sessionStorage.getItem("token");
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = getApiBaseUrl();
+      try {
+        const response = await fetch(`${apiUrl}/sellers/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sellerIds: uniqueSellerIds }),
+        });
 
-      for (const sellerId of uniqueSellerIds) {
-        try {
-          const response = await fetch(`${apiUrl}/sellers/public/${sellerId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setSellerInfoMap(prev => ({
-              ...prev,
-              [sellerId]: {
-                name: data.fullName || "N/A",
-                email: data.email || "N/A",
-                phoneNumber: data.phoneNumber || "N/A",
-                companyName: data.companyName || "N/A",
-                website: data.website || "N/A",
-              },
-            }));
-          }
-        } catch {
-          setSellerInfoMap(prev => ({
-            ...prev,
-            [sellerId]: { name: "N/A", email: "N/A", phoneNumber: "N/A" },
-          }));
+        if (!response.ok) {
+          throw new Error("Failed to fetch seller bulk info");
         }
+
+        const sellers = await response.json();
+        const nextMap: SellerInfoMap = {};
+        for (const seller of sellers) {
+          if (!seller?.id) continue;
+          nextMap[seller.id] = {
+            name: seller.fullName || "N/A",
+            email: seller.email || "N/A",
+            phoneNumber: seller.phoneNumber || "N/A",
+            companyName: seller.companyName || "N/A",
+            website: seller.website || "N/A",
+          };
+        }
+
+        for (const sellerId of uniqueSellerIds) {
+          if (!nextMap[sellerId]) {
+            nextMap[sellerId] = { name: "N/A", email: "N/A", phoneNumber: "N/A", companyName: "N/A", website: "N/A" };
+          }
+        }
+
+        setSellerInfoMap(prev => ({ ...prev, ...nextMap }));
+      } catch {
+        const fallbackMap: SellerInfoMap = {};
+        for (const sellerId of uniqueSellerIds) {
+          fallbackMap[sellerId] = { name: "N/A", email: "N/A", phoneNumber: "N/A", companyName: "N/A", website: "N/A" };
+        }
+        setSellerInfoMap(prev => ({ ...prev, ...fallbackMap }));
       }
       setSellerInfoLoading(false);
     };
@@ -741,6 +765,7 @@ export default function DealsPage() {
   }
 
   return (
+    <BuyerProtectedRoute>
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-50">
@@ -759,47 +784,7 @@ export default function DealsPage() {
                     <img src="/logo.svg" alt="CIM Amplify" className="h-10" />
                   </Link>
                 </div>
-                <nav className="flex flex-col p-4">
-                  <Link
-                    href="/buyer/deals"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
-                  >
-                    <Briefcase className="mr-3 h-5 w-5" />
-                    <span>All Deals</span>
-                  </Link>
-                  <Link
-                    href="/buyer/marketplace"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Store className="mr-3 h-5 w-5" />
-                    <span>Marketplace</span>
-                  </Link>
-                  <Link
-                    href="/buyer/company-profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Settings className="mr-3 h-5 w-5" />
-                    <span>Company Profile</span>
-                  </Link>
-                  <Link
-                    href="/buyer/profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <User className="mr-3 h-5 w-5" />
-                    <span>My Profile</span>
-                  </Link>
-                  <button
-                    onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                    className="mt-4 flex items-center rounded-md px-4 py-3 text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <LogOut className="mr-3 h-5 w-5" />
-                    <span>Sign Out</span>
-                  </button>
-                </nav>
+                <BuyerNav activePage="deals" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
               </SheetContent>
             </Sheet>
 
@@ -871,44 +856,8 @@ export default function DealsPage() {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white min-h-[calc(100vh-4rem)]">
-          <nav className="flex flex-col p-4">
-            <Link
-              href="/buyer/deals"
-              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
-            >
-              <Briefcase className="mr-3 h-5 w-5" />
-              <span>All Deals</span>
-            </Link>
-            <Link
-              href="/buyer/marketplace"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Store className="mr-3 h-5 w-5" />
-              <span>Marketplace</span>
-            </Link>
-            <Link
-              href="/buyer/company-profile"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Settings className="mr-3 h-5 w-5" />
-              <span>Company Profile</span>
-            </Link>
-            <Link
-              href="/buyer/profile"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <User className="mr-3 h-5 w-5" />
-              <span>My Profile</span>
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="mt-4 flex items-center rounded-md px-4 py-3 text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <LogOut className="mr-3 h-5 w-5" />
-              <span>Sign Out</span>
-            </button>
-          </nav>
+        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white h-[calc(100vh-4rem)] sticky top-[4rem] overflow-y-auto flex-shrink-0">
+          <BuyerNav activePage="deals" onLogout={handleLogout} />
         </aside>
 
         {/* Main Content */}
@@ -1111,14 +1060,8 @@ export default function DealsPage() {
                           <p className="text-xs text-gray-400">{getCurrencyLabel(deal.trailingEbitdaCurrency)}</p>
                           <p className="text-lg font-bold text-gray-900">{formatCurrency(deal.trailingEbitda)}</p>
                         </div>
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
-                          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3 text-green-500" />
-                            Avg Growth
-                          </p>
-                          <p className="text-xs text-gray-400">Percentage (%)</p>
-                          <p className="text-lg font-bold text-gray-900">{deal.averageGrowth}%</p>
-                        </div>
+
+
                         <div className="bg-white rounded-xl p-3 border border-gray-100">
                           <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                             <DollarSign className="w-3 h-3 text-blue-500" />
@@ -1301,5 +1244,7 @@ export default function DealsPage() {
         </main>
       </div>
     </div>
+    </BuyerProtectedRoute>
   );
 }
+

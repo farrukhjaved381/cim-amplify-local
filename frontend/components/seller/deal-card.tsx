@@ -52,10 +52,6 @@ export default function DealCard({ deal }: DealCardProps) {
             <span>${deal.trailingEbitda.toLocaleString()}</span>
           </div>
           <div>
-            <span className="text-[#667085]">Average 3-YEAR REVENUE GROWTH IN %: </span>
-            <span>${deal.averageGrowth.toLocaleString()}</span>
-          </div>
-          <div>
             <span className="text-[#667085]">Net Income: </span>
             <span>${deal.netIncome.toLocaleString()}</span>
           </div>

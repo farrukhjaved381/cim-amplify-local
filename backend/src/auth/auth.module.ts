@@ -18,6 +18,17 @@ import { MailModule } from '../mail/mail.module';
 import { AdminModule } from '../admin/admin.module';
 import { Buyer, BuyerSchema } from '../buyers/schemas/buyer.schema';
 import { Seller, SellerSchema } from '../sellers/schemas/seller.schema';
+import { RevokedToken, RevokedTokenSchema } from "./schemas/revoked-token.schema";
+import { ActivityLog, ActivityLogSchema } from "./schemas/activity-log.schema";
+import { TeamMember, TeamMemberSchema } from "../team/schemas/team-member.schema";
+
+const getValidatedJwtSecret = (configService: ConfigService): string => {
+  const secret = configService.get<string>("JWT_SECRET");
+  if (!secret || secret.length < 10) {
+    throw new Error("JWT_SECRET must be set and at least 10 characters long.");
+  }
+  return secret;
+};
 
 @Module({
   imports: [
@@ -25,6 +36,9 @@ import { Seller, SellerSchema } from '../sellers/schemas/seller.schema';
       { name: EmailVerification.name, schema: EmailVerificationSchema },
       { name: Buyer.name, schema: BuyerSchema },
       { name: Seller.name, schema: SellerSchema },
+      { name: RevokedToken.name, schema: RevokedTokenSchema },
+      { name: ActivityLog.name, schema: ActivityLogSchema },
+      { name: TeamMember.name, schema: TeamMemberSchema },
     ]),
     forwardRef(() => BuyersModule),
     forwardRef(() => SellersModule),
@@ -35,8 +49,7 @@ import { Seller, SellerSchema } from '../sellers/schemas/seller.schema';
     JwtModule.registerAsync({
       imports: [ConfigModule,MongooseModule.forFeature([{ name: EmailVerification.name, schema: EmailVerificationSchema }])],
       useFactory: async (configService: ConfigService) => {
-        const secret = configService.get<string>("JWT_SECRET", "your-secret-key")
-        Logger.log(`JWT Module initialized with secret: ${secret.substring(0, 3)}...`, "AuthModule")
+        const secret = getValidatedJwtSecret(configService);
         return {
           secret,
           signOptions: { expiresIn: "1d" },

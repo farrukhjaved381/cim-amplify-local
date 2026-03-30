@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { Search, Edit, Trash2, AlertTriangle, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Eye, Handshake, ExternalLink } from "lucide-react";
+import { Search, Edit, Trash2, AlertTriangle, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Eye, EyeOff, Handshake, ExternalLink } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AdminProtectedRoute } from "@/components/admin/protected-route";
+import { API_BASE_URL } from "@/lib/api-config";
 
 // Seller interface
 interface Seller {
@@ -68,8 +69,8 @@ function getProfilePictureUrl(path: string | null | undefined) {
     return path;
   }
   const apiUrl = typeof window !== 'undefined'
-    ? (localStorage.getItem("apiUrl") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001")
-    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001");
+    ? API_BASE_URL
+    : API_BASE_URL;
   const formattedPath = path.replace(/\\/g, "/");
   return `${apiUrl}/${formattedPath.startsWith("/") ? formattedPath.slice(1) : formattedPath}`;
 }
@@ -116,6 +117,7 @@ export default function SellersManagementDashboard() {
   // Define sellersPerPage before useEffect hooks
   const [sellersPerPage, setSellersPerPage] = useState(10);
   const [pageLoading, setPageLoading] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
@@ -837,15 +839,24 @@ export default function SellersManagementDashboard() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                <Input
-                  name="password"
-                  type="password"
-                  value={editForm.password}
-                  onChange={handleEditFormChange}
-                  placeholder="Leave blank to keep unchanged"
-                  autoComplete="new-password"
-                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                />
+                <div className="relative">
+                  <Input
+                    name="password"
+                    type={showEditPassword ? "text" : "password"}
+                    value={editForm.password}
+                    onChange={handleEditFormChange}
+                    placeholder="Leave blank to keep unchanged"
+                    autoComplete="new-password"
+                    className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <p className="text-xs text-gray-400 mt-1">Only fill if you want to change the password</p>
               </div>
               {error && <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>}

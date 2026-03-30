@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { Search, Edit, Trash2, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Users, Loader2, Handshake, Eye, ExternalLink } from "lucide-react";
+import { Search, Edit, Trash2, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Users, Loader2, Handshake, Eye, EyeOff, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import {
   Dialog,
@@ -80,7 +80,7 @@ function getProfileImageSrc(src?: string | null) {
     return src;
   }
   // Prepend API URL for relative paths
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://cim-backend.vercel.app';
   return `${apiUrl}/${src.startsWith('/') ? src.substring(1) : src}`;
 }
 
@@ -106,6 +106,7 @@ export default function BuyersManagementDashboard() {
   const [buyerCategory, setBuyerCategory] = useState<"all" | "active" | "pending" | "rejected">("all");
   const [buyersPerPage, setBuyersPerPage] = useState(10);
   const [pageLoading, setPageLoading] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Edit buyer modal state
   const [editBuyer, setEditBuyer] = useState<Buyer | null>(null);
@@ -131,7 +132,7 @@ export default function BuyersManagementDashboard() {
       try {
         const token = sessionStorage.getItem('token');
         if (!token) throw new Error("No authentication token found");
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
         const res = await fetch(`${apiUrl}/admin/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -1104,15 +1105,24 @@ export default function BuyersManagementDashboard() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <Input
-                  name="password"
-                  type="password"
-                  value={editForm.password}
-                  onChange={handleEditFormChange}
-                  placeholder="Leave blank to keep unchanged"
-                  autoComplete="new-password"
-                  className="border-gray-200 focus:border-teal-500 focus:ring-teal-500"
-                />
+                <div className="relative">
+                  <Input
+                    name="password"
+                    type={showEditPassword ? "text" : "password"}
+                    value={editForm.password}
+                    onChange={handleEditFormChange}
+                    placeholder="Leave blank to keep unchanged"
+                    autoComplete="new-password"
+                    className="border-gray-200 focus:border-teal-500 focus:ring-teal-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <p className="text-xs text-gray-400 mt-1">Only fill if you want to change the password</p>
               </div>
               {error && <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>}

@@ -19,3 +19,7 @@ export class EmailVerification {
 }
 
 export const EmailVerificationSchema = SchemaFactory.createForClass(EmailVerification);
+
+EmailVerificationSchema.index({ token: 1 }, { unique: true });
+EmailVerificationSchema.index({ userId: 1, isUsed: 1 });
+EmailVerificationSchema.index({ expiresAt: 1, isUsed: 1 });

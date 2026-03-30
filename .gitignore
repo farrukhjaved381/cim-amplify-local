@@ -68,3 +68,5 @@ backend/uploads/profile-pictures/*
 
 
 
+DEPLOYMENT.md
+backend/.env.production

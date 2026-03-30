@@ -1,5 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from "class-validator";
+
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/;
 
 export class GoogleSellerDto {
   @ApiProperty({ example: "john@example.com", description: "Email address from Google" })
@@ -39,9 +41,13 @@ export class RegisterSellerDto {
   @IsNotEmpty()
   fullName: string;
 
-  @ApiProperty({ example: "StrongPassword123", description: "Password" })
+  @ApiProperty({ example: "StrongPassword123!", description: "Password must be at least 8 characters and include uppercase, lowercase, number, and special character" })
   @IsString()
   @IsNotEmpty()
+  @MinLength(8)
+  @Matches(STRONG_PASSWORD_REGEX, {
+    message: "Password must include uppercase, lowercase, number, and special character",
+  })
   password: string;
 
   @ApiProperty({ example: "Acme Inc", description: "Company name" })
@@ -74,3 +80,4 @@ export class RegisterSellerDto {
   @IsOptional()
   referralSource?: string;
 }
+

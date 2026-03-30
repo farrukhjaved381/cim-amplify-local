@@ -1,6 +1,6 @@
 // app/api/classify/route.ts
 
-const DEFAULT_API_BASE = "http://localhost:5001";
+const DEFAULT_API_BASE = "https://cim-backend.vercel.app";
 
 export async function POST(req: Request) {
   try {

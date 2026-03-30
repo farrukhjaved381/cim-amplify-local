@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL, API_ENDPOINTS } from "@/lib/api-config";
 
 // Types
 export interface Deal {
@@ -16,7 +17,7 @@ export interface Deal {
   yearsInBusiness: number;
   trailingRevenue: number;
   trailingEbitda: number;
-  averageGrowth: number;
+  averageGrowth?: number;
   netIncome: number;
   askingPrice: number;
   businessModel: string;
@@ -135,20 +136,20 @@ export interface MarketplaceDeal {
 
 // API Helpers
 const getApiUrl = () => {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("apiUrl") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
-  }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+  return API_BASE_URL;
 };
 
 const getAuthHeaders = () => {
-  if (typeof window === "undefined") return {};
+  if (typeof window === "undefined") {
+    return { "Content-Type": "application/json" } as Record<string, string>;
+  }
   // Check sessionStorage first (current session), then localStorage
   const token = sessionStorage.getItem("token") || localStorage.getItem("token");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 // Helper to handle auth errors - clears storage and redirects to buyer login
@@ -190,13 +191,13 @@ async function fetchDealsByStatus(status: "pending" | "active" | "passed"): Prom
   let endpoint = "";
   switch (status) {
     case "pending":
-      endpoint = "/buyers/deals/pending";
+      endpoint = API_ENDPOINTS.buyers.dealsPending;
       break;
     case "active":
-      endpoint = "/buyers/deals/active";
+      endpoint = API_ENDPOINTS.buyers.dealsActive;
       break;
     case "passed":
-      endpoint = "/buyers/deals/rejected";
+      endpoint = API_ENDPOINTS.buyers.dealsRejected;
       break;
   }
 
@@ -225,7 +226,7 @@ async function fetchDealsByStatus(status: "pending" | "active" | "passed"): Prom
     yearsInBusiness: deal.yearsInBusiness,
     trailingRevenue: deal.financialDetails?.trailingRevenueAmount || 0,
     trailingEbitda: deal.financialDetails?.trailingEBITDAAmount || 0,
-    averageGrowth: deal.financialDetails?.avgRevenueGrowth || 0,
+
     netIncome: deal.financialDetails?.netIncome || 0,
     askingPrice: deal.financialDetails?.askingPrice || 0,
     businessModel: getBusinessModelString(deal.businessModel),
@@ -256,7 +257,7 @@ async function fetchAllDeals(): Promise<{ pending: Deal[]; active: Deal[]; passe
 
 async function fetchBuyerProfile(): Promise<BuyerProfile> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/buyers/profile`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.buyers.profile}`, {
     headers: getAuthHeaders(),
   });
 
@@ -278,7 +279,7 @@ async function fetchBuyerProfile(): Promise<BuyerProfile> {
 
 async function fetchCompanyProfile(): Promise<CompanyProfileData | null> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/company-profiles/my-profile`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.buyers.companyProfile}`, {
     headers: getAuthHeaders(),
   });
 
@@ -298,7 +299,7 @@ async function fetchCompanyProfile(): Promise<CompanyProfileData | null> {
 
 async function fetchSellerInfo(sellerId: string): Promise<SellerInfo> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/sellers/public/${sellerId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.sellers.publicById(sellerId)}`, {
     headers: getAuthHeaders(),
   });
 
@@ -333,15 +334,15 @@ async function updateDealStatus(
 
   switch (action) {
     case "activate":
-      endpoint = `/buyers/deals/${dealId}/activate`;
+      endpoint = API_ENDPOINTS.buyers.activateDeal(dealId);
       body = { notes: "Buyer interested in deal" };
       break;
     case "reject":
-      endpoint = `/buyers/deals/${dealId}/reject`;
+      endpoint = API_ENDPOINTS.buyers.rejectDeal(dealId);
       body = { notes: "Deal passed by buyer" };
       break;
     case "set-pending":
-      endpoint = `/buyers/deals/${dealId}/set-pending`;
+      endpoint = API_ENDPOINTS.buyers.setPendingDeal(dealId);
       body = { notes: "Deal set back to pending" };
       break;
   }
@@ -363,9 +364,9 @@ async function updateDealStatus(
   return true;
 }
 
-async function fetchMarketplaceDeals(): Promise<MarketplaceDeal[]> {
+async function fetchMarketplaceDeals(page: number = 1, limit: number = 20): Promise<{ data: MarketplaceDeal[]; total: number; page: number; lastPage: number }> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/marketplace`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.marketplace}?page=${page}&limit=${limit}`, {
     headers: getAuthHeaders(),
   });
 
@@ -377,18 +378,24 @@ async function fetchMarketplaceDeals(): Promise<MarketplaceDeal[]> {
     throw new Error("Failed to fetch marketplace deals");
   }
 
-  const data = await response.json();
-  // Sort by createdAt descending (newest first)
-  return (data || []).sort((a: MarketplaceDeal, b: MarketplaceDeal) => {
+  const payload = await response.json();
+  const deals = Array.isArray(payload) ? payload : payload?.data || [];
+  const sortedDeals = (deals || []).sort((a: MarketplaceDeal, b: MarketplaceDeal) => {
     const dateA = new Date(a.createdAt || 0).getTime();
     const dateB = new Date(b.createdAt || 0).getTime();
     return dateB - dateA;
   });
+  return {
+    data: sortedDeals,
+    total: payload?.total ?? sortedDeals.length,
+    page: payload?.page ?? page,
+    lastPage: payload?.lastPage ?? 1,
+  };
 }
 
 async function requestMarketplaceAccess(dealId: string): Promise<void> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${dealId}/request-access`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.requestAccess(dealId)}`, {
     method: "POST",
     headers: getAuthHeaders(),
   });
@@ -409,7 +416,7 @@ async function updateBuyerProfile(data: Partial<BuyerProfile>): Promise<BuyerPro
     delete payload.phoneNumber;
   }
 
-  const response = await fetch(`${apiUrl}/buyers/profile`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.buyers.profile}`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify(payload),
@@ -444,7 +451,7 @@ async function uploadProfilePicture(file: File): Promise<string> {
       try {
         const base64Image = e.target?.result as string;
         
-        const response = await fetch(`${apiUrl}/buyers/upload-profile-picture`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.buyers.uploadProfilePicture}`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -592,10 +599,10 @@ export function useUpdateDealStatus() {
 /**
  * Hook for marketplace deals
  */
-export function useMarketplaceDeals() {
+export function useMarketplaceDeals(page: number = 1, limit: number = 20) {
   return useQuery({
-    queryKey: ["marketplace-deals"],
-    queryFn: fetchMarketplaceDeals,
+    queryKey: ["marketplace-deals", page, limit],
+    queryFn: () => fetchMarketplaceDeals(page, limit),
     staleTime: 30 * 1000,
     retry: (failureCount, error) => {
       if (error.message === "UNAUTHORIZED") return false;
@@ -682,7 +689,7 @@ export function isProfileComplete(profile: CompanyProfileData | null): boolean {
     profile.targetCriteria.ebitdaMax === undefined ||
     profile.targetCriteria.transactionSizeMin === undefined ||
     profile.targetCriteria.transactionSizeMax === undefined ||
-    profile.targetCriteria.revenueGrowth === undefined ||
+
     profile.targetCriteria.minYearsInBusiness === undefined ||
     !profile.targetCriteria.preferredBusinessModels ||
     profile.targetCriteria.preferredBusinessModels.length === 0 ||

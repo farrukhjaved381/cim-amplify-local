@@ -120,7 +120,7 @@ export default function ProfilePage() {
 
       try {
         // Get API URL from localStorage or use default
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
         // Fetch buyer profile
         const buyerResponse = await fetch(`${apiUrl}/buyers/profile`, {
@@ -209,7 +209,7 @@ export default function ProfilePage() {
       return path
     }
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
     // If the path already has http/https, return it as is
     if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -258,7 +258,7 @@ export default function ProfilePage() {
         const base64Image = e.target?.result as string
         
         // Get API URL from localStorage or use default
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
         // Send base64 image to backend
         const response = await fetch(`${apiUrl}/buyers/upload-profile-picture`, {
@@ -323,7 +323,7 @@ export default function ProfilePage() {
     if (!authToken) return
 
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app"
 
       const buyerResponse = await fetch(`${apiUrl}/buyers/profile`, {
         headers: {

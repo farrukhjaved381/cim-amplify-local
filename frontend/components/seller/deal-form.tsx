@@ -21,7 +21,6 @@ export default function DealForm({ onClose, onSubmit, initialData }: DealFormPro
       yearsInBusiness: 0,
       trailingRevenue: 0,
       trailingEBITDA: 0,
-      revenueGrowth: 0,
       netIncome: 0,
       askingPrice: 0,
       businessMode: "",
@@ -35,7 +34,7 @@ export default function DealForm({ onClose, onSubmit, initialData }: DealFormPro
 
     // Handle numeric fields
     if (
-      ["yearsInBusiness", "trailingRevenue", "trailingEBITDA", "revenueGrowth", "netIncome", "askingPrice"].includes(
+      ["yearsInBusiness", "trailingRevenue", "trailingEBITDA", "netIncome", "askingPrice"].includes(
         name,
       )
     ) {
@@ -179,22 +178,6 @@ export default function DealForm({ onClose, onSubmit, initialData }: DealFormPro
                     type="number"
                     name="trailingEBITDA"
                     value={formData.trailingEBITDA}
-                    onChange={handleChange}
-                    className="w-full pl-8 pr-3 py-2 border border-[#d0d5dd] rounded-md focus:outline-none focus:ring-2 focus:ring-[#3aafa9]"
-                    min="0"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#667085] mb-1">3-Year Revenue Growth</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[#667085]">$</span>
-                  <input
-                    type="number"
-                    name="revenueGrowth"
-                    value={formData.revenueGrowth}
                     onChange={handleChange}
                     className="w-full pl-8 pr-3 py-2 border border-[#d0d5dd] rounded-md focus:outline-none focus:ring-2 focus:ring-[#3aafa9]"
                     min="0"

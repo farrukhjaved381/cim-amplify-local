@@ -21,8 +21,14 @@ interface RequestWithUser extends Request {
   }
 }
 
+const escapeRegexInput = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 @Injectable()
 export class AdminService {
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
   constructor(
     @InjectModel(Admin.name) private adminModel: Model<AdminDocument>,
     @InjectModel(CompanyProfile.name) private companyProfileModel: Model<CompanyProfileDocument>,
@@ -34,9 +40,10 @@ export class AdminService {
   ) { }
 
   async create(createAdminDto: CreateAdminDto): Promise<Admin> {
-    const { email, password } = createAdminDto
+    const normalizedEmail = this.normalizeEmail(createAdminDto.email)
+    const { password } = createAdminDto
 
-    const existingAdmin = await this.adminModel.findOne({ email }).exec()
+    const existingAdmin = await this.adminModel.findOne({ email: normalizedEmail }).exec()
     if (existingAdmin) {
       throw new ConflictException("Email already exists")
     }
@@ -45,6 +52,7 @@ export class AdminService {
 
     const newAdmin = new this.adminModel({
       ...createAdminDto,
+      email: normalizedEmail,
       password: hashedPassword,
       role: "admin",
     })
@@ -53,7 +61,7 @@ export class AdminService {
   }
 
   async findByEmail(email: string): Promise<Admin> {
-    const admin = await this.adminModel.findOne({ email }).exec()
+    const admin = await this.adminModel.findOne({ email: this.normalizeEmail(email) }).exec()
     if (!admin) {
       throw new NotFoundException("Admin not found")
     }
@@ -122,7 +130,6 @@ export class AdminService {
       profile.targetCriteria?.ebitdaMax !== undefined &&
       profile.targetCriteria?.transactionSizeMin !== undefined &&
       profile.targetCriteria?.transactionSizeMax !== undefined &&
-      profile.targetCriteria?.revenueGrowth !== undefined &&
       profile.targetCriteria?.minYearsInBusiness !== undefined &&
       profile.targetCriteria?.preferredBusinessModels?.length > 0 &&
       profile.targetCriteria?.description &&
@@ -132,37 +139,99 @@ export class AdminService {
 
   async getBuyersWithIncompleteProfiles(page: number = 1, limit: number = 10, search: string = ''): Promise<any> {
     const skip = (page - 1) * limit;
-    
-    // Build search query
-    const searchQuery = search ? {
-      $or: [
-        { fullName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { companyName: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } }
-      ]
-    } : {};
-    
-    // Get buyers with search filter and profiles to check completeness
-    const allBuyers = await this.buyerModel.find(searchQuery).populate('companyProfileId').exec();
-    
-    const incompleteBuyers = allBuyers.filter(buyer => {
-      if (!buyer.companyProfileId) return true;
-      return !this.isProfileComplete(buyer.companyProfileId);
-    });
+    const searchRegex = search ? new RegExp(escapeRegexInput(search), 'i') : null;
 
-    // Apply pagination to filtered results
-    const paginatedBuyers = incompleteBuyers.slice(skip, skip + limit);
+    const matchStage = searchRegex
+      ? {
+          $or: [
+            { fullName: searchRegex },
+            { email: searchRegex },
+            { companyName: searchRegex },
+            { phone: searchRegex },
+          ],
+        }
+      : {};
+
+    const pipeline: any[] = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: 'companyprofiles',
+          localField: 'companyProfileId',
+          foreignField: '_id',
+          as: 'companyProfile',
+        },
+      },
+      {
+        $unwind: {
+          path: '$companyProfile',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          profileComplete: {
+            $and: [
+              { $ne: ['$companyProfile', null] },
+              { $ne: ['$companyProfile.companyName', null] },
+              { $ne: ['$companyProfile.companyName', ''] },
+              { $ne: ['$companyProfile.companyName', 'Set your company name'] },
+              { $ne: ['$companyProfile.website', null] },
+              { $ne: ['$companyProfile.website', ''] },
+              { $ne: ['$companyProfile.companyType', null] },
+              { $ne: ['$companyProfile.companyType', ''] },
+              { $ne: ['$companyProfile.companyType', 'Other'] },
+              { $ne: ['$companyProfile.capitalEntity', null] },
+              { $ne: ['$companyProfile.capitalEntity', ''] },
+              { $ne: ['$companyProfile.dealsCompletedLast5Years', null] },
+              { $ne: ['$companyProfile.averageDealSize', null] },
+              { $gt: [{ $size: { $ifNull: ['$companyProfile.targetCriteria.countries', []] } }, 0] },
+              { $gt: [{ $size: { $ifNull: ['$companyProfile.targetCriteria.industrySectors', []] } }, 0] },
+              { $ne: ['$companyProfile.targetCriteria.revenueMin', null] },
+              { $ne: ['$companyProfile.targetCriteria.revenueMax', null] },
+              { $ne: ['$companyProfile.targetCriteria.ebitdaMin', null] },
+              { $ne: ['$companyProfile.targetCriteria.ebitdaMax', null] },
+              { $ne: ['$companyProfile.targetCriteria.transactionSizeMin', null] },
+              { $ne: ['$companyProfile.targetCriteria.transactionSizeMax', null] },
+              { $ne: ['$companyProfile.targetCriteria.minYearsInBusiness', null] },
+              { $gt: [{ $size: { $ifNull: ['$companyProfile.targetCriteria.preferredBusinessModels', []] } }, 0] },
+              { $ne: ['$companyProfile.targetCriteria.description', null] },
+              { $ne: ['$companyProfile.targetCriteria.description', ''] },
+              { $eq: ['$companyProfile.agreements.feeAgreementAccepted', true] },
+            ],
+          },
+        },
+      },
+      {
+        $match: {
+          profileComplete: false,
+        },
+      },
+      {
+        $facet: {
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          totalCount: [{ $count: 'count' }],
+        },
+      },
+    ];
+
+    const [result] = await this.buyerModel.aggregate(pipeline).exec();
+    const data = (result?.data || []).map((buyer: any) => ({
+      ...buyer,
+      companyProfile: buyer.companyProfile || null,
+    }));
+    const total = result?.totalCount?.[0]?.count || 0;
 
     return {
-      data: paginatedBuyers.map((buyer: any) => ({
-        ...buyer.toObject(),
-        companyProfile: buyer.companyProfileId,
-      })),
-      total: incompleteBuyers.length,
+      data,
+      total,
       page,
       limit,
-      totalPages: Math.ceil(incompleteBuyers.length / limit)
+      totalPages: Math.ceil(total / limit),
     };
   }
 

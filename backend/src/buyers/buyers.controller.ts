@@ -13,7 +13,9 @@ import {
   Param,
   Delete,
   Body,
+  Logger,
 } from "@nestjs/common"
+import { getEffectiveUserId } from "../common/team-utils"
 import { FileInterceptor } from "@nestjs/platform-express"
 import { diskStorage } from "multer"
 import { extname } from "path"
@@ -30,6 +32,8 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiConsumes, ApiBody
 import { RolesGuard } from "../auth/guards/roles.guard"
 import { Roles } from "../decorators/roles.decorator"
 import { UpdateBuyerDto } from "./dto/update-buyer.dto"
+import { Throttle } from "@nestjs/throttler"
+import { getFrontendUrl } from "../common/frontend-url"
 
 interface RequestWithUser extends Request {
   user?: {
@@ -42,6 +46,8 @@ interface RequestWithUser extends Request {
 @ApiTags("buyers")
 @Controller("buyers")
 export class BuyersController {
+  private readonly logger = new Logger(BuyersController.name);
+
   constructor(
     private readonly buyersService: BuyersService,
     private readonly authService: AuthService,
@@ -49,6 +55,7 @@ export class BuyersController {
   ) { }
 
   @Post("register")
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: "Register a new buyer" })
   @ApiResponse({ status: 201, description: "Buyer successfully registered" })
   @ApiResponse({ status: 409, description: "Email already exists" })
@@ -68,13 +75,14 @@ export class BuyersController {
         userId: result._id?.toString() || result.id?.toString(),
       }
     } catch (error) {
-      console.error("Registration error:", error)
+      this.logger.error("Registration error:", error instanceof Error ? error.message : error)
       throw error
     }
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login a buyer' })
   @ApiResponse({ status: 200, description: 'Buyer successfully logged in' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -98,13 +106,13 @@ export class BuyersController {
   async googleAuthCallback(@Request() req: any, @Res() res: any) {
     try {
       if (!req.user) {
-        const frontendUrl = process.env.FRONTEND_URL
+        const frontendUrl = getFrontendUrl()
         return res.redirect(`${frontendUrl}/auth/error?message=Authentication failed`)
       }
 
       const loginResult = (await this.authService.loginWithGoogle(req.user)) as GoogleLoginResult
 
-      const frontendUrl = process.env.FRONTEND_URL
+      const frontendUrl = getFrontendUrl()
       const redirectPath = loginResult.isNewUser ? "/buyer/acquireprofile" : "/deals"
 
       const userId = loginResult.user._id || (loginResult.user as any).id || "missing-id"
@@ -113,7 +121,7 @@ export class BuyersController {
 
       return res.redirect(redirectUrl)
     } catch (error) {
-      const frontendUrl = process.env.FRONTEND_URL
+      const frontendUrl = getFrontendUrl()
       return res.redirect(`${frontendUrl}/auth/error?message=${encodeURIComponent(error.message)}`)
     }
   }
@@ -125,7 +133,7 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: 'Buyer profile returned' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@Request() req: any) {
-    return this.buyersService.findById(req.user?.userId);
+    return this.buyersService.findById(getEffectiveUserId(req.user));
   }
 
   // UPLOAD ENDPOINTS DISABLED FOR VERCEL (read-only filesystem)
@@ -137,7 +145,11 @@ export class BuyersController {
   @UseInterceptors(
     FileInterceptor("profilePicture", {
       storage: diskStorage({
-        destination: "./uploads/profile-pictures",
+        destination: (req, file, cb) => {
+          const dir = process.env.VERCEL === '1' ? '/tmp/profile-pictures' : './uploads/profile-pictures';
+          require('fs').mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
         filename: (req, file, cb) => {
           const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
           const ext = extname(file.originalname)
@@ -177,7 +189,7 @@ export class BuyersController {
       return { error: "No file uploaded" }
     }
     const profilePicturePath = `uploads/profile-pictures/${file.filename}`
-    await this.buyersService.updateProfilePicture(req.user.userId, profilePicturePath)
+    await this.buyersService.updateProfilePicture(getEffectiveUserId(req.user), profilePicturePath)
     return {
       message: "Profile picture uploaded successfully",
       profilePicture: profilePicturePath
@@ -196,7 +208,7 @@ export class BuyersController {
     @Request() req: any,
     @Body() body: { profilePicture: string }
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated");
     }
 
@@ -210,13 +222,13 @@ export class BuyersController {
     }
 
     try {
-      await this.buyersService.updateProfilePicture(req.user.userId, body.profilePicture);
+      await this.buyersService.updateProfilePicture(getEffectiveUserId(req.user), body.profilePicture);
       return {
         message: "Profile picture uploaded successfully",
         profilePicture: body.profilePicture
       };
     } catch (error) {
-      console.error("Error updating profile picture:", error);
+      this.logger.error("Error updating profile picture:", error instanceof Error ? error.message : error);
       return { error: "Failed to update profile picture" };
     }
   }
@@ -230,7 +242,11 @@ export class BuyersController {
   @UseInterceptors(
     FileInterceptor("profilePicture", {
       storage: diskStorage({
-        destination: "./uploads/profile-pictures",
+        destination: (req, file, cb) => {
+          const dir = process.env.VERCEL === '1' ? '/tmp/profile-pictures' : './uploads/profile-pictures';
+          require('fs').mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
         filename: (req, file, cb) => {
           const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
           const ext = extname(file.originalname)
@@ -270,7 +286,7 @@ export class BuyersController {
       return { error: "No file uploaded" }
     }
     const profilePicturePath = `uploads/profile-pictures/${file.filename}`
-    await this.buyersService.updateProfilePicture(req.user.userId, profilePicturePath)
+    await this.buyersService.updateProfilePicture(getEffectiveUserId(req.user), profilePicturePath)
     return {
       message: "Profile picture uploaded successfully",
       profilePicture: profilePicturePath
@@ -289,7 +305,7 @@ export class BuyersController {
     @Request() req: any,
     @Body() body: { profilePicture: string }
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated");
     }
 
@@ -303,13 +319,13 @@ export class BuyersController {
     }
 
     try {
-      await this.buyersService.updateProfilePicture(req.user.userId, body.profilePicture);
+      await this.buyersService.updateProfilePicture(getEffectiveUserId(req.user), body.profilePicture);
       return {
         message: "Profile picture uploaded successfully",
         profilePicture: body.profilePicture
       };
     } catch (error) {
-      console.error("Error updating profile picture:", error);
+      this.logger.error("Error updating profile picture:", error instanceof Error ? error.message : error);
       return { error: "Failed to update profile picture" };
     }
   }
@@ -334,10 +350,10 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "Return buyer profile." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   getProfileOld(@Request() req: RequestWithUser) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated");
     }
-    return this.buyersService.findOne(req.user.userId);
+    return this.buyersService.findOne(getEffectiveUserId(req.user));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -366,14 +382,14 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "Return deals for the buyer" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   async getBuyerDeals(@Request() req: RequestWithUser, @Query('status') status?: 'pending' | 'active' | 'rejected') {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
 
     try {
-      return await this.dealsService.getBuyerDeals(req.user.userId)
+      return await this.dealsService.getBuyerDeals(getEffectiveUserId(req.user))
     } catch (error) {
-      console.error("Error getting buyer deals:", error)
+      this.logger.error("Error getting buyer deals:", error instanceof Error ? error.message : error)
       throw new Error(`Failed to get buyer deals: ${error.message}`)
     }
   }
@@ -408,13 +424,13 @@ export class BuyersController {
     @Param("dealId") dealId: string,
     @Body() body: { status: "pending" | "active" | "rejected"; notes?: string },
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
     try {
-      return await this.dealsService.updateDealStatus(dealId, req.user.userId, body.status)
+      return await this.dealsService.updateDealStatus(dealId, getEffectiveUserId(req.user), body.status)
     } catch (error) {
-      console.error("Error updating deal status:", error)
+      this.logger.error("Error updating deal status:", error instanceof Error ? error.message : error)
       throw new Error(`Failed to update deal status: ${error.message}`)
     }
   }
@@ -448,13 +464,13 @@ export class BuyersController {
     @Param("dealId") dealId: string,
     @Body() body: { status: "pending" | "active" | "rejected"; notes?: string },
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
     try {
-      return await this.dealsService.updateDealStatusByBuyer(dealId, req.user.userId, body.status, body.notes)
+      return await this.dealsService.updateDealStatusByBuyer(dealId, getEffectiveUserId(req.user), body.status, body.notes)
     } catch (error) {
-      console.error("Error updating deal status:", error)
+      this.logger.error("Error updating deal status:", error instanceof Error ? error.message : error)
       throw new Error(`Failed to update deal status: ${error.message}`)
     }
   }
@@ -467,10 +483,10 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "The buyer has been successfully updated." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   update(@Request() req: RequestWithUser, @Body() updateBuyerDto: UpdateBuyerDto) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
-    return this.buyersService.update(req.user.userId, updateBuyerDto)
+    return this.buyersService.update(getEffectiveUserId(req.user), updateBuyerDto)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -481,7 +497,7 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "The buyer has been successfully updated." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   updateProfileAlt(@Request() req: RequestWithUser, @Body() updateBuyerDto: UpdateBuyerDto) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
     // Convert phoneNumber to phone if provided (frontend uses phoneNumber, backend uses phone)
@@ -489,7 +505,7 @@ export class BuyersController {
       updateBuyerDto.phone = (updateBuyerDto as any).phoneNumber;
       delete (updateBuyerDto as any).phoneNumber;
     }
-    return this.buyersService.update(req.user.userId, updateBuyerDto)
+    return this.buyersService.update(getEffectiveUserId(req.user), updateBuyerDto)
   }
 
   // Parameterized routes should come LAST to avoid conflicts
@@ -514,14 +530,14 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "Return active deals for the buyer" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   async getActiveBuyerDeals(@Request() req: RequestWithUser) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated");
     }
 
     try {
-      return await this.dealsService.getBuyerDeals(req.user.userId, "active");
+      return await this.dealsService.getBuyerDeals(getEffectiveUserId(req.user), "active");
     } catch (error) {
-      console.error("Error getting active buyer deals:", error);
+      this.logger.error("Error getting active buyer deals:", error instanceof Error ? error.message : error);
       throw new Error(`Failed to get active buyer deals: ${error.message}`);
     }
   }
@@ -534,14 +550,14 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "Return pending deals for the buyer" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   async getPendingBuyerDeals(@Request() req: RequestWithUser) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated");
     }
 
     try {
-      return await this.dealsService.getBuyerDeals(req.user.userId, "pending");
+      return await this.dealsService.getBuyerDeals(getEffectiveUserId(req.user), "pending");
     } catch (error) {
-      console.error("Error getting pending buyer deals:", error);
+      this.logger.error("Error getting pending buyer deals:", error instanceof Error ? error.message : error);
       throw new Error(`Failed to get pending buyer deals: ${error.message}`);
     }
   }
@@ -554,14 +570,14 @@ export class BuyersController {
   @ApiResponse({ status: 200, description: "Return rejected deals for the buyer" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   async getRejectedBuyerDeals(@Request() req: RequestWithUser) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated");
     }
 
     try {
-      return await this.dealsService.getBuyerDeals(req.user.userId, "rejected");
+      return await this.dealsService.getBuyerDeals(getEffectiveUserId(req.user), "rejected");
     } catch (error) {
-      console.error("Error getting rejected buyer deals:", error);
+      this.logger.error("Error getting rejected buyer deals:", error instanceof Error ? error.message : error);
       throw new Error(`Failed to get rejected buyer deals: ${error.message}`);
     }
   }
@@ -591,13 +607,13 @@ export class BuyersController {
     @Param("dealId") dealId: string,
     @Body() body: { notes?: string } = {},
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
     try {
-      return await this.dealsService.updateDealStatusByBuyer(dealId, req.user.userId, "active", body.notes)
+      return await this.dealsService.updateDealStatusByBuyer(dealId, getEffectiveUserId(req.user), "active", body.notes)
     } catch (error) {
-      console.error("Error activating deal:", error)
+      this.logger.error("Error activating deal:", error instanceof Error ? error.message : error)
       throw new Error(`Failed to activate deal: ${error.message}`)
     }
   }
@@ -626,13 +642,13 @@ export class BuyersController {
     @Param("dealId") dealId: string,
     @Body() body: { notes?: string } = {},
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
     try {
-      return await this.dealsService.updateDealStatusByBuyer(dealId, req.user.userId, "rejected", body.notes)
+      return await this.dealsService.updateDealStatusByBuyer(dealId, getEffectiveUserId(req.user), "rejected", body.notes)
     } catch (error) {
-      console.error("Error rejecting deal:", error)
+      this.logger.error("Error rejecting deal:", error instanceof Error ? error.message : error)
       throw new Error(`Failed to reject deal: ${error.message}`)
     }
   }
@@ -661,13 +677,13 @@ export class BuyersController {
     @Param("dealId") dealId: string,
     @Body() body: { notes?: string } = {},
   ) {
-    if (!req.user?.userId) {
+    if (!getEffectiveUserId(req.user)) {
       throw new UnauthorizedException("User not authenticated")
     }
     try {
-      return await this.dealsService.updateDealStatusByBuyer(dealId, req.user.userId, "pending", body.notes)
+      return await this.dealsService.updateDealStatusByBuyer(dealId, getEffectiveUserId(req.user), "pending", body.notes)
     } catch (error) {
-      console.error("Error setting deal as pending:", error)
+      this.logger.error("Error setting deal as pending:", error instanceof Error ? error.message : error)
       throw new Error(`Failed to set deal as pending: ${error.message}`)
     }
   }

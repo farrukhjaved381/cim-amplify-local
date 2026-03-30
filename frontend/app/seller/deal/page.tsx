@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
 import {
-  Eye,
-  Clock,
-  LogOut,
   ArrowLeft,
   User,
   Users,
@@ -16,7 +11,6 @@ import {
   X,
   Loader2,
   Menu,
-  FileText,
   PauseCircle,
   Edit3,
 } from "lucide-react";
@@ -31,7 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box";
+import { SellerNav } from "@/components/seller/seller-nav";
 
 // Helper to get API URL - uses environment variable with localStorage fallback
 const getApiUrl = () => {
@@ -39,11 +33,7 @@ const getApiUrl = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // Fallback to localStorage (works for local development with dynamic URL)
-  if (typeof window !== 'undefined') {
-    return getApiUrl();
-  }
-  return "http://localhost:5001";
+  return "https://cim-backend.vercel.app";
 };
 
 // Updated interfaces to match API structure
@@ -84,6 +74,7 @@ interface Deal {
   status: string;
   visibility?: string;
   industrySector: string;
+  industrySectors?: string[];
   geographySelection: string;
   employeeCount?: number;
   financialDetails: {
@@ -475,6 +466,11 @@ const [showAllCountries, setShowAllCountries] = useState(false);
 
   // Action button states
   const [isPausingLOI, setIsPausingLOI] = useState(false);
+  const [loiDialogOpen, setLoiDialogOpen] = useState(false);
+  const [loiDialogStep, setLoiDialogStep] = useState(1);
+  const [selectedLoiBuyer, setSelectedLoiBuyer] = useState<string>("");
+  const [loiBuyerActivity, setLoiBuyerActivity] = useState<any[]>([]);
+  const [loiBuyerActivityLoading, setLoiBuyerActivityLoading] = useState(false);
   const [offMarketDialogOpen, setOffMarketDialogOpen] = useState(false);
   const [currentDialogStep, setCurrentDialogStep] = useState(1);
   const [offMarketData, setOffMarketData] = useState({
@@ -817,22 +813,59 @@ const [showAllCountries, setShowAllCountries] = useState(false);
 
   // Action button handlers
   const handlePauseForLOI = async () => {
+    setLoiDialogStep(1);
+    setSelectedLoiBuyer("");
+    setLoiBuyerActivity([]);
+    setLoiDialogOpen(true);
+  };
+
+  const fetchLoiEligibleBuyers = async () => {
+    if (!deal) return [];
+    try {
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/deals/${deal._id}/ever-active-buyers`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) return [];
+      const buyers = await response.json();
+      const transformed = buyers.map((buyer: any) => ({
+        buyerId: buyer._id,
+        buyerName: buyer.fullName || "Unknown Buyer",
+        companyName: buyer.companyName || "Unknown Company",
+        buyerEmail: buyer.email || "",
+      }));
+      setLoiBuyerActivity(transformed);
+      if (transformed.length > 0) {
+        setSelectedLoiBuyer(transformed[0].buyerId);
+      }
+      return transformed;
+    } catch {
+      return [];
+    }
+  };
+
+  const handlePauseForLOISubmit = async (isCimBuyer: boolean) => {
     if (!deal) return;
     setIsPausingLOI(true);
     try {
       const token = sessionStorage.getItem("token");
       const apiUrl = getApiUrl();
-
+      const body = isCimBuyer && selectedLoiBuyer ? { loiBuyerId: selectedLoiBuyer } : {};
       const response = await fetch(`${apiUrl}/deals/${deal._id}/pause-for-loi`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to pause deal for LOI");
       }
 
@@ -840,8 +873,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         title: "Deal Paused for LOI",
         description: "The deal has been moved to LOI - Deals. You can find it in the LOI - Deals section.",
       });
-
-      // Navigate back to dashboard
+      setLoiDialogOpen(false);
       router.push("/seller/dashboard");
     } catch (error: any) {
       toast({
@@ -918,6 +950,13 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   }, [offMarketDialogOpen, deal, currentDialogStep]);
 
   const activeBuyerOptions = buyerActivity.filter((buyer) => buyer?.status === "active");
+
+  useEffect(() => {
+    if (loiDialogOpen && loiDialogStep === 2) {
+      setLoiBuyerActivityLoading(true);
+      fetchLoiEligibleBuyers().finally(() => setLoiBuyerActivityLoading(false));
+    }
+  }, [loiDialogOpen, loiDialogStep]);
 
   const handleDialogResponse = async (key: string, value: boolean) => {
     setOffMarketData((prev) => ({ ...prev, [key]: value }));
@@ -1217,100 +1256,12 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     await fetchMatchingBuyers();
   };
 
-  // Navigation component for reuse
-  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <>
-      <div className="mb-8">
-        <Link href="/seller/dashboard" onClick={onNavigate}>
-          <Image
-            src="/logo.svg"
-            alt="CIM Amplify Logo"
-            width={150}
-            height={50}
-            className="h-auto"
-          />
-        </Link>
-      </div>
-      <nav className="flex-1 space-y-6">
-        <Button
-          variant="secondary"
-          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-          onClick={() => {
-            onNavigate?.();
-            router.push("/seller/dashboard");
-          }}
-        >
-          <svg
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span>MyDeals</span>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal"
-          onClick={() => {
-            onNavigate?.();
-            router.push("/seller/loi-deals");
-          }}
-        >
-          <FileText className="h-5 w-5" />
-          <span>LOI - Deals</span>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal"
-          onClick={() => {
-            onNavigate?.();
-            router.push("/seller/history");
-          }}
-        >
-          <Clock className="h-5 w-5" />
-          <span>Off Market</span>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal"
-          onClick={() => {
-            onNavigate?.();
-            router.push("/seller/view-profile");
-          }}
-        >
-          <Eye className="h-5 w-5" />
-          <span>View Profile</span>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
-          onClick={() => {
-            onNavigate?.();
-            handleLogout();
-          }}
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Sign Out</span>
-        </Button>
-      </nav>
-      <AmplifyVenturesBox />
-    </>
-  );
-
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
         {/* Desktop Sidebar */}
         <div className="hidden md:flex w-64 bg-white border-r border-gray-200 p-6 flex-col">
-          <NavigationContent />
+          <SellerNav activePage="dashboard" onLogout={handleLogout} />
         </div>
 
         {/* Main content */}
@@ -1331,7 +1282,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                     <SheetTitle>Menu</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6 flex-1 overflow-y-auto pb-6">
-                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                    <SellerNav activePage="dashboard" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
                   </div>
                 </SheetContent>
               </Sheet>
@@ -1557,16 +1508,6 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                     "N/A"}
                                 </div>
 
-                                <div>
-                                  <span className="text-gray-500">
-                                    Minimum 5-Years Avg Revenue Growth:{" "}
-                                  </span>
-                                  {buyer.targetCriteria?.revenueGrowth !==
-                                    undefined &&
-                                  buyer.targetCriteria?.revenueGrowth !== null
-                                    ? `${buyer.targetCriteria.revenueGrowth}%`
-                                    : "N/A"}
-                                </div>
                                 <div className="col-span-2">
                                   <span className="text-gray-500">
                                     Preferred Business Models:{" "}
@@ -2259,6 +2200,99 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           </div>
         </div>
       </div>
+
+      {/* LOI Dialog */}
+      <Dialog open={loiDialogOpen} onOpenChange={setLoiDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          {loiDialogStep === 1 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">
+                  Is the LOI buyer from CIM Amplify?
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <Button
+                  onClick={() => setLoiDialogStep(2)}
+                  className="w-full bg-teal-500 hover:bg-teal-600"
+                  disabled={isPausingLOI}
+                >
+                  Yes, choose CIM buyer
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handlePauseForLOISubmit(false)}
+                  disabled={isPausingLOI}
+                  className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  {isPausingLOI ? <Loader2 className="h-4 w-4 animate-spin" /> : "No, not from CIM Amplify"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">
+                  Select CIM buyer for LOI
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {loiBuyerActivityLoading ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-gray-500">
+                      <span className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-teal-500 border-t-transparent"></span>
+                      Loading buyers...
+                    </div>
+                  ) : loiBuyerActivity.length > 0 ? (
+                    loiBuyerActivity.map((buyer) => (
+                      <div
+                        key={buyer.buyerId}
+                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                          selectedLoiBuyer === buyer.buyerId
+                            ? "border-teal-500 bg-teal-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        onClick={() => setSelectedLoiBuyer(buyer.buyerId)}
+                      >
+                        <div>
+                          <div className="font-medium text-sm">{buyer.buyerName || "Unknown Buyer"}</div>
+                          <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
+                        </div>
+                        {selectedLoiBuyer === buyer.buyerId && (
+                          <svg className="h-5 w-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-4">
+                      No CIM Amplify buyers are available for this deal.
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-3 pt-2">
+                  <Button
+                    onClick={() => handlePauseForLOISubmit(true)}
+                    className="w-full bg-teal-500 hover:bg-teal-600"
+                    disabled={!selectedLoiBuyer || isPausingLOI}
+                  >
+                    {isPausingLOI ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pause for LOI"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setLoiDialogStep(1)}
+                    disabled={isPausingLOI}
+                    className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Off Market Dialog */}
       <Dialog open={offMarketDialogOpen} onOpenChange={setOffMarketDialogOpen}>

@@ -31,3 +31,7 @@ export class CommunicationLog {
 }
 
 export const CommunicationLogSchema = SchemaFactory.createForClass(CommunicationLog);
+
+CommunicationLogSchema.index({ recipientEmail: 1, sentAt: -1 });
+CommunicationLogSchema.index({ status: 1, sentAt: -1 });
+CommunicationLogSchema.index({ relatedDealId: 1, sentAt: -1 });

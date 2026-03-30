@@ -75,7 +75,7 @@ const fetchAdminProfile = async () => {
   setLoading(true);
   try {
     const token = sessionStorage.getItem('token');
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
     const res = await fetch(`${apiUrl}/admin/profile`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -168,7 +168,7 @@ useEffect(() => {
         }
         // Send to backend
         const token = sessionStorage.getItem('token');
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
         const res = await fetch(`${apiUrl}/admin/upload-profile-picture`, {
           method: "POST",
           headers: {

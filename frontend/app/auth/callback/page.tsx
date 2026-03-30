@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
+import { API_BASE_URL } from "@/lib/api-config";
 
 // Helper to set auth in both storages
 const setAuthStorage = (key: string, value: string) => {
@@ -51,8 +52,7 @@ export default function AuthCallbackPage() {
           throw new Error("No authorization code received")
         }
 
-        // Get API URL from localStorage or use default
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+        const apiUrl = API_BASE_URL;
 
         
 

@@ -7,6 +7,7 @@ import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { AppModule } from "./app.module"
 import * as express from "express"
+import helmet from "helmet"
 import { GlobalExceptionFilter } from "./common/filters/http-exception.filter"
 
 let cachedApp: NestExpressApplication;
@@ -34,19 +35,36 @@ async function bootstrap() {
     });
   }
 
-  let frontendUrl = process.env.FRONTEND_URL || "http://localhost:5000"
-  // Remove trailing slash if present
-  if (frontendUrl.endsWith("/")) {
-    frontendUrl = frontendUrl.slice(0, -1)
+  const frontendUrlConfig = process.env.FRONTEND_URL
+  if (!frontendUrlConfig) {
+    throw new Error("FRONTEND_URL must be set to one or more allowed origins.")
   }
-  // Enable CORS before other middleware
+  const allowedOrigins = frontendUrlConfig
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+
+  if (allowedOrigins.length === 0) {
+    throw new Error("FRONTEND_URL must contain at least one valid origin.")
+  }
+
+  // Enable CORS BEFORE helmet so preflight OPTIONS requests are handled first
   app.enableCors({
-    origin: true, // Allow all origins for now
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true)
+      }
+      const normalizedOrigin = origin.replace(/\/$/, "")
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true)
+      }
+      return callback(new Error("Origin not allowed by CORS"), false)
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
-      'Content-Type', 
-      'Authorization', 
+      'Content-Type',
+      'Authorization',
       'Accept',
       'Cache-Control',
       'X-Requested-With',
@@ -56,6 +74,24 @@ async function bootstrap() {
     ],
     exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
   })
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "https:"],
+        },
+      },
+      referrerPolicy: { policy: "no-referrer" },
+      frameguard: { action: "deny" },
+    }),
+  )
 
   // Increase body size limit for large uploads (e.g., base64 images)
   app.use(express.json({ limit: '50mb' }))
@@ -79,7 +115,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle("CIM Amplify API")
     .setDescription("The CIM Amplify API documentation")
-    .setVersion("1.0")
+    .setVersion("2.2")
     .addTag("auth")
     .addTag("buyers")
     .addTag("admin")
@@ -88,8 +124,8 @@ async function bootstrap() {
     .addTag("deal-tracking")
     .addTag("company-profiles")
     .addBearerAuth()
-    .addServer(process.env.BACKEND_URL || 'http://localhost:5001', 'Production')
-    .addServer('http://localhost:5001', 'Development')
+    .addServer(process.env.BACKEND_URL || 'https://cim-backend.vercel.app', 'Production')
+    .addServer('https://cim-backend.vercel.app', 'Development')
     .build()
   const document = SwaggerModule.createDocument(app, config)
   SwaggerModule.setup("api-docs", app, document, {
@@ -104,7 +140,7 @@ async function bootstrap() {
     },
   })
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.PORT || 5001;
   
   // Only listen on port if not in Vercel environment
   if (process.env.VERCEL !== '1') {

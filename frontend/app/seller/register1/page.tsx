@@ -180,7 +180,7 @@ export default function SellerRegisterPage() {
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
 
-    window.location.href = "http://localhost:5001/sellers/google/callback"
+    window.location.href = "https://cim-backend.vercel.app/sellers/google/callback"
   }
 
   return (

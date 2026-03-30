@@ -2,18 +2,15 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Search, Eye, Clock, LogOut, FileText, Menu, TrendingUp, Building2, MapPin, Calendar, DollarSign, User } from "lucide-react"
+import { Search, Clock, Menu, Building2, MapPin, Calendar, DollarSign, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import Image from "next/image"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { triggerNavigationProgress } from "@/components/navigation-progress"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/contexts/auth-context"
 import SellerProtectedRoute from "@/components/seller/protected-route"
+import { SellerNav } from "@/components/seller/seller-nav"
 
 interface Deal {
   id: string
@@ -25,7 +22,6 @@ interface Deal {
   buyersPassed: number
   updatedAt: string
   finalSalePrice: string | null
-  avgRevenueGrowth?: number
   trailingEBITDAAmount?: number
   trailingRevenueAmount?: number
   closedWithBuyerCompany?: string
@@ -39,9 +35,9 @@ const getApiUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (typeof window !== 'undefined') {
-    return localStorage.getItem("apiUrl") || "http://localhost:5001";
+    return localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
   }
-  return "http://localhost:5001";
+  return "https://cim-backend.vercel.app";
 };
 
 function getProfilePictureUrl(path: string | null) {
@@ -105,17 +101,6 @@ function DealCard({ deal }: { deal: Deal }) {
               <span className="xs:hidden">Loc.</span>
             </span>
             <span className="text-xs sm:text-sm font-medium text-gray-700 truncate text-right">{deal.geographySelection || "N/A"}</span>
-          </div>
-
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 flex-shrink-0">
-              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Revenue Growth</span>
-              <span className="xs:hidden">Growth</span>
-            </span>
-            <span className="text-xs sm:text-sm font-medium text-gray-700">
-              {deal.avgRevenueGrowth !== undefined ? `${deal.avgRevenueGrowth}%` : "N/A"}
-            </span>
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -241,7 +226,6 @@ export default function DealsHistoryPage() {
             description: deal.companyDescription,
             industrySector: deal.industrySector,
             geographySelection: deal.geographySelection,
-            avgRevenueGrowth: deal.financialDetails?.avgRevenueGrowth,
             trailingEBITDAAmount: deal.financialDetails?.trailingEBITDAAmount,
             trailingRevenueAmount: deal.financialDetails?.trailingRevenueAmount,
             buyersActive: deal.interestedBuyers?.length || 0,
@@ -291,96 +275,13 @@ export default function DealsHistoryPage() {
     logout() // logout() from useAuth already handles redirect
   }
 
-  // Navigation component to avoid duplication
-  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <>
-      <div className="mb-8">
-        <Link href="https://cimamplify.com/" onClick={onNavigate} className="block">
-          <Image src="/logo.svg" alt="CIM Amplify Logo" width={150} height={50} className="h-auto" />
-        </Link>
-      </div>
-
-      <nav className="flex-1 space-y-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-          onClick={() => {
-            triggerNavigationProgress()
-            onNavigate?.()
-            router.push("/seller/dashboard")
-          }}
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M16.5 6L12 1.5L7.5 6M3.75 8.25H20.25M5.25 8.25V19.5C5.25 19.9142 5.58579 20.25 6 20.25H18C18.4142 20.25 18.75 19.9142 18.75 19.5V8.25"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span>MyDeals</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-          onClick={() => {
-            triggerNavigationProgress()
-            onNavigate?.()
-            router.push("/seller/loi-deals")
-          }}
-        >
-          <FileText className="h-5 w-5" />
-          <span>LOI - Deals</span>
-        </Button>
-
-        <Button
-          variant="secondary"
-          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-          onClick={onNavigate}
-        >
-          <Clock className="h-5 w-5" />
-          <span>Off Market</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-          onClick={() => {
-            triggerNavigationProgress()
-            onNavigate?.()
-            router.push("/seller/view-profile")
-          }}
-        >
-          <Eye className="h-5 w-5" />
-          <span>View Profile</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={() => {
-            onNavigate?.()
-            handleLogout()
-          }}
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Sign Out</span>
-        </Button>
-      </nav>
-
-      <AmplifyVenturesBox />
-    </>
-  )
-
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64 flex-shrink-0">
           <div className="sticky top-0 h-screen bg-white border-r border-gray-200 p-6 flex flex-col overflow-y-auto">
-            <NavigationContent />
+            <SellerNav activePage="deal-history" onLogout={handleLogout} />
           </div>
         </div>
 
@@ -402,7 +303,7 @@ export default function DealsHistoryPage() {
                     <SheetTitle className="text-gray-800">Menu</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6 flex-1 overflow-y-auto pb-6">
-                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                    <SellerNav activePage="deal-history" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
                   </div>
                 </SheetContent>
               </Sheet>

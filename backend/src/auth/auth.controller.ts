@@ -1,4 +1,5 @@
 import { Body, Controller, Post, UseGuards, Request, Get, Patch, BadRequestException, ValidationPipe, UsePipes, HttpStatus, HttpCode, Res, Query } from "@nestjs/common"
+import { Throttle } from "@nestjs/throttler"
 import { AuthService } from "./auth.service"
 import { LocalAuthGuard } from "./guards/local-auth.guard"
 import { JwtAuthGuard } from "./guards/jwt-auth.guard"
@@ -12,6 +13,7 @@ import { LoginSellerDto } from "./dto/login-seller.dto"
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
 import { Response } from 'express';
+import { getFrontendUrl } from '../common/frontend-url';
 
 
 
@@ -22,6 +24,7 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login a user' })
   @ApiBody({ type: LoginBuyerDto })
   @ApiResponse({ status: 200, description: 'User logged in successfully' })
@@ -32,6 +35,7 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('admin/login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login an admin' })
   @ApiResponse({ status: 200, description: 'Admin logged in successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -42,6 +46,7 @@ export class AuthController {
 
   @Post('seller/login')
   @UseGuards(LocalAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login a seller' })
   @ApiResponse({ status: 200, description: 'Seller logged in successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -68,6 +73,24 @@ export class AuthController {
       throw new BadRequestException('Refresh token is required');
     }
     return this.authService.refreshToken(refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("logout")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Revoke current access/refresh tokens" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        refresh_token: { type: "string", description: "Optional refresh token to revoke" },
+      },
+    },
+  })
+  async logout(@Request() req: any, @Body("refresh_token") refreshToken?: string) {
+    const authHeader = req?.headers?.authorization as string | undefined;
+    const accessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+    return this.authService.logout(accessToken, refreshToken);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -121,6 +144,7 @@ export class AuthController {
   }
 
   @Post('buyer/forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 3600000 } })
   forgotPasswordBuyer(@Body() body: { email: string }) {
     return this.authService.forgotPasswordBuyer(body.email)
   }
@@ -131,6 +155,7 @@ export class AuthController {
   }
   
   @Post('seller/forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 3600000 } })
   forgotPasswordSeller(@Body() body: { email: string }) {
     return this.authService.forgotPasswordSeller(body.email)
   }
@@ -146,19 +171,20 @@ export class AuthController {
     try {
       const { verified, role, accessToken, refreshToken, userId, fullName } = await this.authService.verifyEmailToken(token);
       if (verified) {
-        const redirectUrl = `${process.env.FRONTEND_URL}/verify-email-success?token=${accessToken}&refreshToken=${refreshToken}&role=${role}&userId=${userId}&fullName=${encodeURIComponent(fullName || '')}`;
+        const redirectUrl = `${getFrontendUrl()}/verify-email-success?token=${accessToken}&refreshToken=${refreshToken}&role=${role}&userId=${userId}&fullName=${encodeURIComponent(fullName || '')}`;
         return res.redirect(redirectUrl);
       } else {
-        const redirectUrl = `${process.env.FRONTEND_URL}/verify-email-failure`;
+        const redirectUrl = `${getFrontendUrl()}/verify-email-failure`;
         return res.redirect(redirectUrl);
       }
     } catch (e) {
-      const redirectUrl = `${process.env.FRONTEND_URL}/verify-email-failure`;
+      const redirectUrl = `${getFrontendUrl()}/verify-email-failure`;
       return res.redirect(redirectUrl);
     }
   }
 
     @Post('resend-verification')
+    @Throttle({ default: { limit: 3, ttl: 3600000 } })
     @ApiOperation({ summary: 'Resend email verification link' })
     @ApiResponse({ status: 200, description: 'Verification email resent successfully' })
     @ApiResponse({ status: 404, description: 'No account found with this email' })

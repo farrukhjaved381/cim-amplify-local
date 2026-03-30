@@ -1,6 +1,7 @@
 import { Linkedin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
+import { ga4Events } from "@/lib/ga4";
 
 export default function Footer() {
   const router = useRouter();
@@ -109,7 +110,7 @@ export default function Footer() {
                 Buyer registration
               </div>
               <a
-                 onClick={() => router.push("/seller/register")}
+                 onClick={() => { ga4Events.formStartSeller(); router.push("/seller/register"); }}
                 target="_self"
                 rel="noopener noreferrer"
                 className="text-white hover:text-[#229273] block py-1 cursor-pointer transition-colors duration-300"

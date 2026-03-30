@@ -233,6 +233,10 @@ export class Deal {
   @Prop({ required: true })
   industrySector!: string
 
+  @ApiProperty({ description: "Up to 3 selected industry sectors for matching", type: [String], required: false })
+  @Prop({ type: [String], default: [] })
+  industrySectors?: string[]
+
   @ApiProperty({ description: "Geographic location/country of the company" })
   @Prop({ required: true })
   geographySelection!: string
@@ -297,6 +301,14 @@ export class Deal {
   @Prop({ default: false })
   isFeatured!: boolean
 
+  @ApiProperty({
+    description: "Whether buyer must pay a buy-side fee above CIM Amplify fees",
+    default: false,
+    required: false,
+  })
+  @Prop({ default: false })
+  requiresBuyerFeeAboveAmplifyFees?: boolean
+
   @ApiProperty({ description: "Stake percentage being offered", example: 100 })
   @Prop({ required: false })
   stakePercentage?: number
@@ -328,6 +340,7 @@ export class Deal {
       response: { type: String, enum: ["requested", "pending", "accepted", "rejected"] },
       notes: String,
       decisionBy: { type: String, enum: ["buyer", "seller"] },
+      introFollowUpSentAt: Date,
     },
     default: () => new Map(),
   })
@@ -339,6 +352,7 @@ export class Deal {
       response: "requested" | "pending" | "accepted" | "rejected"
       notes?: string
       decisionBy?: "buyer" | "seller"
+      introFollowUpSentAt?: Date
     }
   >
 
@@ -365,6 +379,18 @@ export class Deal {
   @ApiProperty({ description: "The email of the buyer the deal was closed with, if from CIM Amplify", required: false })
   @Prop({ required: false })
   closedWithBuyerEmail?: string;
+
+  @ApiProperty({ description: "The buyer (ObjectId) the deal is in LOI with, if from CIM Amplify", required: false })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Buyer", required: false })
+  loiWithBuyer?: string;
+
+  @ApiProperty({ description: "The company name of the buyer the deal is in LOI with", required: false })
+  @Prop({ required: false })
+  loiWithBuyerCompany?: string;
+
+  @ApiProperty({ description: "The email of the buyer the deal is in LOI with", required: false })
+  @Prop({ required: false })
+  loiWithBuyerEmail?: string;
 
   @ApiProperty({ description: "Flag to hide deal guidelines modal for the user", default: false })
   @Prop({ default: false })

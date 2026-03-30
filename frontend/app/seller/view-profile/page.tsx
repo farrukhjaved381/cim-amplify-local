@@ -3,24 +3,16 @@
 import type React from "react";
 
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSellerProfile } from "@/services/api";
 import {
   Pencil,
-  HandshakeIcon,
-  History,
-  LogOut,
   Eye,
   EyeOff,
   Camera,
   Loader2,
-  FileText,
-  Clock,
   Menu,
 } from "lucide-react";
-import { triggerNavigationProgress } from "@/components/navigation-progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
 import SellerProtectedRoute from "@/components/seller/protected-route";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { AmplifyVenturesBox } from "@/components/seller/amplify-ventures-box";
+import { SellerNav } from "@/components/seller/seller-nav";
 
 interface SellerProfile {
   id: string;
@@ -99,7 +91,7 @@ export default function ViewProfilePage() {
     // If it's already a full URL, return as-is
     if (profilePicture.startsWith("http://") || profilePicture.startsWith("https://")) return profilePicture;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
     const formattedPath = profilePicture.replace(/\\/g, "/");
 
     return `${apiUrl}/${
@@ -218,7 +210,7 @@ export default function ViewProfilePage() {
         title: editValues.title?.trim() || "",
       };
 
-      const response = await fetch("http://localhost:5001/sellers/me", {
+      const response = await fetch("https://cim-backend.vercel.app/sellers/me", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -289,7 +281,7 @@ export default function ViewProfilePage() {
         password: passwordData.newPassword,
       };
 
-      const response = await fetch("http://localhost:5001/sellers/me", {
+      const response = await fetch("https://cim-backend.vercel.app/sellers/me", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -362,7 +354,7 @@ export default function ViewProfilePage() {
         
         const token = sessionStorage.getItem("token");
         // Get API URL from localStorage or use default
-        const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+        const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
         // Send base64 image to backend
         const response = await fetch(`${apiUrl}/sellers/upload-profile-picture`, {
@@ -444,96 +436,12 @@ export default function ViewProfilePage() {
     logout(); // logout() from useAuth already handles redirect
   };
 
-  // Navigation component for reuse
-  const NavigationContent = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <>
-      <div className="mb-8">
-        <Link href="/seller/dashboard" onClick={onNavigate}>
-          <Image
-            src="/logo.svg"
-            alt="CIM Amplify Logo"
-            width={150}
-            height={50}
-            className="h-auto"
-          />
-        </Link>
-      </div>
-
-      <nav className="flex-1 space-y-6">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal"
-          data-navigate="/seller/dashboard"
-          onClick={() => {
-            triggerNavigationProgress();
-            onNavigate?.();
-            router.push("/seller/dashboard");
-          }}
-        >
-          <HandshakeIcon className="h-5 w-5" />
-          <span>MyDeals</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal"
-          data-navigate="/seller/loi-deals"
-          onClick={() => {
-            triggerNavigationProgress();
-            onNavigate?.();
-            router.push("/seller/loi-deals");
-          }}
-        >
-          <FileText className="h-5 w-5" />
-          <span>LOI - Deals</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal"
-          data-navigate="/seller/history"
-          onClick={() => {
-            triggerNavigationProgress();
-            onNavigate?.();
-            router.push("/seller/history");
-          }}
-        >
-          <Clock className="h-5 w-5" />
-          <span>Off Market</span>
-        </Button>
-
-        <Button
-          variant="secondary"
-          className="w-full justify-start gap-3 font-normal bg-teal-100 text-teal-700 hover:bg-teal-200"
-          onClick={onNavigate}
-        >
-          <Eye className="h-5 w-5" />
-          <span>View Profile</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 font-normal text-red-600 hover:text-red-700 hover:bg-red-50 mt-auto"
-          onClick={() => {
-            onNavigate?.();
-            handleLogout();
-          }}
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Sign Out</span>
-        </Button>
-      </nav>
-
-      <AmplifyVenturesBox />
-    </>
-  );
-
   return (
     <SellerProtectedRoute>
       <div className="flex min-h-screen bg-gray-50">
         {/* Desktop Sidebar */}
         <div className="hidden md:flex w-64 bg-white border-r border-gray-200 p-6 flex-col">
-          <NavigationContent />
+          <SellerNav activePage="view-profile" onLogout={handleLogout} />
         </div>
 
         {/* Main content */}
@@ -554,7 +462,7 @@ export default function ViewProfilePage() {
                     <SheetTitle>Menu</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6 flex-1 overflow-y-auto pb-6">
-                    <NavigationContent onNavigate={() => setMobileMenuOpen(false)} />
+                    <SellerNav activePage="view-profile" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
                   </div>
                 </SheetContent>
               </Sheet>

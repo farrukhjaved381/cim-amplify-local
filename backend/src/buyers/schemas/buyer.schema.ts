@@ -16,7 +16,7 @@ export class Buyer {
   fullName: string
 
   @ApiProperty({ description: "Email address of the buyer" })
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string
 
   @ApiProperty({ description: "Hashed password of the buyer" })
@@ -97,3 +97,33 @@ export class Buyer {
 }
 
 export const BuyerSchema = SchemaFactory.createForClass(Buyer)
+
+BuyerSchema.index({ companyName: 1 });
+BuyerSchema.index({ fullName: 1 });
+BuyerSchema.index({ phone: 1 });
+BuyerSchema.index({ createdAt: -1 });
+
+BuyerSchema.pre("save", function (next) {
+  if (this.email) {
+    this.email = this.email.toLowerCase().trim();
+  }
+  next();
+});
+
+BuyerSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
+  const update = this.getUpdate() as Record<string, any> | undefined;
+  const normalize = (target: Record<string, any>) => {
+    if (typeof target.email === "string") {
+      target.email = target.email.toLowerCase().trim();
+    }
+  };
+
+  if (update) {
+    normalize(update);
+    if (update.$set && typeof update.$set === "object") {
+      normalize(update.$set);
+    }
+  }
+
+  next();
+});

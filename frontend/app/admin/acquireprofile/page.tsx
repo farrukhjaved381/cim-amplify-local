@@ -78,7 +78,7 @@ const BUSINESS_MODELS = [
 ];
 
 // Default API URL - use environment variable with fallback
-const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
 
 // Type for hierarchical selection
 interface HierarchicalSelection {
@@ -526,7 +526,7 @@ const fetchUserProfile = async () => {
       ebitdaMax: undefined,
       transactionSizeMin: undefined,
       transactionSizeMax: undefined,
-      revenueGrowth: undefined,
+
       minStakePercent: undefined,
       minYearsInBusiness: undefined,
       preferredBusinessModels: [],
@@ -592,7 +592,7 @@ const validateField = (field: string, value: any): string | null => {
     case "targetCriteria.ebitdaMax":
     case "targetCriteria.transactionSizeMin":
     case "targetCriteria.transactionSizeMax":
-    case "targetCriteria.revenueGrowth":
+
       return value === undefined || value === "" ? "This field is required" : null;
     case "targetCriteria.minStakePercent":
       return null; // This field is now optional
@@ -1295,8 +1295,7 @@ const validateField = (field: string, value: any): string | null => {
       validateField("targetCriteria.transactionSizeMin", formData.targetCriteria.transactionSizeMin) || "";
     errors["targetCriteria.transactionSizeMax"] =
       validateField("targetCriteria.transactionSizeMax", formData.targetCriteria.transactionSizeMax) || "";
-    errors["targetCriteria.revenueGrowth"] =
-      validateField("targetCriteria.revenueGrowth", formData.targetCriteria.revenueGrowth) || "";
+
     errors["targetCriteria.minStakePercent"] =
       validateField("targetCriteria.minStakePercent", formData.targetCriteria.minStakePercent) || "";
     errors["targetCriteria.minYearsInBusiness"] =
@@ -1447,7 +1446,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   errors["targetCriteria.ebitdaMax"] = validateField("targetCriteria.ebitdaMax", formData.targetCriteria.ebitdaMax) || "";
   errors["targetCriteria.transactionSizeMin"] = validateField("targetCriteria.transactionSizeMin", formData.targetCriteria.transactionSizeMin) || "";
   errors["targetCriteria.transactionSizeMax"] = validateField("targetCriteria.transactionSizeMax", formData.targetCriteria.transactionSizeMax) || "";
-  errors["targetCriteria.revenueGrowth"] = validateField("targetCriteria.revenueGrowth", formData.targetCriteria.revenueGrowth) || "";
+
   errors["targetCriteria.minStakePercent"] = validateField("targetCriteria.minStakePercent", formData.targetCriteria.minStakePercent) || "";
   errors["targetCriteria.minYearsInBusiness"] = validateField("targetCriteria.minYearsInBusiness", formData.targetCriteria.minYearsInBusiness) || "";
   errors["targetCriteria.preferredBusinessModels"] = validateField("targetCriteria.preferredBusinessModels", formData.targetCriteria.preferredBusinessModels) || "";
@@ -1574,7 +1573,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         ebitdaMax: formData.targetCriteria.ebitdaMax,
         transactionSizeMin: formData.targetCriteria.transactionSizeMin,
         transactionSizeMax: formData.targetCriteria.transactionSizeMax,
-        revenueGrowth: formData.targetCriteria.revenueGrowth,
+
         minStakePercent: formData.targetCriteria.minStakePercent,
         minYearsInBusiness: formData.targetCriteria.minYearsInBusiness,
         preferredBusinessModels: formData.targetCriteria.preferredBusinessModels,
@@ -2827,31 +2826,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                   )}
               </div>
 
-              <div>
-                <Label className="text-[#667085] text-sm mb-1.5 block">
-                  Minimum 3 Year Average Revenue Growth (%)
-                </Label>
-                <div className="flex items-center">
-                  <Input
-                    id="revenueGrowth"
-                    type="text"
-                    className="border-[#d0d5dd]"
-                    value={formatNumberWithCommas(
-                      formData.targetCriteria.revenueGrowth
-                    )}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/,/g, "");
-                      if (value === "" || /^\d+$/.test(value)) {
-                        handleNestedChange(
-                          "targetCriteria",
-                          "revenueGrowth",
-                          value ? Number(value) : undefined
-                        );
-                      }
-                    }}
-                  />
-                </div>
-              </div>
+
+
 
               <div>
                 <Label
@@ -2986,7 +2962,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   }
                 />
                 <Label htmlFor="allowBuyerLikeDeals" className="text-[#344054]">
-                  Allow buy side fee deals (charged by seller above CIM Amplify
+                  Allow buy side fee deals (charged by advisor above CIM Amplify
                   Fees)
                 </Label>
               </div>

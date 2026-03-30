@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { API_BASE_URL, API_ENDPOINTS } from "@/lib/api-config";
 
 // Types
 export interface SellerProfile {
@@ -123,14 +124,15 @@ export interface BuyersActivity {
 }
 
 // API Functions
-const getApiUrl = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+const getApiUrl = () => API_BASE_URL;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 // Fetch deals with all data included
@@ -157,7 +159,7 @@ async function fetchAdminDeals(params: {
     queryParams.append("excludeStatus", "completed");
   }
 
-  const response = await fetch(`${apiUrl}/deals/admin?${queryParams}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.admin}?${queryParams}`, {
     headers: getAuthHeaders(),
   });
 
@@ -171,7 +173,7 @@ async function fetchAdminDeals(params: {
 // Fetch dashboard stats
 async function fetchDashboardStats(): Promise<DashboardStats> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/admin/stats`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.adminStats}`, {
     headers: getAuthHeaders(),
   });
 
@@ -185,7 +187,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
 // Fetch deal status summary (for activity popup)
 async function fetchDealStatusSummary(dealId: string): Promise<BuyersActivity> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${dealId}/status-summary`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.statusSummary(dealId)}`, {
     headers: getAuthHeaders(),
   });
 
@@ -201,7 +203,7 @@ async function fetchDealStatusSummary(dealId: string): Promise<BuyersActivity> {
 
   const buyerDetailsPromises = uniqueBuyerIds.map(async (buyerId) => {
     try {
-      const buyerResponse = await fetch(`${apiUrl}/buyers/${buyerId}`, {
+      const buyerResponse = await fetch(`${apiUrl}${API_ENDPOINTS.buyers.publicById(buyerId)}`, {
         headers: getAuthHeaders(),
       });
       if (buyerResponse.ok) {
@@ -245,7 +247,7 @@ async function fetchDealStatusSummary(dealId: string): Promise<BuyersActivity> {
 // Delete deal
 async function deleteDeal(dealId: string): Promise<void> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${dealId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.byId(dealId)}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
@@ -263,7 +265,7 @@ async function closeDeal(params: {
   notes?: string;
 }): Promise<any> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${params.dealId}/close`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.close(params.dealId)}`, {
     method: "POST",
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -283,7 +285,7 @@ async function closeDeal(params: {
 // Update deal
 async function updateDeal(params: { dealId: string; data: Partial<Deal> }): Promise<Deal> {
   const apiUrl = getApiUrl();
-  const response = await fetch(`${apiUrl}/deals/${params.dealId}`, {
+  const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.byId(params.dealId)}`, {
     method: "PATCH",
     headers: getAuthHeaders(),
     body: JSON.stringify(params.data),

@@ -8,24 +8,44 @@ interface AuthContextType {
   isLoggedIn: boolean
   userRole: string | null
   userId: string | null
-  login: (token: string, userId: string, role: string, refreshToken?: string) => void
+  isTeamMember: boolean
+  ownerId: string | null
+  ownerType: string | null
+  permissions: string[]
+  isTemporaryPassword: boolean
+  login: (token: string, userId: string, role: string, refreshToken?: string, teamMemberData?: TeamMemberLoginData) => void
   logout: (redirectToLogin?: boolean) => void
   isLoading: boolean
   checkAuth: () => { authenticated: boolean; role: string | null; userId: string | null }
   refreshAccessToken: () => Promise<boolean>
   forceLogout: (reason?: string) => void
+  clearTemporaryPassword: () => void
+}
+
+interface TeamMemberLoginData {
+  isTeamMember: boolean
+  ownerId: string
+  ownerType: "seller" | "buyer"
+  permissions: string[]
+  isTemporaryPassword: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
   isLoggedIn: false,
   userRole: null,
   userId: null,
+  isTeamMember: false,
+  ownerId: null,
+  ownerType: null,
+  permissions: [],
+  isTemporaryPassword: false,
   login: () => {},
   logout: () => {},
   isLoading: true,
   checkAuth: () => ({ authenticated: false, role: null, userId: null }),
   refreshAccessToken: async () => false,
   forceLogout: () => {},
+  clearTemporaryPassword: () => {},
 })
 
 // Session inactivity timeout (15 minutes)
@@ -52,13 +72,15 @@ const isTokenExpiredOrExpiring = (token: string, bufferMs: number = 60000): bool
 const getLoginPageForRole = (role: string | null): string => {
   switch (role) {
     case "buyer":
+    case "buyer-member":
       return "/buyer/login"
     case "seller":
+    case "seller-member":
       return "/seller/login"
     case "admin":
       return "/admin/login"
     default:
-      return "/member-login"
+      return "/login"
   }
 }
 
@@ -72,6 +94,11 @@ const clearAuthStorage = (role?: string | null) => {
   sessionStorage.removeItem("refreshToken")
   sessionStorage.removeItem("userId")
   sessionStorage.removeItem("userRole")
+  sessionStorage.removeItem("isTeamMember")
+  sessionStorage.removeItem("ownerId")
+  sessionStorage.removeItem("ownerType")
+  sessionStorage.removeItem("permissions")
+  sessionStorage.removeItem("isTemporaryPassword")
   
   // Clear legacy localStorage (cleanup)
   localStorage.removeItem("token")
@@ -96,6 +123,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isTeamMember, setIsTeamMember] = useState(false)
+  const [ownerId, setOwnerId] = useState<string | null>(null)
+  const [ownerType, setOwnerType] = useState<string | null>(null)
+  const [permissions, setPermissions] = useState<string[]>([])
+  const [isTemporaryPassword, setIsTemporaryPassword] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -103,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isRefreshingRef = useRef(false)
   const lastActivityRef = useRef<number>(Date.now())
 
-  const getApiUrl = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"
+  const getApiUrl = () => process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app"
 
   // Force logout - used when auth errors occur
   const forceLogout = useCallback((reason?: string) => {
@@ -128,6 +160,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoggedIn(false)
     setUserId(null)
     setUserRole(null)
+    setIsTeamMember(false)
+    setOwnerId(null)
+    setOwnerType(null)
+    setPermissions([])
+    setIsTemporaryPassword(false)
 
     // Redirect to appropriate login page
     const loginPage = getLoginPageForRole(currentRole)
@@ -253,6 +290,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setIsLoggedIn(true)
                 setUserId(storedUserId)
                 setUserRole(storedUserRole)
+
+                // Restore team member state on refresh
+                const storedIsTeamMember = sessionStorage.getItem("isTeamMember") === "true"
+                if (storedIsTeamMember) {
+                  setIsTeamMember(true)
+                  setOwnerId(sessionStorage.getItem("ownerId"))
+                  setOwnerType(sessionStorage.getItem("ownerType"))
+                  try {
+                    setPermissions(JSON.parse(sessionStorage.getItem("permissions") || "[]"))
+                  } catch { setPermissions([]) }
+                  setIsTemporaryPassword(sessionStorage.getItem("isTemporaryPassword") === "true")
+                }
               } else {
                 // Refresh failed, clear auth state
                 clearAuthStorage(storedUserRole)
@@ -272,6 +321,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setIsLoggedIn(true)
             setUserId(storedUserId)
             setUserRole(storedUserRole)
+
+            // Restore team member state
+            const storedIsTeamMember = sessionStorage.getItem("isTeamMember") === "true"
+            if (storedIsTeamMember) {
+              setIsTeamMember(true)
+              setOwnerId(sessionStorage.getItem("ownerId"))
+              setOwnerType(sessionStorage.getItem("ownerType"))
+              try {
+                setPermissions(JSON.parse(sessionStorage.getItem("permissions") || "[]"))
+              } catch { setPermissions([]) }
+              setIsTemporaryPassword(sessionStorage.getItem("isTemporaryPassword") === "true")
+            }
+
             // Schedule token refresh
             scheduleTokenRefresh(token)
           }
@@ -355,9 +417,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isLoggedIn, forceLogout, refreshAccessToken])
 
-  const login = (token: string, newUserId: string, role: string, refreshToken?: string) => {
+  const login = (token: string, newUserId: string, role: string, refreshToken?: string, teamMemberData?: TeamMemberLoginData) => {
     if (typeof window === "undefined") return
-    
+
     try {
       // Clean the token
       const cleanToken = token.trim()
@@ -371,6 +433,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (refreshToken) {
         const cleanRefreshToken = refreshToken.trim()
         sessionStorage.setItem("refreshToken", cleanRefreshToken)
+      }
+
+      // Store team member data if present
+      if (teamMemberData?.isTeamMember) {
+        sessionStorage.setItem("isTeamMember", "true")
+        sessionStorage.setItem("ownerId", teamMemberData.ownerId)
+        sessionStorage.setItem("ownerType", teamMemberData.ownerType)
+        sessionStorage.setItem("permissions", JSON.stringify(teamMemberData.permissions))
+        sessionStorage.setItem("isTemporaryPassword", String(teamMemberData.isTemporaryPassword))
+        setIsTeamMember(true)
+        setOwnerId(teamMemberData.ownerId)
+        setOwnerType(teamMemberData.ownerType)
+        setPermissions(teamMemberData.permissions)
+        setIsTemporaryPassword(teamMemberData.isTemporaryPassword)
+      } else {
+        setIsTeamMember(false)
+        setOwnerId(null)
+        setOwnerType(null)
+        setPermissions([])
+        setIsTemporaryPassword(false)
       }
 
       setIsLoggedIn(true)
@@ -412,6 +494,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoggedIn(false)
       setUserId(null)
       setUserRole(null)
+      setIsTeamMember(false)
+      setOwnerId(null)
+      setOwnerType(null)
+      setPermissions([])
+      setIsTemporaryPassword(false)
 
       if (redirectToLogin) {
         const loginPage = getLoginPageForRole(currentRole)
@@ -451,16 +538,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
+  const clearTemporaryPassword = useCallback(() => {
+    setIsTemporaryPassword(false)
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("isTemporaryPassword", "false")
+    }
+  }, [])
+
   const value = {
     isLoggedIn,
     userRole,
     userId,
+    isTeamMember,
+    ownerId,
+    ownerType,
+    permissions,
+    isTemporaryPassword,
     login,
     logout,
     isLoading,
     checkAuth,
     refreshAccessToken,
     forceLogout,
+    clearTemporaryPassword,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

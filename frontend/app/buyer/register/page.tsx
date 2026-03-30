@@ -13,7 +13,9 @@ import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { register } from "@/services/api";
 import Header from "@/components/ui/auth-header";
+import { ga4Events } from "@/lib/ga4";
 import Footer from "@/components/ui/auth-footer";
+import { API_BASE_URL } from "@/lib/api-config";
 
 interface RegisterFormData {
   fullName: string;
@@ -191,6 +193,8 @@ export default function BuyerRegisterPage() {
       }
       localStorage.setItem("userRole", "buyer");
 
+      ga4Events.formEndBuyer();
+
       toast({
         title: "Welcome to CIM Amplify!",
         description:
@@ -239,8 +243,7 @@ export default function BuyerRegisterPage() {
 
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
-    // Get API URL from localStorage or use default
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = API_BASE_URL;
 
     // Redirect to Google OAuth endpoint
     window.location.href = `${apiUrl}/buyers/google`;

@@ -5,6 +5,8 @@ import { useToast, toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/contexts/auth-context";
+import { BuyerProtectedRoute } from "@/components/buyer/protected-route";
 import type { CompanyProfile } from "@/types/company-profile";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -27,13 +29,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  LogOut,
-  Settings,
-  Briefcase,
-  Store,
-  User,
   Menu,
 } from "lucide-react";
+import { BuyerNav } from "@/components/buyer/buyer-nav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -73,7 +71,7 @@ const BUSINESS_MODELS = [
 ];
 
 // Default API URL
-const DEFAULT_API_URL = "http://localhost:5001";
+const DEFAULT_API_URL = "https://cim-backend.vercel.app";
 
 // Type for hierarchical selection
 interface HierarchicalSelection {
@@ -102,6 +100,7 @@ interface BuyerProfile {
 export default function CompanyProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { logout: authLogout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
     "idle" | "success" | "error"
@@ -309,7 +308,7 @@ useEffect(() => {
     ebitdaMax: undefined,
     transactionSizeMin: undefined,
     transactionSizeMax: undefined,
-    revenueGrowth: undefined,
+
     minStakePercent: undefined,
     minYearsInBusiness: undefined,
     preferredBusinessModels: [],
@@ -476,7 +475,7 @@ const fetchUserProfile = async () => {
         return;
       }
 
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
       const response = await fetch(`${apiUrl}/buyers/profile`, {
         headers: {
@@ -549,8 +548,7 @@ const fetchUserProfile = async () => {
         return value === undefined || value === "" ? "Minimum transaction size is required" : null;
       case "targetCriteria.transactionSizeMax":
         return value === undefined || value === "" ? "Maximum transaction size is required" : null;
-      case "targetCriteria.revenueGrowth":
-        return value === undefined || value === "" ? "Minimum 3 Year Average Revenue Growth is required" : null;
+
       case "targetCriteria.minYearsInBusiness":
         return value === undefined || value === "" ? "Minimum years in business is required" : null;
       case "targetCriteria.minStakePercent":
@@ -1264,7 +1262,6 @@ const fetchUserProfile = async () => {
         "Maximum transaction size cannot be less than minimum transaction size";
     }
 
-    errors["targetCriteria.revenueGrowth"] = validateField("targetCriteria.revenueGrowth", formData.targetCriteria.revenueGrowth) || "";
 
     setFieldErrors(errors);
 
@@ -1408,85 +1405,172 @@ const fetchUserProfile = async () => {
     }
   };
 
-  // Helper to load states and cities for a country
-  const getStates = (countryCode: string) => {
-    return State.getStatesOfCountry(countryCode);
+  // Toggle a single state value in the buyer's countries array
+  const toggleGeoValue = (value: string) => {
+    setFormData((prev) => {
+      const current = prev.targetCriteria.countries || [];
+      const exists = current.includes(value);
+      return {
+        ...prev,
+        targetCriteria: {
+          ...prev.targetCriteria,
+          countries: exists ? current.filter((c) => c !== value) : [...current, value],
+        },
+      };
+    });
   };
 
-  // Render hierarchical geography selection
+  // Toggle a country — selects/deselects the country AND all its states
+  const toggleCountryWithStates = (countryName: string, countryCode: string) => {
+    const states = State.getStatesOfCountry(countryCode);
+    const stateValues = states.map((s) => `${countryName} > ${s.name}`);
+
+    setFormData((prev) => {
+      const current = prev.targetCriteria.countries || [];
+      const isSelected = current.includes(countryName);
+
+      let next: string[];
+      if (isSelected) {
+        // Deselect country + all its states
+        const toRemove = new Set([countryName, ...stateValues]);
+        next = current.filter((c) => !toRemove.has(c));
+      } else {
+        // Select country + all its states
+        next = [...new Set([...current, countryName, ...stateValues])];
+      }
+
+      return {
+        ...prev,
+        targetCriteria: { ...prev.targetCriteria, countries: next },
+      };
+    });
+  };
+
+  // Render hierarchical geography selection with states (multi-select checkboxes)
   const renderGeographySelection = () => {
+    const search = countrySearchTerm.trim().toLowerCase();
     const allCountries = Country.getAllCountries();
+
+    const filtered = allCountries.filter((country) => {
+      if (!search) return true;
+      if (country.name.toLowerCase().includes(search)) return true;
+      const states = State.getStatesOfCountry(country.isoCode);
+      return states.some((s) => s.name.toLowerCase().includes(search));
+    });
+
+    const priorityCodes = ["CA", "US", "MX"];
+    const priority = filtered.filter((c) => priorityCodes.includes(c.isoCode));
+    const rest = filtered.filter((c) => !priorityCodes.includes(c.isoCode));
+    priority.sort((a, b) => priorityCodes.indexOf(a.isoCode) - priorityCodes.indexOf(b.isoCode));
+    rest.sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...priority, ...rest];
+
+    const selectedCountries = formData.targetCriteria.countries || [];
+
     return (
-      <div className="space-y-2 font-poppins">
-        {allCountries.map((country) => (
-          <div key={country.isoCode} className="border-b border-gray-100 pb-1">
-            <div className="flex items-center">
-              <input
-                type="radio"
-                id={`geo-${country.isoCode}`}
-                name="geography"
-                checked={formData.targetCriteria.countries.includes(country.name)}
-                onChange={() => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    targetCriteria: { ...prev.targetCriteria, countries: [country.name] },
-                  }));
-                }}
-                className="mr-2 h-4 w-4 text-[#3aafa9] focus:ring-[#3aafa9] checked:bg-[#3aafa9] checked:border-[#3aafa9]"
-              />
-              <div
-                className="flex items-center cursor-pointer flex-1"
-                onClick={() => setExpandedCountries((prev) => ({ ...prev, [country.isoCode]: !prev[country.isoCode] }))}
-              >
-                {expandedCountries[country.isoCode] ? (
-                  <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
-                )}
-                <Label htmlFor={`geo-${country.isoCode}`} className="text-[#344054] cursor-pointer font-medium">
-                  {country.name}
-                </Label>
-              </div>
-            </div>
-            {expandedCountries[country.isoCode] && (
-              <div className="ml-6 mt-1 space-y-1">
-                {getStates(country.isoCode).map((state) => (
-                  <div key={state.isoCode} className="pl-2">
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        id={`geo-${country.isoCode}-${state.isoCode}`}
-                        name="geography"
-                        checked={formData.targetCriteria.countries.includes(`${country.name} > ${state.name}`)}
-                        onChange={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            targetCriteria: { ...prev.targetCriteria, countries: [`${country.name} > ${state.name}`] },
-                          }));
-                        }}
-                        className="mr-2 h-4 w-4 text-[#3aafa9] focus:ring-[#3aafa9] checked:bg-[#3aafa9] checked:border-[#3aafa9]"
-                      />
-                      <div
-                        className="flex items-center cursor-pointer flex-1"
-                        onClick={() => setExpandedStates((prev) => ({ ...prev, [`${country.isoCode}-${state.isoCode}`]: !prev[`${country.isoCode}-${state.isoCode}`] }))}
-                      >
-                        {expandedStates[`${country.isoCode}-${state.isoCode}`] ? (
-                          <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
-                        )}
-                        <Label htmlFor={`geo-${country.isoCode}-${state.isoCode}`} className="text-[#344054] cursor-pointer">
-                          {state.name}
-                        </Label>
-                      </div>
-                    </div>
+      <>
+        <style jsx>{`
+          .geo-checkbox {
+            appearance: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #D1D5DB;
+            border-radius: 0.25rem;
+            background-color: white;
+            cursor: pointer;
+            position: relative;
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+          }
+          .geo-checkbox:checked {
+            background-color: #3AAFA9;
+            border-color: #3AAFA9;
+          }
+          .geo-checkbox:checked::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 45%;
+            width: 0.25rem;
+            height: 0.5rem;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: translate(-50%, -50%) rotate(45deg);
+          }
+          .geo-checkbox:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(58, 175, 169, 0.2);
+          }
+        `}</style>
+        <div className="space-y-2 font-poppins">
+          {sorted.map((country) => {
+            const states = State.getStatesOfCountry(country.isoCode);
+            const hasStates = states.length > 0;
+
+            return (
+              <div key={country.isoCode} className="border-b border-gray-100 pb-1">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`geo-${country.isoCode}`}
+                    checked={selectedCountries.includes(country.name)}
+                    onChange={() => toggleCountryWithStates(country.name, country.isoCode)}
+                    className="geo-checkbox"
+                  />
+                  <div
+                    className="flex items-center cursor-pointer flex-1"
+                    onClick={() => {
+                      if (hasStates) {
+                        setExpandedCountries((prev) => ({
+                          ...prev,
+                          [country.isoCode]: !prev[country.isoCode],
+                        }));
+                      }
+                    }}
+                  >
+                    {hasStates ? (
+                      expandedCountries[country.isoCode] ? (
+                        <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
+                      )
+                    ) : null}
+                    <Label htmlFor={`geo-${country.isoCode}`} className="text-[#344054] cursor-pointer font-medium">
+                      {country.name}
+                    </Label>
                   </div>
-                ))}
+                </div>
+                {hasStates && expandedCountries[country.isoCode] && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {states.map((state) => {
+                      const stateValue = `${country.name} > ${state.name}`;
+                      return (
+                        <div key={state.isoCode} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`geo-${country.isoCode}-${state.isoCode}`}
+                              checked={selectedCountries.includes(stateValue)}
+                              onChange={() => toggleGeoValue(stateValue)}
+                              className="geo-checkbox"
+                            />
+                            <Label
+                              htmlFor={`geo-${country.isoCode}-${state.isoCode}`}
+                              className="text-[#344054] cursor-pointer"
+                            >
+                              {state.name}
+                            </Label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      </>
     );
   };
 
@@ -1603,7 +1687,7 @@ const fetchUserProfile = async () => {
     // If it's a base64 image, return as-is
     if (path.startsWith("data:image")) return path;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001";
+    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;
@@ -1617,14 +1701,8 @@ const fetchUserProfile = async () => {
   };
 
   // Handle logout
-  const { dismiss } = useToast();
   const handleLogout = () => {
-    if (!isClient) return;
-
-    dismiss();
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    router.push("/buyer/login");
+    authLogout();
   };
 
   // Add expansion state for countries and states for the geography selector UI
@@ -1658,6 +1736,7 @@ const fetchUserProfile = async () => {
   }
 
   return (
+    <BuyerProtectedRoute>
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
@@ -1681,50 +1760,7 @@ const fetchUserProfile = async () => {
                     <Image src="/logo.svg" width={150} height={40} alt="CIM Amplify" className="h-10 w-auto" />
                   </Link>
                 </div>
-                <nav className="flex flex-col space-y-2">
-                  <Link
-                    href="/buyer/deals"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Briefcase className="mr-3 h-5 w-5" />
-                    <span>All Deals</span>
-                  </Link>
-                  <Link
-                    href="/buyer/marketplace"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <Store className="mr-3 h-5 w-5" />
-                    <span>MarketPlace</span>
-                  </Link>
-                  <Link
-                    href="/buyer/company-profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
-                  >
-                    <Settings className="mr-3 h-5 w-5" />
-                    <span>Company Profile</span>
-                  </Link>
-                  <Link
-                    href="/buyer/profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-                  >
-                    <User className="mr-3 h-5 w-5" />
-                    <span>My Profile</span>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleLogout();
-                    }}
-                    className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
-                  >
-                    <LogOut className="mr-3 h-5 w-5" />
-                    <span>Sign Out</span>
-                  </button>
-                </nav>
+                <BuyerNav activePage="company-profile" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
               </SheetContent>
             </Sheet>
 
@@ -1765,44 +1801,8 @@ const fetchUserProfile = async () => {
 
       <div className="flex flex-col md:flex-row">
         {/* Sidebar - Hidden on mobile */}
-        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white min-h-[calc(100vh-4rem)]">
-          <nav className="flex flex-col p-4">
-            <Link
-              href="/buyer/deals"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Briefcase className="mr-3 h-5 w-5" />
-              <span>All Deals</span>
-            </Link>
-            <Link
-              href="/buyer/marketplace"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Store className="mr-3 h-5 w-5" />
-              <span>MarketPlace</span>
-            </Link>
-            <Link
-              href="/buyer/company-profile"
-              className="mb-2 flex items-center rounded-md bg-teal-500 px-4 py-3 text-white hover:bg-teal-600 transition-colors"
-            >
-              <Settings className="mr-3 h-5 w-5" />
-              <span>Company Profile</span>
-            </Link>
-            <Link
-              href="/buyer/profile"
-              className="mb-2 flex items-center rounded-md px-4 py-3 text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <User className="mr-3 h-5 w-5" />
-              <span>My Profile</span>
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center rounded-md px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 text-left w-full transition-colors"
-            >
-              <LogOut className="mr-3 h-5 w-5" />
-              <span>Sign Out</span>
-            </button>
-          </nav>
+        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white h-[calc(100vh-4rem)] sticky top-[4rem] overflow-y-auto flex-shrink-0">
+          <BuyerNav activePage="company-profile" onLogout={handleLogout} />
         </aside>
 
         {/* Main content */}
@@ -2214,57 +2214,10 @@ const fetchUserProfile = async () => {
                           onChange={e => setCountrySearchTerm(e.target.value)}
                         />
                       </div>
-                      {/* Pills block below search bar */}
-                      {/* {formData.targetCriteria.countries.length > 0 && (
-                        <div className="mb-4">
-                          <div className="text-sm text-[#667085] mb-1">Selected</div>
-                          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                            {formData.targetCriteria.countries.map((country, index) => (
-                              <span
-                                key={`selected-country-${index}`}
-                                className="bg-gray-100 text-[#344054] text-xs rounded-full px-2 py-0.5 flex items-center group"
-                              >
-                                {country}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setFormData((prev) => ({
-                                      ...prev,
-                                      targetCriteria: {
-                                        ...prev.targetCriteria,
-                                        countries: prev.targetCriteria.countries.filter((c, i) => i !== index),
-                                      },
-                                    }))
-                                  }
-                                  className="ml-1 text-gray-400 hover:text-gray-600 focus:outline-none"
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-3 w-3"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                                                           clipRule="evenodd"
-                                    />
-                                  </svg>
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )} */}
-                      {/* Dropdown (GeographySelector) */}
-                      <GeographySelector
-                        selectedCountries={formData.targetCriteria.countries}
-                        onChange={countries => setFormData(prev => ({
-                          ...prev,
-                          targetCriteria: { ...prev.targetCriteria, countries },
-                        }))}
-                        searchTerm={countrySearchTerm}
-                      />
+                      {/* Country + State selection */}
+                      <div className="flex-1 overflow-y-auto min-h-0">
+                        {renderGeographySelection()}
+                      </div>
                       {fieldErrors["targetCriteria.countries"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.countries"]}
@@ -2695,29 +2648,8 @@ const fetchUserProfile = async () => {
                     </div>
                   </div>
 
-                  <div>
-                    <Label className="text-[#667085] text-sm mb-1.5 block">
-                      Minimum 3 Year Average Revenue Growth (%) <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="flex items-center">
-                      <Input
-                        id="revenueGrowth"
-                        type="text"
-                        className={`border-[#d0d5dd] ${fieldErrors["targetCriteria.revenueGrowth"] ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                        value={formatNumberWithCommas(formData.targetCriteria.revenueGrowth)}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange("targetCriteria", "revenueGrowth", value ? Number(value) : undefined);
-                          }
-                        }}
-                        required
-                      />
-                    </div>
-                    {fieldErrors["targetCriteria.revenueGrowth"] && (
-                      <p className="text-red-500 text-sm mt-1">{fieldErrors["targetCriteria.revenueGrowth"]}</p>
-                    )}
-                  </div>
+
+
                   <div>
                     <Label
                       htmlFor="minYearsInBusiness"
@@ -2878,7 +2810,7 @@ const fetchUserProfile = async () => {
                       htmlFor="allowBuyerLikeDeals"
                       className="text-[#344054]"
                     >
-                      Allow buy side fee deals (charged by seller above CIM
+                      Allow buy side fee deals (charged by advisor above CIM
                       Amplify Fees)
                     </Label>
                   </div>
@@ -2968,5 +2900,6 @@ const fetchUserProfile = async () => {
         </main>
       </div>
     </div>
+    </BuyerProtectedRoute>
   );
 }

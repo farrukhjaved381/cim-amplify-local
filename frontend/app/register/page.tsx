@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { API_BASE_URL } from "@/lib/api-config";
 
 interface RegisterFormData {
   fullName: string
@@ -125,8 +126,7 @@ export default function RegisterPage() {
     setIsSubmitting(true)
 
     try {
-      // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = API_BASE_URL;
 
       const response = await fetch(`${apiUrl}/buyers/register`, {
         method: "POST",
@@ -213,8 +213,7 @@ export default function RegisterPage() {
 
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
-    // Get API URL from localStorage or use default
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = API_BASE_URL;
     // Redirect to Google OAuth endpoint
     window.location.href = `${apiUrl}/buyers/google`
   }

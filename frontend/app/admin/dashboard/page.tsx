@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Download, Search, X, Building2, ChevronDown, ChevronUp, Users, Mail, Briefcase, Calendar } from "lucide-react";
+import { FileText, Download, Search, X, Building2, ChevronDown, ChevronUp, Users, Mail, Briefcase, Calendar, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -491,7 +491,7 @@ const AdminEditDealForm: React.FC<{
         trailingRevenueAmount: deal.financialDetails?.trailingRevenueAmount || 0,
         trailingEBITDACurrency: deal.financialDetails?.trailingEBITDACurrency || "USD($)",
         trailingEBITDAAmount: deal.financialDetails?.trailingEBITDAAmount || 0,
-        avgRevenueGrowth: deal.financialDetails?.avgRevenueGrowth || 0,
+
         netIncome: deal.financialDetails?.netIncome || 0,
         askingPrice: deal.financialDetails?.askingPrice || 0,
         t12FreeCashFlow: deal.financialDetails?.t12FreeCashFlow || 0,
@@ -746,25 +746,8 @@ const AdminEditDealForm: React.FC<{
             }}
           />
         </div>
-        <div>
-          <Label>Average 3-Year Revenue Growth (%)</Label>
-          <Input
-            type="text"
-            value={
-              form.financialDetails.avgRevenueGrowth
-                ? formatNumberWithCommas(form.financialDetails.avgRevenueGrowth)
-                : ""
-            }
-            onChange={(e) => {
-              const rawValue = e.target.value.replace(/,/g, "");
-              handleNumberChange(
-                { target: { value: rawValue } } as React.ChangeEvent<HTMLInputElement>,
-                "avgRevenueGrowth",
-                "financialDetails"
-              );
-            }}
-          />
-        </div>
+
+
         <div>
           <Label>Net Income</Label>
           <Input
@@ -1091,6 +1074,16 @@ export default function DealManagementDashboard() {
   const [selectedWinningBuyer, setSelectedWinningBuyer] = useState("");
   const [buyerActivityLoading, setBuyerActivityLoading] = useState(false);
   const [isSubmittingOffMarket, setIsSubmittingOffMarket] = useState(false);
+
+  // LOI dialog state
+  const [loiDialogOpen, setLoiDialogOpen] = useState(false);
+  const [loiDialogStep, setLoiDialogStep] = useState(1);
+  const [selectedDealForLoi, setSelectedDealForLoi] = useState<Deal | null>(null);
+  const [selectedLoiBuyer, setSelectedLoiBuyer] = useState("");
+  const [loiBuyerActivity, setLoiBuyerActivity] = useState<any[]>([]);
+  const [loiBuyerActivityLoading, setLoiBuyerActivityLoading] = useState(false);
+  const [isSubmittingLoi, setIsSubmittingLoi] = useState(false);
+
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
 
   const toggleDescription = (dealId: string) => {
@@ -1174,7 +1167,7 @@ export default function DealManagementDashboard() {
   const fetchEverActiveBuyers = async (dealId: string) => {
     try {
       const token = sessionStorage.getItem('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
 
       const response = await fetch(`${apiUrl}/deals/admin/${dealId}/ever-active-buyers`, {
         headers: {
@@ -1330,10 +1323,77 @@ export default function DealManagementDashboard() {
     }
   }, [offMarketDialogOpen, selectedDealForOffMarketDialog, offMarketData.buyerFromCIM]);
 
+  // LOI dialog handlers
+  const handleAdminPauseForLOI = (deal: Deal) => {
+    setSelectedDealForLoi(deal);
+    setLoiDialogStep(1);
+    setSelectedLoiBuyer("");
+    setLoiBuyerActivity([]);
+    setLoiDialogOpen(true);
+  };
+
+  const handleAdminPauseForLOISubmit = async (isCimBuyer: boolean) => {
+    if (!selectedDealForLoi) return;
+    setIsSubmittingLoi(true);
+    try {
+      const token = sessionStorage.getItem('token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
+      const body = isCimBuyer && selectedLoiBuyer ? { loiBuyerId: selectedLoiBuyer } : {};
+
+      const response = await fetch(`${apiUrl}/deals/${selectedDealForLoi._id}/pause-for-loi`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        setLoiDialogOpen(false);
+        return;
+      }
+
+      // Refresh all tabs
+      await Promise.all([
+        fetchDeals(activeCurrentPage, dealsPerPage, "active", debouncedSearchTerm),
+        fetchDeals(allDealsCurrentPage, dealsPerPage, "allDeals", debouncedSearchTerm),
+        fetchDeals(loiCurrentPage, dealsPerPage, "loi", debouncedSearchTerm),
+      ]);
+
+      setLoiDialogOpen(false);
+      setLoiDialogStep(1);
+      setSelectedDealForLoi(null);
+      setSelectedLoiBuyer("");
+      setLoiBuyerActivity([]);
+    } catch (error) {
+      setLoiDialogOpen(false);
+    } finally {
+      setIsSubmittingLoi(false);
+    }
+  };
+
+  // Fetch ever-active buyers when LOI dialog reaches step 2
+  useEffect(() => {
+    if (loiDialogOpen && selectedDealForLoi && loiDialogStep === 2) {
+      setLoiBuyerActivity([]);
+      setSelectedLoiBuyer("");
+      setLoiBuyerActivityLoading(true);
+      fetchEverActiveBuyers(selectedDealForLoi._id)
+        .then((buyers) => {
+          setLoiBuyerActivity(buyers);
+          if (buyers.length > 0) {
+            setSelectedLoiBuyer(buyers[0].buyerId);
+          }
+        })
+        .finally(() => setLoiBuyerActivityLoading(false));
+    }
+  }, [loiDialogOpen, selectedDealForLoi, loiDialogStep]);
+
   useEffect(() => {
     const fetchAdminProfile = async () => {
       const token = sessionStorage.getItem('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
       const res = await fetch(`${apiUrl}/admin/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1936,6 +1996,17 @@ export default function DealManagementDashboard() {
                           </Button>
                           <Button
                             size="sm"
+                            className="bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 h-8 px-3 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAdminPauseForLOI(deal);
+                            }}
+                            disabled={deal.status === "loi"}
+                          >
+                            Pause for LOI
+                          </Button>
+                          <Button
+                            size="sm"
                             className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 h-8 px-3 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -2342,14 +2413,8 @@ export default function DealManagementDashboard() {
                                   : "N/A"}
                               </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500">Avg Revenue Growth:</span>
-                              <span className="font-medium text-gray-700">
-                                {deal.financialDetails?.avgRevenueGrowth != null
-                                  ? `${deal.financialDetails.avgRevenueGrowth}%`
-                                  : "N/A"}
-                              </span>
-                            </div>
+
+
                             <div className="flex justify-between">
                               <span className="text-gray-500">Buyer From CIM Amplify:</span>
                               <span className={`font-medium ${deal.closedWithBuyer && deal.closedWithBuyer !== "false" && deal.closedWithBuyer !== "" ? "text-green-600" : "text-gray-600"}`}>
@@ -2732,6 +2797,18 @@ export default function DealManagementDashboard() {
                           >
                             Activity
                           </Button>
+                          {deal.status !== "loi" && (
+                            <Button
+                              size="sm"
+                              className="bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 h-8 px-3 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAdminPauseForLOI(deal);
+                              }}
+                            >
+                              Pause for LOI
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             className="bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 h-8 px-3 text-xs"
@@ -2906,6 +2983,106 @@ export default function DealManagementDashboard() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* LOI Dialog */}
+      <Dialog
+        open={loiDialogOpen}
+        onOpenChange={() => {
+          setLoiDialogOpen(false);
+          setLoiDialogStep(1);
+          setSelectedDealForLoi(null);
+          setSelectedLoiBuyer("");
+          setLoiBuyerActivity([]);
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl border-0 shadow-2xl">
+          {loiDialogStep === 1 ? (
+            <>
+              <DialogHeader className="text-center pb-2">
+                <DialogTitle className="text-xl font-bold text-gray-900">Is the LOI buyer from CIM Amplify?</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 mt-4">
+                <Button
+                  onClick={() => setLoiDialogStep(2)}
+                  className="w-full py-3 bg-teal-500 hover:bg-teal-600"
+                  disabled={isSubmittingLoi}
+                >
+                  Yes, choose CIM buyer
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleAdminPauseForLOISubmit(false)}
+                  disabled={isSubmittingLoi}
+                  className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  {isSubmittingLoi ? <Loader2 className="h-4 w-4 animate-spin" /> : "No, not from CIM Amplify"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader className="text-center pb-2">
+                <DialogTitle className="text-xl font-bold text-gray-900">Select CIM buyer for LOI</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {loiBuyerActivityLoading ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                      <div className="w-10 h-10 rounded-full border-3 border-teal-200 border-t-teal-500 animate-spin mb-3" />
+                      <span className="text-sm font-medium">Loading buyers...</span>
+                    </div>
+                  ) : loiBuyerActivity.length > 0 ? (
+                    loiBuyerActivity.map((buyer: any) => (
+                      <div
+                        key={buyer.buyerId}
+                        className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                          selectedLoiBuyer === buyer.buyerId
+                            ? "border-teal-400 bg-teal-50 shadow-md shadow-teal-100"
+                            : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                        }`}
+                        onClick={() => setSelectedLoiBuyer(buyer.buyerId)}
+                      >
+                        <div>
+                          <div className="font-medium text-sm">{buyer.buyerName || "Unknown Buyer"}</div>
+                          <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
+                        </div>
+                        {selectedLoiBuyer === buyer.buyerId && (
+                          <div className="w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center">
+                            <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-4">
+                      No CIM Amplify buyers are available for this deal.
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={() => handleAdminPauseForLOISubmit(true)}
+                    disabled={!selectedLoiBuyer || isSubmittingLoi}
+                    className="w-full py-3 bg-teal-500 hover:bg-teal-600"
+                  >
+                    {isSubmittingLoi ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pause for LOI"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setLoiDialogStep(1)}
+                    disabled={isSubmittingLoi}
+                    className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {selectedDealForOffMarketDialog && (
         <Dialog

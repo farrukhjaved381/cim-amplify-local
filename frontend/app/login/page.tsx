@@ -11,6 +11,7 @@ import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import Link from "next/link"
+import { API_BASE_URL } from "@/lib/api-config";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -123,8 +124,7 @@ export default function LoginPage() {
 
     try {
 
-      // Get API URL from localStorage or use default
-      const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+      const apiUrl = API_BASE_URL;
 
       // Use fetch directly for more control
       const response = await fetch(`${apiUrl}/auth/login`, {
@@ -181,8 +181,7 @@ export default function LoginPage() {
 
   // Handle Google OAuth login
   const handleGoogleLogin = () => {
-    // Get API URL from localStorage or use default
-    const apiUrl = localStorage.getItem("apiUrl") || "http://localhost:5001"
+    const apiUrl = API_BASE_URL;
     // Redirect to Google OAuth endpoint
     window.location.href = `${apiUrl}/buyers/google`
   }
