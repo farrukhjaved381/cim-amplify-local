@@ -29,7 +29,6 @@ import {
   adminCreateTeamMember,
   adminUpdateTeamMember,
   adminDeleteTeamMember,
-  adminGetMembersByOwner,
 } from "@/services/team-api"
 import { SELLER_PERMISSIONS, BUYER_PERMISSIONS } from "@/hooks/use-permissions"
 
@@ -270,13 +269,13 @@ export default function AdminTeamManagementPage() {
                     key={member._id}
                     className="border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold flex-shrink-0">
                           {member.fullName.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <h4 className="font-semibold text-gray-900">{member.fullName}</h4>
                             <span
                               className={`px-2 py-0.5 text-xs font-medium rounded-full ${
@@ -293,20 +292,20 @@ export default function AdminTeamManagementPage() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Mail className="h-3.5 w-3.5" />
-                              {member.email}
+                          <div className="flex flex-col gap-0.5 mt-0.5 text-sm text-gray-500">
+                            <span className="flex items-center gap-1 truncate">
+                              <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="truncate">{member.email}</span>
                             </span>
                             <span className="flex items-center gap-1">
-                              <Building2 className="h-3.5 w-3.5" />
-                              {member.ownerCompanyName || "N/A"} ({member.ownerFullName || "N/A"})
+                              <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="line-clamp-2 break-words">{member.ownerCompanyName || "N/A"} ({member.ownerFullName || "N/A"})</span>
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <Button variant="ghost" size="sm" onClick={() => toggleExpand(member._id)} className="text-gray-500">
                           {expandedRows.has(member._id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </Button>
