@@ -7,8 +7,6 @@ export default function Chatbot() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
-
   const classifyCompany = async () => {
     if (!description || description.length < 20) {
       setError("Please share at least two full sentences about the company.");
@@ -35,8 +33,8 @@ export default function Chatbot() {
           if (errorData?.error) {
             message = errorData.error;
           }
-        } catch (parseError) {
-          // Ignore JSON parsing issues for error responses; show friendly message instead.
+        } catch {
+          // Ignore JSON parsing issues
         }
         throw new Error(message);
       }
@@ -44,7 +42,7 @@ export default function Chatbot() {
       let data: any;
       try {
         data = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch {
         throw new Error(
           "We couldn't read the AI reply. Please try again after checking the tips below."
         );
@@ -58,14 +56,13 @@ export default function Chatbot() {
         );
       }
 
-      // Validate the response from the AI
       if (!data.classification || typeof data.classification !== 'string' || !data.classification.includes('→')) {
-        const reasoning = data.reasoning 
-          ? `AI's reasoning: ${data.reasoning}` 
+        const reasoning = data.reasoning
+          ? `AI's reasoning: ${data.reasoning}`
           : "The AI could not process the description. Please try rephrasing it with more detail and correct punctuation.";
         throw new Error(reasoning);
       }
-      
+
       const [category, subcategory] = data.classification.split(" → ");
       setResult({ ...data, category, subcategory });
 
@@ -93,7 +90,7 @@ export default function Chatbot() {
         <ul className="mt-2 space-y-1 list-disc list-inside">
           <li>Write two or more full sentences and end each one with a period.</li>
           <li>Describe what the company sells and who it serves.</li>
-          <li>Avoid extra spaces or blank lines between sentences.</li>
+          <li>Include details like trade/service type (e.g. HVAC, staffing, distribution).</li>
         </ul>
       </div>
 
@@ -115,6 +112,7 @@ export default function Chatbot() {
       </div>
 
       <button
+        type="button"
         onClick={classifyCompany}
         disabled={loading}
         className="w-full bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:-translate-y-0.5 transform transition-all duration-300 ease-in-out hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
@@ -137,10 +135,14 @@ export default function Chatbot() {
 
       {result && (
         <div className="mt-6 p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-l-4 border-green-500">
+          <p className="text-xs text-gray-500 mb-1">Suggested industry:</p>
           <div className="text-lg font-bold text-gray-800 mb-3">
             <span className="text-red-600">{result.category}</span> →{" "}
             <span className="text-purple-600">{result.subcategory}</span>
           </div>
+          <p className="text-sm text-gray-600 mb-3">
+            Find <strong>{result.subcategory}</strong> under <strong>{result.category}</strong> in the Industry Selector and check it.
+          </p>
           <div className="bg-white p-4 rounded-lg">
             <h4 className="font-semibold text-gray-700 mb-2">
               Classification Reasoning:

@@ -277,6 +277,13 @@ export function expandCountryOrRegion(selected: string): string[] {
     }
   }
 
+  // Handle non-US "Country > State" format (e.g. "Mexico > Chiapas", "Canada > Ontario")
+  // Include the parent country so it matches buyers who selected the whole country
+  if (selected.includes(" > ") && !selected.startsWith(US_REGION_PREFIX)) {
+    const country = selected.split(" > ")[0].trim();
+    expanded.add(country);
+  }
+
   return Array.from(expanded);
 }
 

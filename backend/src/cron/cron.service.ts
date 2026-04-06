@@ -252,7 +252,7 @@ export class CronService {
         };
 
         const emailBody = buyerMonthlyReportTemplate(reportData);
-        await this.mailService.sendEmailWithLogging(buyer.email, 'buyer', subject, emailBody);
+        await this.mailService.sendEmailWithLogging(buyer.email, 'buyer', subject, emailBody, [ILLUSTRATION_ATTACHMENT]);
 
         this.logger.log(`Monthly buyer report sent to ${buyer.email}: ${activeDeals.length} active, ${pendingDeals.length} pending (${newPendingRows.length} new, ${oldPendingRows.length} old)`);
       } catch (error) {
@@ -289,6 +289,11 @@ export class CronService {
       if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}K`;
       return `$${amount.toLocaleString()}`;
     };
+
+    // Count new buyers added last month (for no-deals advisors)
+    const newBuyersLastMonth = await this.buyerModel.countDocuments({
+      createdAt: { $gte: monthStart, $lte: monthEnd },
+    }).exec();
 
     for (const seller of sellers) {
       try {
@@ -415,10 +420,11 @@ export class CronService {
           movementsThisMonth: totalMovements,
           deals: reportDeals,
           frontendUrl,
+          newBuyersLastMonth,
         };
 
         const emailBody = advisorMonthlyReportTemplate(reportData);
-        await this.mailService.sendEmailWithLogging(seller.email, 'seller', subject, emailBody);
+        await this.mailService.sendEmailWithLogging(seller.email, 'seller', subject, emailBody, [ILLUSTRATION_ATTACHMENT]);
 
         this.logger.log(`Monthly advisor report sent to ${seller.email}: ${activeDeals.length} active, ${loiDeals.length} LOI, ${totalMovements} movements`);
       } catch (error) {

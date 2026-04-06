@@ -40,6 +40,7 @@ export interface AdvisorReportData {
   movementsThisMonth: number;
   deals: ReportDeal[];
   frontendUrl: string;
+  newBuyersLastMonth?: number;
 }
 
 // Colors (inlined since emails don't support CSS vars)
@@ -220,94 +221,61 @@ export function advisorMonthlyReportTemplate(data: AdvisorReportData): string {
   const dealCards = data.deals.map(d => renderDealCard(d, data.monthYear, data.frontendUrl)).join('');
   const dealCount = data.deals.length;
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CIM Amplify — Advisor Monthly Activity Report</title>
-</head>
-<body style="margin:0;padding:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#f2f6f6;color:${C.textPrimary};font-size:14px;line-height:1.6;">
+  const htmlContent = `
+    <p style="font-size:13px;color:${C.textMuted};margin-bottom:4px;">${escapeHtml(data.advisorCompany)} &middot; ${escapeHtml(data.monthYear)}</p>
 
-<div style="max-width:960px;margin:0 auto;padding:0 0 60px;">
+    <!-- SUMMARY STRIP -->
+    <div style="background:${C.tealPrimary};border-radius:8px;padding:16px;margin:16px 0;">
+      <table style="width:100%;">
+        <tr>
+          <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.18);width:33%;">
+            <div style="font-size:28px;font-weight:600;color:#fff;line-height:1;">${data.activeDealsCount}</div>
+            <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Active Deals</div>
+          </td>
+          <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.18);width:34%;">
+            <div style="font-size:28px;font-weight:600;color:#fff;line-height:1;">${data.totalBuyerInterest}</div>
+            <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Buyer Interest</div>
+          </td>
+          <td style="text-align:center;width:33%;">
+            <div style="font-size:28px;font-weight:600;color:#fff;line-height:1;">${data.movementsThisMonth}</div>
+            <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Movements</div>
+          </td>
+        </tr>
+      </table>
+    </div>
 
-  <!-- HEADER -->
-  <div style="background:${C.navy};padding:28px 36px 24px;">
-    <table style="width:100%;">
-      <tr>
-        <td style="vertical-align:top;">
-          <table><tr>
-            <td style="vertical-align:middle;padding-right:14px;">
-              <div style="width:38px;height:38px;background:${C.tealSecondary};border-radius:8px;text-align:center;line-height:38px;font-family:'Georgia',serif;font-size:20px;color:#fff;">C</div>
-            </td>
-            <td style="vertical-align:middle;">
-              <div style="font-size:11px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:${C.tealSecondary};margin-bottom:2px;">CIM Amplify</div>
-              <div style="font-family:'Georgia',serif;font-size:22px;color:#fff;line-height:1.2;">Monthly Deal Report</div>
-            </td>
-          </tr></table>
-        </td>
-        <td style="vertical-align:top;text-align:right;">
-          <div style="font-size:13px;font-weight:500;color:${C.tealLight};margin-bottom:3px;">${escapeHtml(data.monthYear)}</div>
-          <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:2px;">${escapeHtml(data.advisorName)}</div>
-          <div style="font-size:12px;color:${C.tealSecondary};margin-bottom:10px;">${escapeHtml(data.advisorCompany)}</div>
-          <a href="${data.frontendUrl}/seller/seller-form" style="display:inline-block;padding:9px 18px;border-radius:6px;font-size:12px;font-weight:600;background:${C.tealSecondary};color:#fff;text-decoration:none;letter-spacing:0.02em;">+ Add a New Deal</a>
-        </td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- SUMMARY STRIP -->
-  <div style="background:${C.tealPrimary};padding:16px 36px;">
-    <table style="width:100%;">
-      <tr>
-        <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.18);width:33%;">
-          <div style="font-family:'Georgia',serif;font-size:28px;color:#fff;line-height:1;">${data.activeDealsCount}</div>
-          <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Active Deals</div>
-        </td>
-        <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.18);width:34%;">
-          <div style="font-family:'Georgia',serif;font-size:28px;color:#fff;line-height:1;">${data.totalBuyerInterest}</div>
-          <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Buyer Interest</div>
-        </td>
-        <td style="text-align:center;width:33%;">
-          <div style="font-family:'Georgia',serif;font-size:28px;color:#fff;line-height:1;">${data.movementsThisMonth}</div>
-          <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Movements This Month</div>
-        </td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- SECTION HEADING -->
-  <div style="padding:28px 36px 12px;">
-    <table style="width:100%;"><tr>
-      <td><span style="font-family:'Georgia',serif;font-size:18px;color:${C.navy};">Your Active Listings</span></td>
+    <!-- SECTION HEADING -->
+    <table style="width:100%;margin-top:20px;"><tr>
+      <td><span style="font-size:16px;font-weight:600;color:${C.navy};">Your Active Listings</span></td>
       <td style="text-align:right;"><span style="font-size:12px;color:${C.tealPrimary};font-weight:500;background:${C.tealPale};border:1px solid ${C.border};border-radius:20px;padding:3px 12px;">${dealCount} deal${dealCount !== 1 ? 's' : ''}</span></td>
     </tr></table>
-  </div>
 
-  <!-- DEAL CARDS -->
-  ${dealCards}
+    <!-- DEAL CARDS -->
+    ${dealCards}
 
-  ${dealCount === 0 ? `
-    <div style="margin:0 36px 28px;padding:24px;background:${C.white};border-radius:12px;border:1px solid ${C.border};text-align:center;">
-      <p style="margin:0;color:#6b7280;font-size:14px;">You don't have any active deals right now.</p>
-      <p style="margin:12px 0 16px;color:#6b7280;font-size:13px;">CIM Amplify buyers are incredibly active. Add your deals to find a great buyer!</p>
-      <a href="${data.frontendUrl}/seller/seller-form" style="display:inline-block;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;background:${C.tealSecondary};color:#fff;text-decoration:none;">Add Your Deals</a>
+    ${dealCount === 0 ? `
+      <div style="margin-top:16px;padding:28px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;text-align:center;">
+        <p style="margin:0;font-size:16px;font-weight:600;color:${C.navy};">We would love to host your new deals!</p>
+        <p style="margin:12px 0 20px;color:#6b7280;font-size:14px;line-height:1.6;">Last month we added <strong style="color:${C.tealPrimary};">${data.newBuyersLastMonth || 0} new buyers</strong> to the CIM Amplify platform. Your next great buyer could be among them.</p>
+        <a href="${data.frontendUrl}/seller/seller-form" style="display:inline-block;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:600;background:${C.tealSecondary};color:#fff;text-decoration:none;">Add a Deal</a>
+      </div>
+    ` : ''}
+
+    <!-- Dashboard CTA -->
+    <div style="margin-top:20px;text-align:center;padding:16px;border:0.5px dashed #ccc;border-radius:10px;">
+      <div><a href="${data.frontendUrl}/seller/dashboard" style="display:inline-block;font-size:13px;font-weight:500;background:${C.tealPrimary};color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;">Go to Advisor Dashboard</a></div>
+      <div style="font-size:11px;color:${C.textMuted};margin-top:6px;">
+        <a href="${data.frontendUrl}/seller/seller-form" style="color:${C.tealPrimary};text-decoration:none;font-weight:500;">+ Add a New Deal</a>
+        &nbsp;&middot;&nbsp;
+        <a href="mailto:johnm@cimamplify.com" style="color:${C.tealPrimary};text-decoration:none;font-weight:500;">Contact Support</a>
+      </div>
     </div>
-  ` : ''}
+  `;
 
-  <!-- FOOTER -->
-  <div style="margin:32px 36px 0;padding-top:20px;border-top:1px solid ${C.border};">
-    <table style="width:100%;"><tr>
-      <td style="font-size:12px;color:${C.textMuted};"><strong style="color:${C.tealPrimary};">CIM Amplify</strong> &middot; Monthly Advisor Report &middot; Amplify Ventures Inc.</td>
-      <td style="text-align:right;">
-        <a href="${data.frontendUrl}/seller/dashboard" style="font-size:12px;color:${C.tealPrimary};text-decoration:none;font-weight:500;margin-right:16px;">Advisor Dashboard</a>
-        <a href="mailto:johnm@cimamplify.com" style="font-size:12px;color:${C.tealPrimary};text-decoration:none;font-weight:500;">Contact Support</a>
-      </td>
-    </tr></table>
-  </div>
-
-</div>
-
-</body>
-</html>`;
+  const { genericEmailTemplate } = require('./generic-email.template');
+  return genericEmailTemplate(
+    'Your Monthly Deal Activity Report',
+    data.advisorName.split(' ')[0] || data.advisorName,
+    htmlContent,
+  );
 }

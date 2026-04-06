@@ -122,6 +122,13 @@ interface GeographySelection {
 
 const US_REGION_PREFIX = "United States > ";
 const US_KEY_REGIONS = ["Northeast", "Midwest", "South", "West"];
+const US_REGION_STATES: Record<string, string[]> = {
+  Northeast: ["Connecticut", "Maine", "Massachusetts", "New Hampshire", "Rhode Island", "Vermont", "New Jersey", "New York", "Pennsylvania"],
+  Midwest: ["Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin", "Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska", "North Dakota", "South Dakota"],
+  South: ["Delaware", "Florida", "Georgia", "Maryland", "North Carolina", "South Carolina", "Virginia", "West Virginia", "District of Columbia", "Alabama", "Kentucky", "Mississippi", "Tennessee", "Arkansas", "Louisiana", "Oklahoma", "Texas"],
+  West: ["Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming", "Alaska", "California", "Hawaii", "Oregon", "Washington"],
+};
+const ALL_US_REGION_STATE_NAMES = new Set(Object.values(US_REGION_STATES).flat());
 
 interface IndustrySelection {
   sectors: Record<string, boolean>;
@@ -1004,8 +1011,16 @@ const renderGeographySelection = () => {
     if (!search) return true;
     if (country.name.toLowerCase().includes(search)) return true;
     if (country.name === "United States") {
-      return US_KEY_REGIONS.some((region) => region.toLowerCase().includes(search));
+      // Search regions and state names
+      if (US_KEY_REGIONS.some((r) => r.toLowerCase().includes(search))) return true;
+      if (ALL_US_REGION_STATE_NAMES.has(country.name)) return true;
+      for (const states of Object.values(US_REGION_STATES)) {
+        if (states.some((s) => s.toLowerCase().includes(search))) return true;
+      }
     }
+    // Also search states/provinces for any country
+    const countryStates = flatGeoData.filter((item) => item.countryCode === country.id && item.type === "state");
+    if (countryStates.some((s) => s.name.toLowerCase().includes(search))) return true;
     return false;
   });
 
@@ -1022,6 +1037,12 @@ const renderGeographySelection = () => {
   otherCountries.sort((a, b) => a.name.localeCompare(b.name));
   const sortedCountries = [...priorityCountries, ...otherCountries];
   const isUS = (id: string) => id === "US";
+
+  // Get states for a country from flatGeoData
+  const getCountryStates = (countryCode: string) =>
+    flatGeoData
+      .filter((item) => item.countryCode === countryCode && item.type === "state")
+      .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
@@ -1061,6 +1082,11 @@ const renderGeographySelection = () => {
       <div className="space-y-2 font-poppins">
         {sortedCountries.map((country, countryIndex) => {
           const countrySelected = geoSelection.selectedId === country.id;
+          const isExpanded = expandedContinents[country.id];
+          const hasStatesLoaded = flatGeoData.some(
+            (item) => item.countryCode === country.id && item.type === "state"
+          );
+
           return (
             <div
               key={`country-${country.id}-${countryIndex}`}
@@ -1075,57 +1101,115 @@ const renderGeographySelection = () => {
                   onChange={() => selectGeography(country.id, country.name, "country")}
                   className="geo-radio"
                 />
-                {isUS(country.id) ? (
-                  <div
-                    className="flex items-center cursor-pointer flex-1"
-                    onClick={() => toggleContinentExpansion(country.id)}
-                  >
-                    {expandedContinents[country.id] ? (
-                      <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
-                    )}
-                    <Label htmlFor={`geo-country-${country.id}`} className="text-[#344054] cursor-pointer font-medium">
-                      {country.name}
-                    </Label>
-                  </div>
-                ) : (
+                <div
+                  className="flex items-center cursor-pointer flex-1"
+                  onClick={async () => {
+                    // Load states if not already loaded
+                    if (!hasStatesLoaded && !isUS(country.id)) {
+                      await loadStatesAndCities(country.id);
+                    }
+                    toggleContinentExpansion(country.id);
+                  }}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
+                  )}
                   <Label htmlFor={`geo-country-${country.id}`} className="text-[#344054] cursor-pointer font-medium">
                     {country.name}
                   </Label>
-                )}
+                </div>
               </div>
 
-              {country.name === "United States" && expandedContinents[country.id] && (
-                  <div className="ml-6 mt-1 space-y-1">
-                    {US_KEY_REGIONS.map((region, regionIndex) => {
+              {/* United States: show regions first, then individual states */}
+              {isUS(country.id) && isExpanded && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {/* US Regions */}
+                  <div className="mb-1">
+                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">Regions</div>
+                    {US_KEY_REGIONS.map((region) => {
                       const regionId = `US-REGION-${region}`;
                       const regionLabel = `${US_REGION_PREFIX}${region}`;
                       return (
-                      <div
-                        key={`region-${regionId}-${regionIndex}`}
-                        className="pl-2"
-                      >
+                        <div key={regionId} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`geo-${regionId}`}
+                              name="geography"
+                              checked={geoSelection.selectedId === regionId}
+                              onChange={() => selectGeography(regionId, regionLabel, "region")}
+                              className="geo-radio"
+                            />
+                            <Label htmlFor={`geo-${regionId}`} className="text-[#344054] cursor-pointer font-medium">
+                              {region}
+                            </Label>
+                            <span className="text-[10px] text-gray-400 ml-1.5">
+                              ({US_REGION_STATES[region]?.length} states)
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* US Individual States */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1 border-t border-gray-100 mt-1 pt-1">Individual States</div>
+                    {Array.from(ALL_US_REGION_STATE_NAMES).sort().map((stateName) => {
+                      // Find state code from the library
+                      const stateObj = State.getStatesOfCountry("US").find((s) => s.name === stateName);
+                      if (!stateObj) return null;
+                      const stateId = `US-${stateObj.isoCode}`;
+                      const statePath = `${US_REGION_PREFIX}${stateName}`;
+                      return (
+                        <div key={stateId} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`geo-state-${stateId}`}
+                              name="geography"
+                              checked={geoSelection.selectedId === stateId}
+                              onChange={() => selectGeography(stateId, statePath, "state")}
+                              className="geo-radio"
+                            />
+                            <Label htmlFor={`geo-state-${stateId}`} className="text-[#344054] cursor-pointer text-sm">
+                              {stateName}
+                            </Label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Non-US countries: show states/provinces */}
+              {!isUS(country.id) && isExpanded && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {getCountryStates(country.id).length === 0 ? (
+                    <div className="pl-2 text-xs text-gray-400 py-1">No states/provinces available</div>
+                  ) : (
+                    getCountryStates(country.id).map((stateItem) => (
+                      <div key={stateItem.id} className="pl-2">
                         <div className="flex items-center">
                           <input
                             type="radio"
-                            id={`geo-${regionId}`}
+                            id={`geo-state-${stateItem.id}`}
                             name="geography"
-                            checked={geoSelection.selectedId === regionId}
-                            onChange={() => selectGeography(regionId, regionLabel, "region")}
+                            checked={geoSelection.selectedId === stateItem.id}
+                            onChange={() => selectGeography(stateItem.id, stateItem.path, "state")}
                             className="geo-radio"
                           />
-                          <Label
-                            htmlFor={`geo-${regionId}`}
-                            className="text-[#344054] cursor-pointer"
-                          >
-                            {region}
+                          <Label htmlFor={`geo-state-${stateItem.id}`} className="text-[#344054] cursor-pointer text-sm">
+                            {stateItem.name}
                           </Label>
                         </div>
                       </div>
-                    )})}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1970,10 +2054,12 @@ const renderGeographySelection = () => {
 
                 {/* Industry Selector */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 relative">
-                    Industry Selector <RequiredStar />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Industry Selector <RequiredStar />
+                    </label>
                     <FloatingChatbot/>
-                  </label>
+                  </div>
                   <div className="border border-[#d0d5dd] rounded-md p-4 h-80 flex flex-col">
                     <div className="relative mb-4">
                       <Search className="absolute left-2 top-2.5 h-4 w-4 text-[#667085]" />

@@ -211,42 +211,24 @@ export function buyerMonthlyReportTemplate(data: BuyerReportData): string {
 
   const hasNoDeals = data.activeDeals.length === 0 && data.newPendingDeals.length === 0 && data.oldPendingDeals.length === 0;
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CIM Amplify — Monthly Buyer Report</title>
-</head>
-<body style="margin:0;padding:32px 16px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:${C.bgBody};font-size:14px;line-height:1.6;">
-
-<div style="max-width:720px;margin:0 auto;background:${C.white};border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08);">
-
-  <!-- HEADER -->
-  <div style="background:${C.navy};padding:2rem 2rem 1.75rem;">
-    <div style="font-family:'Georgia',serif;font-size:22px;color:${C.tealSecondary};letter-spacing:-0.5px;margin-bottom:1.25rem;">CIM <span style="color:${C.tealLight};">Amplify</span></div>
-    <div style="font-size:15px;color:${C.tealLight};margin-bottom:4px;">Your Monthly Deal Activity Report &mdash; ${esc(data.buyerName)}, ${esc(data.buyerCompany)}</div>
-    <div style="font-size:12px;color:${C.tealSecondary};letter-spacing:0.5px;text-transform:uppercase;margin-bottom:1.25rem;">${esc(data.monthYear)} &middot; Generated ${esc(data.generatedDate)}</div>
+  const htmlContent = `
+    <p style="font-size:13px;color:${C.textMuted};margin-bottom:4px;">${esc(data.buyerCompany)} &middot; ${esc(data.monthYear)} &middot; Generated ${esc(data.generatedDate)}</p>
 
     <!-- Stats -->
-    <table style="width:100%;border-collapse:separate;border-spacing:10px 0;">
+    <table style="width:100%;border-collapse:separate;border-spacing:10px 0;margin:16px 0;">
       <tr>
-        <td style="width:50%;background:rgba(255,255,255,0.07);border:0.5px solid rgba(58,175,169,0.3);border-radius:8px;padding:12px 14px;">
+        <td style="width:50%;background:${C.navy};border-radius:8px;padding:12px 14px;">
           <div style="font-size:11px;color:${C.tealSecondary};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pending deals</div>
           <div style="font-size:24px;font-weight:500;color:${C.tealLight};">${data.pendingCount}</div>
           <div style="font-size:11px;color:rgba(222,242,241,0.5);margin-top:2px;">+${data.newThisMonthCount} new this month</div>
         </td>
-        <td style="width:50%;background:rgba(255,255,255,0.07);border:0.5px solid rgba(58,175,169,0.3);border-radius:8px;padding:12px 14px;">
+        <td style="width:50%;background:${C.navy};border-radius:8px;padding:12px 14px;">
           <div style="font-size:11px;color:${C.tealSecondary};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Active (interested)</div>
           <div style="font-size:24px;font-weight:500;color:${C.tealLight};">${data.activeCount}</div>
           <div style="font-size:11px;color:rgba(222,242,241,0.5);margin-top:2px;">In progress</div>
         </td>
       </tr>
     </table>
-  </div>
-
-  <!-- BODY -->
-  <div style="padding:1.5rem 2rem 2rem;">
 
     ${activeSection}
     ${newPendingSection}
@@ -269,10 +251,12 @@ export function buyerMonthlyReportTemplate(data: BuyerReportData): string {
       <div><a href="${data.frontendUrl}/buyer/deals" style="display:inline-block;font-size:13px;font-weight:500;background:${C.tealPrimary};color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;">Log in to your buyer dashboard</a></div>
       <div style="font-size:11px;color:${C.textMuted};margin-top:6px;">${esc(data.frontendUrl)}/buyer/deals</div>
     </div>
+  `;
 
-  </div>
-</div>
-
-</body>
-</html>`;
+  const { genericEmailTemplate } = require('./generic-email.template');
+  return genericEmailTemplate(
+    'Your Monthly Deal Activity Report',
+    data.buyerName.split(' ')[0] || data.buyerName,
+    htmlContent,
+  );
 }

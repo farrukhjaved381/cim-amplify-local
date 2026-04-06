@@ -1819,9 +1819,12 @@ useEffect(() => {
 
                   {/* Industry Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Industry Selector <RequiredStar />
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Industry Selector <RequiredStar />
+                      </label>
+                      <FloatingChatbot/>
+                    </div>
                     <div className="border border-[#d0d5dd] rounded-md p-4 h-80 flex flex-col">
                       <div className="relative mb-4">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-[#667085]" />
@@ -2691,7 +2694,6 @@ useEffect(() => {
             </div>
           </form>
           <Toaster />
-          <FloatingChatbot />
         </div>
       </SellerProtectedRoute>
       

@@ -797,7 +797,7 @@ export default function Component() {
               </ul>
               <Button
                 onClick={() => { ga4Events.formStartSeller(); router.push("/seller/register"); }}
-                className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base w-full sm:w-auto"
+                className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 font-medium text-sm sm:text-base w-full sm:w-auto"
               >
                 Add A Deal
               </Button>
@@ -895,7 +895,7 @@ export default function Component() {
               </div>
               <Button
                 onClick={() => { ga4Events.formStartSeller(); router.push("/seller/register"); }}
-                className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base"
+                className="mt-4 sm:mt-6 bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 font-medium text-sm sm:text-base"
               >
                 Add a Deal
               </Button>
@@ -990,7 +990,7 @@ export default function Component() {
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 text-center justify-center">
               <Button
                 onClick={() => { ga4Events.formStartSeller(); router.push("/seller/register"); }}
-                className="bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 inline-block text-center font-medium text-sm sm:text-base w-full sm:w-auto"
+                className="bg-teal-500 hover:bg-primary transition-colors text-white rounded px-4 sm:px-6 py-2 sm:py-3 font-medium text-sm sm:text-base w-full sm:w-auto"
               >
                 Add A Deal
               </Button>

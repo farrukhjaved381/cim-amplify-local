@@ -1752,8 +1752,8 @@ export class DealsService {
     const BATCH_SIZE = 5;
     const DELAY_BETWEEN_BATCHES_MS = 3000;
 
-    const trailingRevenueAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails?.trailingRevenueAmount || 0);
-    const trailingEBITDAAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails?.trailingEBITDAAmount || 0);
+    const trailingRevenueAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(deal.financialDetails?.trailingRevenueAmount || 0);
+    const trailingEBITDAAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(deal.financialDetails?.trailingEBITDAAmount || 0);
 
     for (let i = 0; i < buyerIds.length; i += BATCH_SIZE) {
       const batch = buyerIds.slice(i, i + BATCH_SIZE);
@@ -1769,7 +1769,7 @@ export class DealsService {
             const buyer = await this.buyerModel.findById(buyerId).exec();
             if (!buyer) return;
 
-            const subject = `YOU ARE INVITED TO PARTICIPATE IN A ${trailingEBITDAAmount} DEAL`;
+            const subject = `YOU ARE INVITED TO PARTICIPATE IN A ${trailingEBITDAAmount} EBITDA DEAL`;
             const activateUrl = `${getFrontendUrl()}/buyer/deals?action=activate&dealId=${dealIdStr}`;
             const passUrl = `${getFrontendUrl()}/buyer/deals?action=pass&dealId=${dealIdStr}`;
 
