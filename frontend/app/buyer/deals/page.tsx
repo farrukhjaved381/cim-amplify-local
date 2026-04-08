@@ -974,7 +974,7 @@ export default function DealsPage() {
                 {searchQuery
                   ? `No deals match "${searchQuery}". Try adjusting your search terms.`
                   : activeTab === 'pending'
-                  ? "We'll send you an email when a deal matches your criteria.Check out Marketplace to see deals that are posted by Advisors to all members."
+                  ? "We'll send you an email when a deal matches your criteria. Check out Marketplace to see deals that are posted by Advisors to all members."
                   : activeTab === 'active'
                   ? "Move deals from Pending to start working on them."
                   : "Deals you've passed on that are still on the market will appear here."}

@@ -721,7 +721,7 @@ async sendWelcomeEmail(user: User, role: 'buyer' | 'seller') {
         <li style="margin-bottom: 8px;">We get out of the way – no requirement to communicate through the platform</li>
         <li style="margin-bottom: 8px;">All deals at least $1 Million in EBITDA or $5 Million in revenue</li>
       </ul>
-      <p>Please to make sure you complete your investment profile so we can match you with the best opportunities.</p>
+      <p>Please make sure you complete your investment profile so we can match you with the best opportunities.</p>
       ${emailButton('Go to Buyer Dashboard', `${frontendUrl}/buyer/login`)}
     `;
   } else {
@@ -742,7 +742,7 @@ async sendWelcomeEmail(user: User, role: 'buyer' | 'seller') {
   const emailContent = `
     <p>Welcome to CIM Amplify! We're excited to have you join our platform.</p>
     ${roleSpecificContent}
-    <p>If you have any questions, feel free to reply to this email or visit our FAQ section.</p>
+    <p>If you have any questions, feel free to reply to this email or visit our <a href="https://cimamplify.com/#FAQs" style="color: #3AAFA9; text-decoration: underline;">FAQ section</a>.</p>
     <p>We look forward to helping you with your deal-making journey!</p>
   `.trim();
 

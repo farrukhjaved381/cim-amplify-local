@@ -55,6 +55,7 @@ interface DashboardStats {
   totalSellers: number;
   dealsThisMonth: number;
   dealsLastMonth: number;
+  marketplaceDeals: number;
   dealsPreviousWeek: number;
   buyersPreviousWeek: number;
   dealsCurrentWeek: number;
@@ -62,6 +63,9 @@ interface DashboardStats {
   previousWeekStart: string;
   previousWeekEnd: string;
   currentWeekStart: string;
+  totalRevenueSize: number;
+  totalEbitdaSize: number;
+  totalInvitations: number;
   buyerReferralSources: Array<{ name: string; value: number }>;
   sellerReferralSources: Array<{ name: string; value: number }>;
   industryBreakdown: Array<{ name: string; value: number }>;
@@ -274,7 +278,7 @@ export default function AdminOverviewPage() {
     enabled: mounted,
   });
 
-  // Calculate derived metrics
+  // Calculate derived metrics - buyerEngagement still from paginated data for charts
   const buyerEngagement = React.useMemo(() => {
     if (!allDealsData?.data) return { totalInvitations: 0, accepted: 0, pending: 0, rejected: 0 };
 
@@ -307,25 +311,11 @@ export default function AdminOverviewPage() {
     return levels;
   }, [allDealsData]);
 
-
-  const marketplaceDeals = React.useMemo(() => {
-    if (!allDealsData?.data) return 0;
-    return allDealsData.data.filter((deal: DealSummary) => deal.isPublic === true).length;
-  }, [allDealsData]);
-
-  const totalRevenueSize = React.useMemo(() => {
-    if (!allDealsData?.data) return 0;
-    return allDealsData.data.reduce((sum: number, deal: DealSummary) => {
-      return sum + (deal.financialDetails?.trailingRevenueAmount || 0);
-    }, 0);
-  }, [allDealsData]);
-
-  const totalEbitdaSize = React.useMemo(() => {
-    if (!allDealsData?.data) return 0;
-    return allDealsData.data.reduce((sum: number, deal: DealSummary) => {
-      return sum + (deal.financialDetails?.trailingEBITDAAmount || 0);
-    }, 0);
-  }, [allDealsData]);
+  // Platform metrics from server-side stats (accurate across ALL deals)
+  const totalRevenueSize = stats?.totalRevenueSize || 0;
+  const totalEbitdaSize = stats?.totalEbitdaSize || 0;
+  const marketplaceDeals = stats?.marketplaceDeals || 0;
+  const serverTotalInvitations = stats?.totalInvitations || 0;
 
   // Chart data for Deal Status Distribution (Pie Chart)
   const dealStatusChartData = useMemo(() => {
@@ -838,7 +828,7 @@ export default function AdminOverviewPage() {
                   </div>
                   <div className="flex justify-between items-center p-2 bg-gradient-to-r from-amber-50 to-white rounded-lg">
                     <span className="text-xs text-gray-600">Invitations</span>
-                    <span className="text-sm font-bold text-amber-600">{buyerEngagement.totalInvitations}</span>
+                    <span className="text-sm font-bold text-amber-600">{serverTotalInvitations}</span>
                   </div>
                 </div>
               </CardContent>

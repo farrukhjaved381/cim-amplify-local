@@ -582,10 +582,10 @@ export class DealsService {
 
       if (seller && buyer) {
         // Email to Advisor (Seller)
-        const advisorSubject = `CIM AMPLIFY INTRODUCTION FOR ${deal.title}`;
+        const advisorSubject = `${buyer.companyName} is interested in ${deal.title} on CIM Amplify`;
         const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
           <p>${buyer.fullName} at ${buyer.companyName} is interested in learning more about ${deal.title}.  If you attached an NDA to this deal it has already been sent to the buyer for execution.</p>
-          <p>Here are the buyer's details:</p>
+          <p>Here are the buyer's details, please reach out to them right away:</p>
           <p>
             ${buyer.fullName}<br>
             ${buyer.companyName}<br>
@@ -1951,10 +1951,10 @@ export class DealsService {
 
         // Email to Advisor (Seller)
         if (seller && buyer) {
-          const advisorSubject = `CIM AMPLIFY INTRODUCTION FOR ${dealDoc.title}`;
+          const advisorSubject = `${buyer.companyName} is interested in ${dealDoc.title} on CIM Amplify`;
           const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
             <p>${buyer.fullName} at ${buyer.companyName} is interested in learning more about ${dealDoc.title}.  If you attached an NDA to this deal it has already been sent to the buyer for execution.</p>
-            <p>Here are the buyer's details:</p>
+            <p>Here are the buyer's details, please reach out to them right away:</p>
             <p>
               ${buyer.fullName}<br>
               ${buyer.companyName}<br>
@@ -1962,7 +1962,6 @@ export class DealsService {
               ${buyer.phone}<br>
               ${(companyProfile as any)?.website || ''}
             </p>
-            <p>Thank you!</p>
           `);
 
           try {
@@ -2050,30 +2049,6 @@ export class DealsService {
             );
           } catch (emailError) {
             this.logger.error(`Failed to send activation email for buyer ${buyerId} on deal ${dealId}`, this.formatError(emailError));
-          }
-        }
-      } else if (status === "rejected") {
-        // Buyer rejects deal: Notify seller
-        const seller = await this.sellerModel.findById(dealDoc.seller).exec();
-        const buyer = await this.buyerModel.findById(buyerId).exec();
-
-        if (seller && buyer) {
-          const subject = `${buyer.fullName} from ${buyer.companyName} just passed on ${dealDoc.title}`;
-          const htmlBody = genericEmailTemplate(subject, getFirstName(seller.fullName), `
-            <p>${buyer.fullName} from ${buyer.companyName} just passed on ${dealDoc.title}. You can view all of your buyer activity on your dashboard.</p>
-            ${emailButton('View Dashboard', `${getFrontendUrl()}/seller/dashboard`)}
-          `);
-          try {
-            await this.mailService.sendEmailWithLogging(
-              seller.email,
-              'seller',
-              subject,
-              htmlBody,
-              [ILLUSTRATION_ATTACHMENT], // attachments
-              (dealDoc._id as Types.ObjectId).toString(), // relatedDealId
-            );
-          } catch (rejectionEmailError) {
-            this.logger.error(`Failed to send rejection notification email for deal ${dealId}: ${rejectionEmailError.message}`);
           }
         }
       }
@@ -3339,6 +3314,9 @@ export class DealsService {
     previousWeekStart: string;
     previousWeekEnd: string;
     currentWeekStart: string;
+    totalRevenueSize: number;
+    totalEbitdaSize: number;
+    totalInvitations: number;
     buyerReferralSources: Array<{ name: string; value: number }>;
     sellerReferralSources: Array<{ name: string; value: number }>;
     industryBreakdown: Array<{ name: string; value: number }>;
@@ -3375,6 +3353,9 @@ export class DealsService {
       buyersPreviousWeek,
       dealsCurrentWeek,
       buyersCurrentWeek,
+      revenueAgg,
+      ebitdaAgg,
+      invitationsAgg,
       buyerReferralSourcesAgg,
       sellerReferralSourcesAgg,
       industryBreakdownAgg,
@@ -3402,6 +3383,16 @@ export class DealsService {
       this.buyerModel.countDocuments({
         createdAt: { $gte: startOfCurrentWeek },
       }).exec(),
+      this.dealModel.aggregate([
+        { $group: { _id: null, total: { $sum: { $ifNull: ['$financialDetails.trailingRevenueAmount', 0] } } } },
+      ]).exec(),
+      this.dealModel.aggregate([
+        { $group: { _id: null, total: { $sum: { $ifNull: ['$financialDetails.trailingEBITDAAmount', 0] } } } },
+      ]).exec(),
+      this.dealModel.aggregate([
+        { $project: { targetedCount: { $size: { $ifNull: ['$targetedBuyers', []] } } } },
+        { $group: { _id: null, total: { $sum: '$targetedCount' } } },
+      ]).exec(),
       this.buyerModel.aggregate([
         {
           $project: {
@@ -3503,6 +3494,9 @@ export class DealsService {
       previousWeekStart: startOfPreviousWeek.toISOString(),
       previousWeekEnd: endOfPreviousWeek.toISOString(),
       currentWeekStart: startOfCurrentWeek.toISOString(),
+      totalRevenueSize: revenueAgg?.[0]?.total || 0,
+      totalEbitdaSize: ebitdaAgg?.[0]?.total || 0,
+      totalInvitations: invitationsAgg?.[0]?.total || 0,
       buyerReferralSources: buyerReferralSourcesAgg,
       sellerReferralSources: sellerReferralSourcesAgg,
       industryBreakdown: industryBreakdownAgg,
