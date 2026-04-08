@@ -3370,7 +3370,7 @@ export class DealsService {
       this.dealModel.countDocuments({
         createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
       }).exec(),
-      this.dealModel.countDocuments({ isPublic: true, status: 'active' }).exec(),
+      this.dealModel.countDocuments({ isPublic: true }).exec(),
       this.dealModel.countDocuments({
         createdAt: { $gte: startOfPreviousWeek, $lt: startOfCurrentWeek },
       }).exec(),
