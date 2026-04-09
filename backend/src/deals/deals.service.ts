@@ -183,7 +183,7 @@ export class DealsService {
         const emailContent = `
           <p>Dear ${seller.fullName},</p>
           <p>We are truly excited to help you find a great buyer for your deal.</p>
-          <p>We will let you know via email when your selected buyers change from pending to active to pass. You can also check your dashboard at any time to see buyer activity.</p>
+          <p>We will let you know via email when your selected buyers are interested and want more information. You can also check your dashboard at any time to see buyer activity.</p>
           ${emailButton('Go to Dashboard', `${getFrontendUrl()}/seller/dashboard`)}
           <p>Please help us to keep the platform up to date by clicking the <b>Off Market button</b> when the deal is sold or paused. If sold to one of our introduced buyers we will be in touch to arrange payment of your reward!</p>
           <p>Finally, If your deal did not fetch any buyers, we are always adding new buyers that may match in the future. To watch for new matches simply click Activity on the deal card and then click on the <b>Invite More Buyers</b> button.</p>
@@ -206,9 +206,11 @@ export class DealsService {
       const trailingRevenueAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(savedDeal.financialDetails?.trailingRevenueAmount || 0);
       const trailingEBITDAAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(savedDeal.financialDetails?.trailingEBITDAAmount || 0);
       const sellerNameForOwner = seller?.fullName || 'Not provided';
+      const sellerCompanyForOwner = seller?.companyName || 'Not provided';
       const sellerEmailForOwner = seller?.email || 'Not provided';
       const ownerHtmlBody = genericEmailTemplate(ownerHeading, 'John', `
         <p><b>Seller Name</b>: ${sellerNameForOwner}</p>
+        <p><b>Company Name</b>: ${sellerCompanyForOwner}</p>
         <p><b>Seller Email</b>: ${sellerEmailForOwner}</p>
         <p><b>Description</b>: ${savedDeal.companyDescription}</p>
         <p><b>T12 Revenue</b>: ${trailingRevenueAmount}</p>
@@ -2480,6 +2482,7 @@ export class DealsService {
     notes?: string,
     winningBuyerId?: string,
     userRole?: string,
+    buyerFromCIM?: boolean,
   ): Promise<Deal> {
     const dealDoc = await this.dealModel.findById(dealId).exec();
     if (!dealDoc) {
@@ -2532,26 +2535,55 @@ export class DealsService {
     }
 
     const dealTrackingModel = this.dealModel.db.model('DealTracking');
+    const normalizedWinningBuyerId = typeof winningBuyerId === 'string' ? winningBuyerId.trim() : winningBuyerId;
+    const existingWinningBuyerId = typeof dealDoc.closedWithBuyer === 'string' ? dealDoc.closedWithBuyer.trim() : '';
+    const explicitlyNonCimBuyer = buyerFromCIM === false;
+
+    const acceptedBuyerIds: string[] = [];
+    if (dealDoc.invitationStatus instanceof Map) {
+      dealDoc.invitationStatus.forEach((status, buyerId) => {
+        if (status?.response === 'accepted') {
+          acceptedBuyerIds.push(String(buyerId));
+        }
+      });
+    } else if (dealDoc.invitationStatus && typeof dealDoc.invitationStatus === 'object') {
+      Object.entries(dealDoc.invitationStatus as Record<string, any>).forEach(([buyerId, status]) => {
+        if ((status as any)?.response === 'accepted') {
+          acceptedBuyerIds.push(String(buyerId));
+        }
+      });
+    }
+
+    const inferredAcceptedBuyerId = acceptedBuyerIds.length === 1 ? acceptedBuyerIds[0] : '';
+    const resolvedWinningBuyerId = explicitlyNonCimBuyer
+      ? ''
+      : (normalizedWinningBuyerId || existingWinningBuyerId || inferredAcceptedBuyerId);
+    const winningBuyer = resolvedWinningBuyerId && Types.ObjectId.isValid(resolvedWinningBuyerId)
+      ? await this.buyerModel.findById(resolvedWinningBuyerId).exec()
+      : null;
+    const hasCimAmplifyWinningBuyer = !explicitlyNonCimBuyer && !!winningBuyer;
+
     const trackingData: any = {
       deal: dealId,
       interactionType: 'completed',
       timestamp: new Date(),
       notes: notes || 'Deal closed by seller',
-      metadata: { finalSalePrice, winningBuyerId },
+      metadata: {
+        finalSalePrice,
+        winningBuyerId: winningBuyer?._id?.toString() || normalizedWinningBuyerId,
+        buyerFromCIM: buyerFromCIM ?? null,
+      },
     };
 
-    if (winningBuyerId) {
-      trackingData.buyer = winningBuyerId;
+    if (hasCimAmplifyWinningBuyer) {
+      trackingData.buyer = winningBuyer!._id.toString();
       // Store buyer info in the deal document
-      const buyer = await this.buyerModel.findById(winningBuyerId).lean();
-      if (buyer) {
-        dealDoc.closedWithBuyer = winningBuyerId;
-        dealDoc.closedWithBuyerCompany = buyer.companyName || '';
-        dealDoc.closedWithBuyerEmail = buyer.email || '';
-        dealDoc.markModified('closedWithBuyer');
-        dealDoc.markModified('closedWithBuyerCompany');
-        dealDoc.markModified('closedWithBuyerEmail');
-      }
+      dealDoc.closedWithBuyer = winningBuyer!._id.toString();
+      dealDoc.closedWithBuyerCompany = winningBuyer!.companyName || '';
+      dealDoc.closedWithBuyerEmail = winningBuyer!.email || '';
+      dealDoc.markModified('closedWithBuyer');
+      dealDoc.markModified('closedWithBuyerCompany');
+      dealDoc.markModified('closedWithBuyerEmail');
     }
 
     const tracking = new dealTrackingModel(trackingData);
@@ -2560,9 +2592,8 @@ export class DealsService {
     await this.syncBuyerDealCountsForDeal(dealDoc as DealDocument);
 
     // Phase 4.1: When a deal goes off market (sold to CIM Amplify buyer)
-    if (winningBuyerId) {
+    if (hasCimAmplifyWinningBuyer) {
       const seller = await this.sellerModel.findById(userId).exec();
-      const winningBuyer = await this.buyerModel.findById(winningBuyerId).exec();
 
       if (seller && winningBuyer) {
         const dealIdStr = (dealDoc._id instanceof Types.ObjectId) ? dealDoc._id.toHexString() : String(dealDoc._id);
@@ -2622,7 +2653,7 @@ export class DealsService {
       if (seller) {
         const subject = `Thank you for using CIM Amplify!`;
         const htmlBody = genericEmailTemplate(subject, getFirstName(seller.fullName), `
-          <p>Thank you so much for posting your deal on CIM Amplify!</p>
+          <p>Thank you so much for posting ${dealDoc.title} on CIM Amplify!</p>
           <p>We apologize deeply for not helping much with this deal! Fortunately we are adding new buyers daily and we hope that you will post with us again soon! Enjoy your gift card as our appreciation of your hard work.</p>
         `);
         const dealIdStr = (dealDoc._id instanceof Types.ObjectId) ? dealDoc._id.toHexString() : String(dealDoc._id);
@@ -2653,7 +2684,8 @@ export class DealsService {
           // Notify both active (accepted) and pending buyers
           if (status.response === 'accepted' || status.response === 'pending') {
             // Skip the winning buyer if there is one
-            if (!winningBuyerId || buyerId !== winningBuyerId) {
+            const winningBuyerIdToSkip = winningBuyer?._id ? winningBuyer._id.toString() : null;
+            if (!winningBuyerIdToSkip || buyerId !== winningBuyerIdToSkip) {
               buyerIdsToNotify.push(buyerId);
             }
           }
@@ -3917,6 +3949,3 @@ export class DealsService {
       .exec();
   }
 }
-
-
-

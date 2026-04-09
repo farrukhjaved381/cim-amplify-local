@@ -295,7 +295,6 @@ export default function SellerDashboardPage() {
 
   const [offMarketDialogOpen, setOffMarketDialogOpen] = useState(false)
   const [loiDialogOpen, setLoiDialogOpen] = useState(false)
-  const [loiDialogStep, setLoiDialogStep] = useState(1)
   const [currentDialogStep, setCurrentDialogStep] = useState(1)
   const [selectedDealForOffMarket, setSelectedDealForOffMarket] = useState<Deal | null>(null)
   const [selectedDealForLoi, setSelectedDealForLoi] = useState<Deal | null>(null)
@@ -421,7 +420,6 @@ export default function SellerDashboardPage() {
 
   const handlePauseForLOI = async (deal: Deal) => {
     setSelectedDealForLoi(deal)
-    setLoiDialogStep(1)
     setSelectedWinningBuyer("")
     setBuyerActivity([])
     setLoiDialogOpen(true)
@@ -489,7 +487,7 @@ export default function SellerDashboardPage() {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({}),
+              body: JSON.stringify({ buyerFromCIM: false }),
             })
             if (!response.ok) {
               const errorText = await response.text()
@@ -555,6 +553,7 @@ export default function SellerDashboardPage() {
         body: JSON.stringify({
           finalSalePrice: Number.parseFloat(completionData.finalSalePrice),
           winningBuyerId: selectedWinningBuyer, // Use the selected buyer ID
+          buyerFromCIM: true,
         }),
       })
 
@@ -582,7 +581,7 @@ export default function SellerDashboardPage() {
   }
 
   // Replace the handleOffMarketSubmit function with this updated version
-  const handleOffMarketSubmit = async () => {
+  const handleOffMarketSubmit = async (buyerFromCIMOverride?: boolean) => {
     if (!selectedDealForOffMarket || !offMarketData.transactionValue) {
       toast({
         title: "Missing information",
@@ -592,8 +591,11 @@ export default function SellerDashboardPage() {
       return
     }
 
+    const effectiveBuyerFromCIM =
+      typeof buyerFromCIMOverride === "boolean" ? buyerFromCIMOverride : offMarketData.buyerFromCIM
+
     // If buyer is from CIM, ensure a buyer is selected
-    if (offMarketData.buyerFromCIM === true && !selectedWinningBuyer) {
+    if (effectiveBuyerFromCIM === true && !selectedWinningBuyer) {
       toast({
         title: "Buyer required",
         description: "Please select a buyer from the list",
@@ -610,8 +612,9 @@ export default function SellerDashboardPage() {
       // Prepare winningBuyerId: only send if buyerFromCIM is true
       const body: any = {
         finalSalePrice: Number.parseFloat(offMarketData.transactionValue),
+        buyerFromCIM: effectiveBuyerFromCIM === true,
       }
-      if (offMarketData.buyerFromCIM === true) {
+      if (effectiveBuyerFromCIM === true) {
         body.winningBuyerId = selectedWinningBuyer
       }
 
@@ -671,6 +674,7 @@ export default function SellerDashboardPage() {
       if (offMarketData.transactionValue) {
         body.finalSalePrice = Number.parseFloat(offMarketData.transactionValue)
       }
+      body.buyerFromCIM = false
 
       const closeResponse = await fetch(`${apiUrl}/deals/${selectedDealForOffMarket._id}/close`, {
         method: "POST",
@@ -840,13 +844,13 @@ export default function SellerDashboardPage() {
   }, [offMarketDialogOpen, selectedDealForOffMarket, currentDialogStep])
 
   useEffect(() => {
-    if (loiDialogOpen && selectedDealForLoi && loiDialogStep === 2) {
+    if (loiDialogOpen && selectedDealForLoi) {
       setBuyerActivity([])
       setSelectedWinningBuyer("")
       setBuyerActivityLoading(true)
       fetchEverActiveBuyers(selectedDealForLoi._id).finally(() => setBuyerActivityLoading(false))
     }
-  }, [loiDialogOpen, selectedDealForLoi, loiDialogStep])
+  }, [loiDialogOpen, selectedDealForLoi])
 
   // Update the useEffect for complete deal dialog:
   useEffect(() => {
@@ -1120,91 +1124,89 @@ export default function SellerDashboardPage() {
         {/* LOI Dialog */}
         <Dialog open={loiDialogOpen} onOpenChange={setLoiDialogOpen}>
           <DialogContent className="sm:max-w-md rounded-2xl border-0 shadow-2xl">
-            {loiDialogStep === 1 ? (
-              <>
-                <DialogHeader className="text-center pb-2">
-                  <DialogTitle className="text-xl font-bold text-gray-900">Is the LOI buyer from CIM Amplify?</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3 mt-4">
-                  <Button
-                    onClick={() => setLoiDialogStep(2)}
-                    className="w-full py-3 bg-teal-500 hover:bg-teal-600"
-                    disabled={!!pausingDealId}
-                  >
-                    Yes, choose CIM buyer
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePauseForLOISubmit(false)}
-                    disabled={!!pausingDealId}
-                    className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    {pausingDealId ? <Loader2 className="h-4 w-4 animate-spin" /> : "No, not from CIM Amplify"}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <DialogHeader className="text-center pb-2">
-                  <DialogTitle className="text-xl font-bold text-gray-900">Select CIM buyer for LOI</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {buyerActivityLoading ? (
-                      <div className="flex flex-col items-center justify-center py-8 text-gray-500">
-                        <div className="w-10 h-10 rounded-full border-3 border-teal-200 border-t-teal-500 animate-spin mb-3" />
-                        <span className="text-sm font-medium">Loading buyers...</span>
+            <DialogHeader className="text-center pb-2">
+              <div className="w-14 h-14 mx-auto mb-4 bg-gradient-to-br from-teal-100 to-cyan-50 rounded-2xl flex items-center justify-center">
+                <svg className="w-7 h-7 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <DialogTitle className="text-xl font-bold text-gray-900">Select The Buyer</DialogTitle>
+              <p className="text-gray-500">Choose the LOI buyer for this deal</p>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {buyerActivityLoading ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                    <div className="w-10 h-10 rounded-full border-3 border-teal-200 border-t-teal-500 animate-spin mb-3" />
+                    <span className="text-sm font-medium">Loading buyers...</span>
+                  </div>
+                ) : activeBuyerOptions.length > 0 ? (
+                  activeBuyerOptions.map((buyer) => (
+                    <div
+                      key={buyer.buyerId}
+                      className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                        selectedWinningBuyer === buyer.buyerId
+                          ? "border-teal-400 bg-teal-50 shadow-md shadow-teal-100"
+                          : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                      }`}
+                      onClick={() => setSelectedWinningBuyer(buyer.buyerId)}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">{buyer.buyerName || "Unknown Buyer"}</div>
+                        <div className="text-xs text-gray-500 truncate">{buyer.companyName || "Unknown Company"}</div>
                       </div>
-                    ) : activeBuyerOptions.length > 0 ? (
-                      activeBuyerOptions.map((buyer) => (
-                        <div
-                          key={buyer.buyerId}
-                          className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                            selectedWinningBuyer === buyer.buyerId
-                              ? "border-teal-400 bg-teal-50 shadow-md shadow-teal-100"
-                              : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-                          }`}
-                          onClick={() => setSelectedWinningBuyer(buyer.buyerId)}
-                        >
-                          <div>
-                            <div className="font-medium text-sm">{buyer.buyerName || "Unknown Buyer"}</div>
-                            <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
-                          </div>
-                          {selectedWinningBuyer === buyer.buyerId && (
-                            <div className="w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center">
-                              <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          )}
+                      {selectedWinningBuyer === buyer.buyerId && (
+                        <div className="w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center flex-shrink-0 ml-3">
+                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center text-gray-500 py-4">
-                        No CIM Amplify buyers are available for this deal.
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-14 h-14 mx-auto mb-3 bg-gray-100 rounded-2xl flex items-center justify-center">
+                      <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-500 text-sm">No buyers have interacted with this deal yet</p>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      onClick={() => handlePauseForLOISubmit(true)}
-                      disabled={!selectedWinningBuyer || !!pausingDealId}
-                      className="w-full py-3 bg-teal-500 hover:bg-teal-600"
-                    >
-                      {pausingDealId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pause for LOI"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setLoiDialogStep(1)}
-                      disabled={!!pausingDealId}
-                      className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
-                      Back
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
+                )}
+              </div>
+              <div className="flex flex-col gap-3 pt-2">
+                <Button
+                  onClick={() => handlePauseForLOISubmit(true)}
+                  disabled={!selectedWinningBuyer || !!pausingDealId}
+                  className="w-full py-3 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 rounded-xl font-semibold shadow-lg shadow-teal-200/50 transition-all duration-200 disabled:opacity-70"
+                >
+                  {pausingDealId ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Pause for LOI"
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handlePauseForLOISubmit(false)}
+                  disabled={!!pausingDealId}
+                  className="w-full py-3 border-2 border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 rounded-xl font-medium transition-all duration-200 disabled:opacity-70"
+                >
+                  {pausingDealId ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "No, not from CIM Amplify"
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -1352,7 +1354,7 @@ export default function SellerDashboardPage() {
                     <Button
                       onClick={() => {
                         setOffMarketData((prev) => ({ ...prev, buyerFromCIM: true }))
-                        handleOffMarketSubmit()
+                        handleOffMarketSubmit(true)
                       }}
                       className="w-full py-3 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 rounded-xl font-semibold shadow-lg shadow-teal-200/50 transition-all duration-200 disabled:opacity-70"
                       disabled={!selectedWinningBuyer || isSubmittingOffMarket}

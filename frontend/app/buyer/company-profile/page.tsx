@@ -2072,11 +2072,8 @@ const fetchUserProfile = async () => {
         {index > 0 && (
           <div className="h-px bg-gray-200 my-4"></div>
         )}
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-medium">
-            Contact {index + 1}
-          </h3>
-          {index > 0 && (
+        {index > 0 && (
+          <div className="flex justify-end items-center mb-2">
             <Button
               type="button"
               variant="ghost"
@@ -2087,8 +2084,8 @@ const fetchUserProfile = async () => {
               <Trash2 className="h-4 w-4 mr-1" />
               Remove
             </Button>
-          )}
-        </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label

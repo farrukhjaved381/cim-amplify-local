@@ -982,7 +982,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ buyerFromCIM: false }),
       });
       if (!response.ok) {
         const errorText = await response.text();
@@ -1022,6 +1022,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         body: JSON.stringify({
           finalSalePrice: transactionValueNumeric ? Number(transactionValueNumeric) : undefined,
           winningBuyerId: selectedWinningBuyer || undefined,
+          buyerFromCIM: !!selectedWinningBuyer,
         }),
       });
       if (!response.ok) {
@@ -1061,6 +1062,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         },
         body: JSON.stringify({
           finalSalePrice: transactionValueNumeric ? Number(transactionValueNumeric) : undefined,
+          buyerFromCIM: false,
         }),
       });
       if (!response.ok) {

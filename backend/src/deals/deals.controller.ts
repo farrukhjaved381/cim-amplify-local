@@ -807,6 +807,10 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
           type: "string",
           description: "ID of the buyer who won the deal",
         },
+        buyerFromCIM: {
+          type: "boolean",
+          description: "Whether the selected buyer came from CIM Amplify",
+        },
       },
     },
   })
@@ -814,7 +818,7 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
   @ApiResponse({ status: 403, description: "Forbidden - requires seller role and ownership" })
   async closeDealBySeller(
     @Param("id") dealId: string,
-    @Body() body: { finalSalePrice?: number; notes?: string; winningBuyerId?: string },
+    @Body() body: { finalSalePrice?: number; notes?: string; winningBuyerId?: string; buyerFromCIM?: boolean },
     @Request() req: RequestWithUser,
   ) {
     if (!getEffectiveUserId(req.user)) {
@@ -828,6 +832,7 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
       body.notes,
       body.winningBuyerId,
       req.user.role,
+      body.buyerFromCIM,
     )
 
     return {
@@ -910,6 +915,10 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
           type: "string",
           description: "ID of the buyer who won the deal",
         },
+        buyerFromCIM: {
+          type: "boolean",
+          description: "Whether the selected buyer came from CIM Amplify",
+        },
       },
     },
   })
@@ -917,7 +926,7 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
   @ApiResponse({ status: 403, description: "Forbidden - requires seller role and ownership" })
   async closeDeal(
     @Param("id") dealId: string,
-    @Body() body: { finalSalePrice?: number; notes?: string; winningBuyerId?: string },
+    @Body() body: { finalSalePrice?: number; notes?: string; winningBuyerId?: string; buyerFromCIM?: boolean },
     @Request() req: RequestWithUser,
   ) {
     if (!getEffectiveUserId(req.user)) {
@@ -932,6 +941,7 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
         body.notes,
         body.winningBuyerId,
         req.user.role,
+        body.buyerFromCIM,
       )
 
       return {

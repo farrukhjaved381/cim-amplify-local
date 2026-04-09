@@ -1707,9 +1707,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                 {formData.contacts.map((contact, index) => (
                   <div key={index} className="mb-4">
                     {index > 0 && <div className="h-px bg-gray-200 my-4"></div>}
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-sm font-medium">Contact {index + 1}</h3>
-                      {index > 0 && (
+                    {index > 0 && (
+                      <div className="flex justify-end items-center mb-2">
                         <Button
                           type="button"
                           variant="ghost"
@@ -1720,8 +1719,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                           <Trash2 className="h-4 w-4 mr-1" />
                           Remove
                         </Button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <Label htmlFor={`contact-name-${index}`} className="text-[#667085] text-sm mb-1.5 block">

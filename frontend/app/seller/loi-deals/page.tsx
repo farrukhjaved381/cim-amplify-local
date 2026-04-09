@@ -376,7 +376,7 @@ export default function LOIDealsPage() {
                   Authorization: `Bearer ${token}`,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify({}),
+                body: JSON.stringify({ buyerFromCIM: false }),
               }
             )
             if (!response.ok) {
@@ -404,9 +404,11 @@ export default function LOIDealsPage() {
     }
   }
 
-  const handleOffMarketSubmit = async () => {
+  const handleOffMarketSubmit = async (buyerFromCIMOverride?: boolean) => {
     if (!selectedDealForOffMarket || !offMarketData.transactionValue) return
-    if (offMarketData.buyerFromCIM === true && !selectedWinningBuyer) return
+    const effectiveBuyerFromCIM =
+      typeof buyerFromCIMOverride === "boolean" ? buyerFromCIMOverride : offMarketData.buyerFromCIM
+    if (effectiveBuyerFromCIM === true && !selectedWinningBuyer) return
 
     setIsSubmittingOffMarket(true)
     try {
@@ -414,8 +416,9 @@ export default function LOIDealsPage() {
       const apiUrl = getApiUrl()
       const body: any = {
         finalSalePrice: Number.parseFloat(offMarketData.transactionValue),
+        buyerFromCIM: effectiveBuyerFromCIM === true,
       }
-      if (offMarketData.buyerFromCIM === true) {
+      if (effectiveBuyerFromCIM === true) {
         body.winningBuyerId = selectedWinningBuyer
       }
       const closeResponse = await fetch(
@@ -803,6 +806,7 @@ export default function LOIDealsPage() {
                               body: JSON.stringify({
                                 finalSalePrice: Number.parseFloat(offMarketData.transactionValue),
                                 winningBuyerId: selectedWinningBuyer,
+                                buyerFromCIM: true,
                               }),
                             }
                           )
@@ -861,6 +865,7 @@ export default function LOIDealsPage() {
                               },
                               body: JSON.stringify({
                                 finalSalePrice: Number.parseFloat(offMarketData.transactionValue),
+                                buyerFromCIM: false,
                               }),
                             }
                           )

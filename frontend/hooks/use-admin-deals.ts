@@ -263,6 +263,7 @@ async function closeDeal(params: {
   finalSalePrice?: number;
   winningBuyerId?: string;
   notes?: string;
+  buyerFromCIM?: boolean;
 }): Promise<any> {
   const apiUrl = getApiUrl();
   const response = await fetch(`${apiUrl}${API_ENDPOINTS.deals.close(params.dealId)}`, {
@@ -272,6 +273,7 @@ async function closeDeal(params: {
       finalSalePrice: params.finalSalePrice,
       winningBuyerId: params.winningBuyerId,
       notes: params.notes,
+      buyerFromCIM: params.buyerFromCIM ?? !!params.winningBuyerId,
     }),
   });
 

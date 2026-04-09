@@ -562,7 +562,7 @@ export class SellersController {
   @ApiResponse({ status: 404, description: "Deal not found" })
   async closeDeal(
     @Param('dealId') dealId: string,
-    @Body() body: { finalSalePrice?: number; notes?: string; winningBuyerId?: string } = {},
+    @Body() body: { finalSalePrice?: number; notes?: string; winningBuyerId?: string; buyerFromCIM?: boolean } = {},
     @Request() req: any,
   ) {
     try {
@@ -581,6 +581,7 @@ export class SellersController {
         finalSalePrice: body.finalSalePrice,
         notes: body.notes,
         winningBuyerId: body.winningBuyerId,
+        buyerFromCIM: body.buyerFromCIM,
       });
       const closedDeal = await this.dealsService.closeDealseller(
         dealId,
@@ -588,6 +589,8 @@ export class SellersController {
         body.finalSalePrice,
         body.notes,
         body.winningBuyerId,
+        undefined,
+        body.buyerFromCIM,
       );
       return {
         message: "Deal closed successfully",
