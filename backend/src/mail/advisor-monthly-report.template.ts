@@ -5,6 +5,7 @@
  */
 
 export interface ReportBuyer {
+  buyerId: string;
   fullName: string;
   companyName: string;
   interestedSince: string; // formatted date
@@ -87,7 +88,16 @@ function renderBuyersTable(buyers: ReportBuyer[], dealId: string, frontendUrl: s
   if (buyers.length === 0) {
     return `<div style="padding:16px 20px;font-size:13px;color:${C.textMuted};text-align:center;">No active buyers</div>`;
   }
-  const rows = buyers.map(b => `
+
+  const rows = buyers.map(b => {
+    // Pre-fill the email body so the advisor just clicks send
+    const emailSubject = encodeURIComponent(`Inactive Buyer: ${b.fullName} — ${b.companyName}`);
+    const emailBody = encodeURIComponent(
+      `Hi CIM Amplify Team,\n\nI'd like to flag that the following buyer does not appear to be actively engaging:\n\nName: ${b.fullName}\nCompany: ${b.companyName}\nInterested Since: ${b.interestedSince}\nDeal ID: ${dealId}\n\nPlease review.\n\nThank you`
+    );
+    const reportLink = `mailto:deals@amp-ven.com?subject=${emailSubject}&body=${emailBody}`;
+
+    return `
     <tr style="border-bottom:1px solid #f0f7f6;">
       <td style="padding:10px 16px;font-size:13px;color:${C.textPrimary};vertical-align:middle;">
         <span style="font-weight:500;color:${C.navy};display:block;font-size:13px;">${escapeHtml(b.fullName)}</span>
@@ -95,10 +105,10 @@ function renderBuyersTable(buyers: ReportBuyer[], dealId: string, frontendUrl: s
       </td>
       <td style="padding:10px 16px;font-size:13px;color:${C.textPrimary};vertical-align:middle;">${escapeHtml(b.interestedSince)}</td>
       <td style="padding:10px 16px;text-align:right;vertical-align:middle;">
-        <a href="${frontendUrl}/seller/dashboard" style="display:inline-block;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;background:${C.flagBg};border:1.5px solid ${C.flagBorder};color:${C.flagText};text-decoration:none;white-space:nowrap;">This Buyer is not Active</a>
+        <a href="${reportLink}" style="display:inline-block;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;background:${C.flagBg};border:1.5px solid ${C.flagBorder};color:${C.flagText};text-decoration:none;white-space:nowrap;">Flag as Inactive</a>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
 
   return `
     <div style="padding:11px 20px 9px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:${C.textMuted};background:#fafcfc;border-bottom:1px solid ${C.border};">Active Buyers</div>
@@ -107,7 +117,7 @@ function renderBuyersTable(buyers: ReportBuyer[], dealId: string, frontendUrl: s
         <tr style="background:#f7fafa;border-bottom:1px solid ${C.border};">
           <th style="padding:8px 16px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${C.textMuted};text-align:left;">Buyer</th>
           <th style="padding:8px 16px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${C.textMuted};text-align:left;">Interested Since</th>
-          <th style="padding:8px 16px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${C.textMuted};text-align:right;"></th>
+          <th style="padding:8px 16px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${C.textMuted};text-align:right;">Action</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -159,6 +169,8 @@ function renderDealCard(deal: ReportDeal, monthYear: string, frontendUrl: string
     : `background:${C.activeBg};color:${C.activeText};`;
   const badgeLabel = isLoi ? 'Under LOI' : 'Active Listing';
 
+  const dealUrl = `${frontendUrl}/seller/dashboard?dealId=${encodeURIComponent(deal.id)}`;
+
   const loiBtnStyle = isLoi
     ? `opacity:0.5;cursor:default;background:${C.loiBg};border:1px solid #e8c84e;color:${C.loiText};`
     : `background:${C.loiBg};border:1px solid #e8c84e;color:${C.loiText};`;
@@ -179,8 +191,7 @@ function renderDealCard(deal: ReportDeal, monthYear: string, frontendUrl: string
               </div>
             </td>
             <td style="vertical-align:top;text-align:right;white-space:nowrap;">
-              <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.04em;${badgeStyle}">
-                <span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;"></span>
+              <span style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.04em;${badgeStyle}">
                 ${badgeLabel}
               </span>
             </td>
@@ -202,10 +213,18 @@ function renderDealCard(deal: ReportDeal, monthYear: string, frontendUrl: string
         </tr>
       </table>
 
-      <!-- CTA Buttons -->
-      <div style="padding:12px 20px;display:flex;gap:10px;background:#fafefe;border-bottom:1px solid ${C.border};">
-        <a href="${frontendUrl}/seller/dashboard" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;${loiBtnStyle}">${loiBtnLabel}</a>
-        <a href="${frontendUrl}/seller/dashboard" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;background:#f5f5f5;border:1px solid #ccc;color:#444;">Mark as Off Market</a>
+      <!-- CTA Buttons — use table layout for email client compatibility (no flexbox) -->
+      <div style="padding:12px 20px;background:#fafefe;border-bottom:1px solid ${C.border};">
+        <table style="border-collapse:collapse;">
+          <tr>
+            <td style="padding-right:8px;">
+              <a href="${dealUrl}" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;${loiBtnStyle}">${loiBtnLabel}</a>
+            </td>
+            <td>
+              <a href="${dealUrl}" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;background:#f5f5f5;border:1px solid #ccc;color:#444;">Mark as Off Market</a>
+            </td>
+          </tr>
+        </table>
       </div>
 
       <!-- Active Buyers Table -->

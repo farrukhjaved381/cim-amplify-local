@@ -48,6 +48,7 @@ import {
 } from "@/lib/industry-data";
 import GeographySelector from "@/components/GeographySelector";
 import { Country, State } from "country-state-city";
+import { API_BASE_URL } from "@/lib/api-config";
 
 // Define the CompanyProfile type to match formData structure
 interface CompanyProfile {
@@ -117,8 +118,6 @@ const BUSINESS_MODELS = [
   "Asset Heavy",
 ];
 
-const DEFAULT_API_URL = "https://cim-backend.vercel.app";
-
 export default function AcquireProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -126,7 +125,7 @@ export default function AcquireProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
+  const apiUrl = API_BASE_URL;
   const [authToken, setAuthToken] = useState("");
   const [buyerId, setBuyerId] = useState("");
   const [geoData, setGeoData] = useState<GeoData | null>(null);
@@ -229,10 +228,6 @@ export default function AcquireProfilePage() {
       }
     }
 
-    const storedApiUrl = localStorage.getItem("apiUrl");
-    if (storedApiUrl) {
-      setApiUrl(storedApiUrl);
-    }
   }, [searchParams, router]);
 
   // Fetch data and initialize industrySelection
@@ -280,8 +275,6 @@ export default function AcquireProfilePage() {
       return;
     }
     try {
-      const apiUrl = localStorage.getItem("apiUrl") || DEFAULT_API_URL;
-
       const buyerRes = await fetch(`${apiUrl}/buyers/me`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
@@ -394,7 +387,7 @@ export default function AcquireProfilePage() {
       }
     } catch (error) {
       console.error("Profile fetch error:", {
-        apiUrl: localStorage.getItem("apiUrl") || DEFAULT_API_URL,
+        apiUrl,
         authToken: authToken?.substring(0, 10) + "...",
         buyerId,
       });
@@ -1239,6 +1232,15 @@ const handleSubmit = async (e: React.FormEvent) => {
   const renderIndustrySelection = () => {
     const filteredData = filterIndustryData();
     if (!filteredData || !industryData) return <div>Loading industry data...</div>;
+
+    const hasSelectedIndustriesInGroup = (group: IndustryGroup) =>
+      group.industries.some((industry) => !!industrySelection.industries[industry.id]);
+
+    const hasSelectedDescendantsInSector = (sector: Sector) =>
+      sector.industryGroups.some((group) =>
+        !!industrySelection.industryGroups[group.id] || hasSelectedIndustriesInGroup(group)
+      );
+
     return (
       <div className="space-y-2">
         {filteredData.sectors.map((sector) => (
@@ -1247,8 +1249,9 @@ const handleSubmit = async (e: React.FormEvent) => {
               <Checkbox
                 id={`sector-${sector.id}`}
                 checked={industrySelection.sectors[sector.id] || false}
+                indeterminate={hasSelectedDescendantsInSector(sector) && !industrySelection.sectors[sector.id]}
                 onCheckedChange={() => toggleSector(sector)}
-                className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] focus:ring-[#3aafa9]"
+                className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=indeterminate]:bg-[#3aafa9] data-[state=indeterminate]:border-[#3aafa9] data-[state=checked]:text-white data-[state=indeterminate]:text-white focus:ring-[#3aafa9]"
               />
               <div
                 className="flex items-center cursor-pointer flex-1"
@@ -1275,8 +1278,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                       <Checkbox
                         id={`group-${group.id}`}
                         checked={industrySelection.industryGroups[group.id] || false}
+                        indeterminate={hasSelectedIndustriesInGroup(group) && !industrySelection.industryGroups[group.id]}
                         onCheckedChange={() => toggleIndustryGroup(group, sector)}
-                        className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] focus:ring-[#3aafa9]"
+                        className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=indeterminate]:bg-[#3aafa9] data-[state=indeterminate]:border-[#3aafa9] data-[state=checked]:text-white data-[state=indeterminate]:text-white focus:ring-[#3aafa9]"
                       />
                       <div
                         className="flex items-center cursor-pointer flex-1"
@@ -1395,53 +1399,24 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     return (
       <>
-        <style jsx>{`
-          .geo-checkbox {
-            appearance: none;
-            width: 1rem;
-            height: 1rem;
-            border: 2px solid #D1D5DB;
-            border-radius: 0.25rem;
-            background-color: white;
-            cursor: pointer;
-            position: relative;
-            margin-right: 0.5rem;
-            flex-shrink: 0;
-          }
-          .geo-checkbox:checked {
-            background-color: #3AAFA9;
-            border-color: #3AAFA9;
-          }
-          .geo-checkbox:checked::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 45%;
-            width: 0.25rem;
-            height: 0.5rem;
-            border: solid white;
-            border-width: 0 2px 2px 0;
-            transform: translate(-50%, -50%) rotate(45deg);
-          }
-          .geo-checkbox:focus {
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(58, 175, 169, 0.2);
-          }
-        `}</style>
+        
         <div className="space-y-2 font-poppins">
           {sorted.map((country) => {
             const states = State.getStatesOfCountry(country.isoCode);
             const hasStates = states.length > 0;
+            const hasSelectedDescendants = selectedCountries.some((value) =>
+              value.startsWith(`${country.name} > `)
+            );
 
             return (
               <div key={country.isoCode} className="border-b border-gray-100 pb-1">
                 <div className="flex items-center">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id={`geo-${country.isoCode}`}
                     checked={selectedCountries.includes(country.name)}
-                    onChange={() => toggleCountryWithStates(country.name, country.isoCode)}
-                    className="geo-checkbox"
+                    indeterminate={hasSelectedDescendants && !selectedCountries.includes(country.name)}
+                    onCheckedChange={() => toggleCountryWithStates(country.name, country.isoCode)}
+                    className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=indeterminate]:bg-[#3aafa9] data-[state=indeterminate]:border-[#3aafa9] data-[state=checked]:text-white data-[state=indeterminate]:text-white focus:ring-[#3aafa9]"
                   />
                   <div
                     className="flex items-center cursor-pointer flex-1"
@@ -1473,12 +1448,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                       return (
                         <div key={state.isoCode} className="pl-2">
                           <div className="flex items-center">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               id={`geo-${country.isoCode}-${state.isoCode}`}
                               checked={selectedCountries.includes(stateValue)}
-                              onChange={() => toggleGeoValue(stateValue)}
-                              className="geo-checkbox"
+                              onCheckedChange={() => toggleGeoValue(stateValue)}
+                              className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=checked]:text-white focus:ring-[#3aafa9]"
                             />
                             <Label
                               htmlFor={`geo-${country.isoCode}-${state.isoCode}`}

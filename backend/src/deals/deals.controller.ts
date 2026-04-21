@@ -33,6 +33,7 @@ import { UpdateDealDto } from "./dto/update-deal.dto"
 import { DealResponseDto } from "./dto/deal-response.dto"
 import { Express } from "express"
 import { Response } from 'express'
+import { Throttle } from "@nestjs/throttler"
 
 interface RequestWithUser extends Request {
   user: {
@@ -408,6 +409,17 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
       page,
       limit
     );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/tab-counts")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get admin tab counts for deals dashboard" })
+  @ApiResponse({ status: 200, description: "Return tab counts" })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search term for deals' })
+  async getAdminTabCounts(@Query('search') search: string = '') {
+    return this.dealsService.getAdminTabCounts(search);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -951,6 +963,32 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
     } catch (error) {
       throw error
     }
+  }
+
+  // ── Public endpoint (no auth) for email-based deal actions ──
+
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post("email-action/:token")
+  @ApiOperation({ summary: "Handle deal action from email link (no login required)" })
+  @ApiParam({ name: "token", description: "Unique action token from the email" })
+  @ApiQuery({ name: "action", enum: ["activate", "pass"], description: "The action to perform" })
+  @ApiResponse({ status: 200, description: "Action completed successfully" })
+  @ApiResponse({ status: 400, description: "Invalid action or expired token" })
+  @ApiResponse({ status: 404, description: "Token not found" })
+  @ApiResponse({ status: 429, description: "Too many requests" })
+  async handleEmailAction(
+    @Param("token") token: string,
+    @Query("action") action: string,
+    @Request() req: any,
+  ) {
+    if (action !== "activate" && action !== "pass") {
+      throw new BadRequestException("Invalid action. Must be 'activate' or 'pass'.")
+    }
+
+    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
+    return this.dealsService.handleEmailAction(token, action, ip, userAgent)
   }
 
 }

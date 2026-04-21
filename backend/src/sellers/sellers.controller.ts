@@ -51,7 +51,7 @@ export class SellersController {
   ) {}
 
   @Post('register')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   @ApiOperation({ summary: 'Register a new seller' })
   @ApiResponse({ status: 201, description: 'Seller successfully registered' })
   @ApiResponse({ status: 400, description: 'Bad request' })

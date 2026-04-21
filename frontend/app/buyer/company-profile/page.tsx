@@ -51,6 +51,7 @@ import {
 } from "@/lib/industry-data";
 import GeographySelector from "@/components/GeographySelector";
 import { Country, State } from "country-state-city";
+import { API_BASE_URL } from "@/lib/api-config";
 
 const COMPANY_TYPES = [
   "Buy Side Mandate",
@@ -69,9 +70,6 @@ const BUSINESS_MODELS = [
   "Asset Light",
   "Asset Heavy",
 ];
-
-// Default API URL
-const DEFAULT_API_URL = "https://cim-backend.vercel.app";
 
 // Type for hierarchical selection
 interface HierarchicalSelection {
@@ -107,8 +105,8 @@ export default function CompanyProfilePage() {
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // API configuration
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
+  // API configuration (env-driven)
+  const apiUrl = API_BASE_URL;
 
   // Authentication state
   const [authToken, setAuthToken] = useState("");
@@ -120,6 +118,9 @@ export default function CompanyProfilePage() {
 
   // Add buyerProfile state
   const [buyerProfile, setBuyerProfile] = useState<BuyerProfile | null>(null);
+
+  // Store raw API profile data for selection restoration
+  const [fetchedProfileData, setFetchedProfileData] = useState<any | null>(null);
 
   // Hierarchical selection state
   const [geoSelection, setGeoSelection] = useState<HierarchicalSelection>({
@@ -168,6 +169,22 @@ export default function CompanyProfilePage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Keep scrolling inside the page content area, not the browser document.
+  useEffect(() => {
+    if (!isClient) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isClient]);
 
   // Format number with commas
   const formatNumberWithCommas = (value: number | undefined) => {
@@ -219,11 +236,6 @@ export default function CompanyProfilePage() {
       }
     }
 
-    // Set API URL from localStorage or use default
-    const storedApiUrl = localStorage.getItem("apiUrl");
-    if (storedApiUrl) {
-      setApiUrl(storedApiUrl);
-    }
   }, [searchParams, router, isClient]);
 
   useEffect(() => {
@@ -277,6 +289,59 @@ useEffect(() => {
     }
   }
 }, [buyerProfile]); // Only depend on buyerProfile
+
+  // Restore geo/industry selections once both reference data and profile data are ready.
+  // fetchUserProfile runs before geoData/industryData are set in state, so we
+  // defer this restoration to a dedicated effect that fires when all three are available.
+  useEffect(() => {
+    if (!fetchedProfileData || !geoData || !industryData) return;
+
+    if (fetchedProfileData.targetCriteria?.countries?.length > 0) {
+      const newGeoSelection: HierarchicalSelection = { continents: {}, regions: {}, subRegions: {} };
+
+      geoData.continents.forEach((continent) => {
+        if (fetchedProfileData.targetCriteria.countries.includes(continent.name)) {
+          newGeoSelection.continents[continent.id] = true;
+        }
+        continent.regions.forEach((region) => {
+          if (fetchedProfileData.targetCriteria.countries.includes(region.name)) {
+            newGeoSelection.regions[region.id] = true;
+          }
+          if (region.subRegions) {
+            region.subRegions.forEach((subRegion) => {
+              if (fetchedProfileData.targetCriteria.countries.includes(subRegion.name)) {
+                newGeoSelection.subRegions[subRegion.id] = true;
+              }
+            });
+          }
+        });
+      });
+
+      setGeoSelection(newGeoSelection);
+    }
+
+    if (fetchedProfileData.targetCriteria?.industrySectors?.length > 0) {
+      const newIndustrySelection: IndustrySelection = { sectors: {}, industryGroups: {}, industries: {} };
+
+      industryData.sectors.forEach((sector) => {
+        if (fetchedProfileData.targetCriteria.industrySectors.includes(sector.name)) {
+          newIndustrySelection.sectors[sector.id] = true;
+        }
+        sector.industryGroups.forEach((group) => {
+          if (fetchedProfileData.targetCriteria.industrySectors.includes(group.name)) {
+            newIndustrySelection.industryGroups[group.id] = true;
+          }
+          group.industries.forEach((industry) => {
+            if (fetchedProfileData.targetCriteria.industrySectors.includes(industry.name)) {
+              newIndustrySelection.industries[industry.id] = true;
+            }
+          });
+        });
+      });
+
+      setIndustrySelection(newIndustrySelection);
+    }
+  }, [fetchedProfileData, geoData, industryData]);
 
   // Form state
  const [formData, setFormData] = useState<
@@ -390,73 +455,9 @@ const fetchUserProfile = async () => {
       };
 
       setFormData(updatedProfile);
-
-        // Update geography selections
-        if (profileData.targetCriteria?.countries?.length > 0 && geoData) {
-          const newGeoSelection = { ...geoSelection };
-
-          geoData.continents.forEach((continent) => {
-            if (profileData.targetCriteria.countries.includes(continent.name)) {
-              newGeoSelection.continents[continent.id] = true;
-            }
-
-            continent.regions.forEach((region) => {
-              if (profileData.targetCriteria.countries.includes(region.name)) {
-                newGeoSelection.regions[region.id] = true;
-              }
-
-              if (region.subRegions) {
-                region.subRegions.forEach((subRegion) => {
-                  if (
-                    profileData.targetCriteria.countries.includes(
-                      subRegion.name
-                    )
-                  ) {
-                    newGeoSelection.subRegions[subRegion.id] = true;
-                  }
-                });
-              }
-            });
-          });
-
-          setGeoSelection(newGeoSelection);
-        }
-
-        // Update industry selections
-        if (
-          profileData.targetCriteria?.industrySectors?.length > 0 &&
-          industryData
-        ) {
-          const newIndustrySelection = { ...industrySelection };
-
-          industryData.sectors.forEach((sector) => {
-            if (
-              profileData.targetCriteria.industrySectors.includes(sector.name)
-            ) {
-              newIndustrySelection.sectors[sector.id] = true;
-            }
-
-            sector.industryGroups.forEach((group) => {
-              if (
-                profileData.targetCriteria.industrySectors.includes(group.name)
-              ) {
-                newIndustrySelection.industryGroups[group.id] = true;
-              }
-
-              group.industries.forEach((industry) => {
-                if (
-                  profileData.targetCriteria.industrySectors.includes(
-                    industry.name
-                  )
-                ) {
-                  newIndustrySelection.industries[industry.id] = true;
-                }
-              });
-            });
-          });
-
-          setIndustrySelection(newIndustrySelection);
-        }
+      // Store raw profile data so the selection-restoration effect can use it
+      // once geoData and industryData are available (they may still be null here)
+      setFetchedProfileData(profileData);
       }
     } catch (error) {
     } finally {
@@ -474,8 +475,6 @@ const fetchUserProfile = async () => {
       if (!token) {
         return;
       }
-
-      const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
 
       const response = await fetch(`${apiUrl}/buyers/profile`, {
         headers: {
@@ -1469,59 +1468,30 @@ const fetchUserProfile = async () => {
 
     return (
       <>
-        <style jsx>{`
-          .geo-checkbox {
-            appearance: none;
-            width: 1rem;
-            height: 1rem;
-            border: 2px solid #D1D5DB;
-            border-radius: 0.25rem;
-            background-color: white;
-            cursor: pointer;
-            position: relative;
-            margin-right: 0.5rem;
-            flex-shrink: 0;
-          }
-          .geo-checkbox:checked {
-            background-color: #3AAFA9;
-            border-color: #3AAFA9;
-          }
-          .geo-checkbox:checked::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 45%;
-            width: 0.25rem;
-            height: 0.5rem;
-            border: solid white;
-            border-width: 0 2px 2px 0;
-            transform: translate(-50%, -50%) rotate(45deg);
-          }
-          .geo-checkbox:focus {
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(58, 175, 169, 0.2);
-          }
-        `}</style>
+        
         <div className="space-y-2 font-poppins">
           {sorted.map((country) => {
             const states = State.getStatesOfCountry(country.isoCode);
             const hasStates = states.length > 0;
+            const hasSelectedDescendants = selectedCountries.some((value) =>
+              value.startsWith(`${country.name} > `)
+            );
 
             return (
               <div key={country.isoCode} className="border-b border-gray-100 pb-1">
                 <div className="flex items-center">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id={`geo-${country.isoCode}`}
                     checked={selectedCountries.includes(country.name)}
-                    onChange={() => toggleCountryWithStates(country.name, country.isoCode)}
-                    className="geo-checkbox"
+                    indeterminate={hasSelectedDescendants && !selectedCountries.includes(country.name)}
+                    onCheckedChange={() => toggleCountryWithStates(country.name, country.isoCode)}
+                    className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=indeterminate]:bg-[#3aafa9] data-[state=indeterminate]:border-[#3aafa9] data-[state=checked]:text-white data-[state=indeterminate]:text-white focus:ring-[#3aafa9]"
                   />
                   <div
                     className="flex items-center cursor-pointer flex-1"
                     onClick={() => {
                       if (hasStates) {
-                        setExpandedCountries((prev) => ({
+                        setExpandedContinents((prev) => ({
                           ...prev,
                           [country.isoCode]: !prev[country.isoCode],
                         }));
@@ -1540,19 +1510,18 @@ const fetchUserProfile = async () => {
                     </Label>
                   </div>
                 </div>
-                {hasStates && expandedCountries[country.isoCode] && (
+                {hasStates && expandedContinents[country.isoCode] && (
                   <div className="ml-6 mt-1 space-y-1">
                     {states.map((state) => {
                       const stateValue = `${country.name} > ${state.name}`;
                       return (
                         <div key={state.isoCode} className="pl-2">
                           <div className="flex items-center">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               id={`geo-${country.isoCode}-${state.isoCode}`}
                               checked={selectedCountries.includes(stateValue)}
-                              onChange={() => toggleGeoValue(stateValue)}
-                              className="geo-checkbox"
+                              onCheckedChange={() => toggleGeoValue(stateValue)}
+                              className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=checked]:text-white focus:ring-[#3aafa9]"
                             />
                             <Label
                               htmlFor={`geo-${country.isoCode}-${state.isoCode}`}
@@ -1579,6 +1548,14 @@ const fetchUserProfile = async () => {
     const filteredData = filterIndustryData();
     if (!filteredData) return <div>Loading industry data...</div>;
 
+    const hasSelectedIndustriesInGroup = (group: IndustryGroup) =>
+      group.industries.some((industry) => !!industrySelection.industries[industry.id]);
+
+    const hasSelectedDescendantsInSector = (sector: Sector) =>
+      sector.industryGroups.some((group) =>
+        !!industrySelection.industryGroups[group.id] || hasSelectedIndustriesInGroup(group)
+      );
+
     return (
       <div className="space-y-2">
         {filteredData.sectors.map((sector) => (
@@ -1587,10 +1564,11 @@ const fetchUserProfile = async () => {
               <Checkbox
                 id={`sector-${sector.id}`}
                 checked={!!industrySelection.sectors[sector.id]}
+                indeterminate={hasSelectedDescendantsInSector(sector) && !industrySelection.sectors[sector.id]}
                 onCheckedChange={(checked) => {
                   toggleSector(sector);
                 }}
-                className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] focus:ring-[#3aafa9]"
+                className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=indeterminate]:bg-[#3aafa9] data-[state=indeterminate]:border-[#3aafa9] data-[state=checked]:text-white data-[state=indeterminate]:text-white focus:ring-[#3aafa9]"
               />
               <div
                 className="flex items-center cursor-pointer flex-1"
@@ -1618,10 +1596,11 @@ const fetchUserProfile = async () => {
                       <Checkbox
                         id={`group-${group.id}`}
                         checked={!!industrySelection.industryGroups[group.id]}
+                        indeterminate={hasSelectedIndustriesInGroup(group) && !industrySelection.industryGroups[group.id]}
                         onCheckedChange={(checked) => {
                           toggleIndustryGroup(group, sector);
                         }}
-                        className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] focus:ring-[#3aafa9]"
+                        className="mr-2 border-[#d0d5dd] data-[state=checked]:bg-[#3aafa9] data-[state=checked]:border-[#3aafa9] data-[state=indeterminate]:bg-[#3aafa9] data-[state=indeterminate]:border-[#3aafa9] data-[state=checked]:text-white data-[state=indeterminate]:text-white focus:ring-[#3aafa9]"
                       />
                       <div
                         className="flex items-center cursor-pointer flex-1"
@@ -1687,8 +1666,6 @@ const fetchUserProfile = async () => {
     // If it's a base64 image, return as-is
     if (path.startsWith("data:image")) return path;
 
-    const apiUrl = localStorage.getItem("apiUrl") || "https://cim-backend.vercel.app";
-
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;
     }
@@ -1737,9 +1714,9 @@ const fetchUserProfile = async () => {
 
   return (
     <BuyerProtectedRoute>
-    <div className="min-h-screen bg-white">
+    <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
+      <header className="border-b border-gray-200 bg-white z-40 flex-shrink-0">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-4">
           {/* Left side: Hamburger + Logo (desktop) + Title */}
           <div className="flex items-center gap-3">
@@ -1799,14 +1776,14 @@ const fetchUserProfile = async () => {
         </div>
       </header>
 
-      <div className="flex flex-col md:flex-row">
+      <div className="flex flex-1 min-h-0 flex-col md:flex-row">
         {/* Sidebar - Hidden on mobile */}
-        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white h-[calc(100vh-4rem)] sticky top-[4rem] overflow-y-auto flex-shrink-0">
+        <aside className="hidden md:block md:w-56 border-r border-gray-200 bg-white h-full overflow-y-auto flex-shrink-0">
           <BuyerNav activePage="company-profile" onLogout={handleLogout} />
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 bg-gray-50 p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto p-6">
           <div className="max-w-4xl mx-auto space-y-6">
             {submitStatus === "success" && (
               <Alert className="bg-green-50 border-green-200">

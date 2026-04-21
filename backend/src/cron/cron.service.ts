@@ -196,6 +196,7 @@ export class CronService {
 
         // Helper to convert deal to report format
         const toDealRow = (deal: any, invitedAt?: Date): BuyerReportDeal => ({
+          dealId: deal._id instanceof Types.ObjectId ? deal._id.toHexString() : String(deal._id),
           title: deal.title || 'Untitled Deal',
           location: deal.geographySelection || deal.geography || '-',
           industry: deal.industrySector || '-',
@@ -268,7 +269,7 @@ export class CronService {
   @Cron('0 9 1 * *')
   async handleMonthlySellerReport() {
     this.logger.log('Running monthly seller/advisor report cron job');
-    const sellers = await this.sellerModel.find().exec();
+    const sellers = await this.sellerModel.find({ isEmailVerified: true }).exec();
     const frontendUrl = getFrontendUrl();
 
     // Report covers the previous month
@@ -341,12 +342,13 @@ export class CronService {
             try {
               const buyer = await this.buyerModel.findById(buyerId).select('fullName companyName').lean().exec();
               activeBuyers.push({
+                buyerId,
                 fullName: (buyer as any)?.fullName || 'Unknown Buyer',
                 companyName: (buyer as any)?.companyName || '',
                 interestedSince: formatDate(entry.respondedAt),
               });
             } catch {
-              activeBuyers.push({ fullName: 'Unknown Buyer', companyName: '', interestedSince: formatDate(entry.respondedAt) });
+              activeBuyers.push({ buyerId, fullName: 'Unknown Buyer', companyName: '', interestedSince: formatDate(entry.respondedAt) });
             }
           }
 

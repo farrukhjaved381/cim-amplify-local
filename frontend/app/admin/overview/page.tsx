@@ -17,6 +17,7 @@ import {
   Target,
   Globe,
   DollarSign,
+  Info,
   TrendingUp as TrendUp,
   Handshake,
   Eye
@@ -28,6 +29,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { AdminProtectedRoute } from "@/components/admin/protected-route";
 import {
@@ -63,9 +66,24 @@ interface DashboardStats {
   previousWeekStart: string;
   previousWeekEnd: string;
   currentWeekStart: string;
+  activeRevenueSize: number;
+  activeEbitdaSize: number;
   totalRevenueSize: number;
   totalEbitdaSize: number;
   totalInvitations: number;
+  buyerResponseSummary: {
+    accepted: number;
+    pending: number;
+    rejected: number;
+    totalInvitations: number;
+  };
+  rewardLevelBreakdown: {
+    seed: number;
+    bloom: number;
+    fruit: number;
+  };
+  dealValueDistribution: Array<{ name: string; deals: number }>;
+  dealsTrendLast6Months: Array<{ month: string; deals: number }>;
   buyerReferralSources: Array<{ name: string; value: number }>;
   sellerReferralSources: Array<{ name: string; value: number }>;
   industryBreakdown: Array<{ name: string; value: number }>;
@@ -202,15 +220,6 @@ const fetchCompletedDeals = async (): Promise<{ data: DealSummary[]; total: numb
   return res.json();
 };
 
-const fetchAllDealsForMetrics = async (): Promise<{ data: DealSummary[]; total: number }> => {
-  const token = sessionStorage.getItem('token');
-  const res = await fetch(`${API_URL}/deals/admin?page=1&limit=100`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to fetch all deals");
-  return res.json();
-};
-
 const fetchAdminProfile = async (): Promise<AdminProfile> => {
   const token = sessionStorage.getItem('token');
   const res = await fetch(`${API_URL}/admin/profile`, {
@@ -224,6 +233,7 @@ export default function AdminOverviewPage() {
   const router = useRouter();
   const { isLoggedIn, isLoading: authLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const [metricsGuideOpen, setMetricsGuideOpen] = useState(false);
 
   // Set mounted state to true after hydration
   useEffect(() => {
@@ -237,81 +247,78 @@ export default function AdminOverviewPage() {
     }
   }, [authLoading, isLoggedIn, router]);
 
-  // React Query hooks with auto-refresh every 30 seconds
-  // Only enable queries after component is mounted (client-side) to prevent hydration issues
+  const openMetricsGuide = () => {
+    setMetricsGuideOpen(true);
+    toast({
+      title: "Metrics Guide Opened",
+      description: "Definitions shown for totals, active-only values, and response metrics.",
+    });
+  };
+
+  // React Query hooks. Dashboard data doesn't need sub-minute freshness — backend
+  // caches responses for 30–60s, and refetching every 30s from many tabs was
+  // saturating the global rate-limiter.
+  // staleTime: 2min, refetchInterval: 5min, no refetch on window focus.
+  const DASHBOARD_STALE_TIME = 2 * 60 * 1000;
+  const DASHBOARD_REFETCH_INTERVAL = 5 * 60 * 1000;
+
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: fetchStats,
-    refetchInterval: 30000,
-    staleTime: 10000,
+    refetchInterval: DASHBOARD_REFETCH_INTERVAL,
+    staleTime: DASHBOARD_STALE_TIME,
+    refetchOnWindowFocus: false,
     enabled: mounted,
   });
 
   const { data: activeDealsData, isLoading: activeDealsLoading } = useQuery({
     queryKey: ["admin-active-deals"],
     queryFn: fetchActiveDeals,
-    refetchInterval: 30000,
-    staleTime: 10000,
+    refetchInterval: DASHBOARD_REFETCH_INTERVAL,
+    staleTime: DASHBOARD_STALE_TIME,
+    refetchOnWindowFocus: false,
     enabled: mounted,
   });
 
   const { data: completedDealsData, isLoading: completedDealsLoading } = useQuery({
     queryKey: ["admin-completed-deals"],
     queryFn: fetchCompletedDeals,
-    refetchInterval: 30000,
-    staleTime: 10000,
-    enabled: mounted,
-  });
-
-  const { data: allDealsData } = useQuery({
-    queryKey: ["admin-all-deals-metrics"],
-    queryFn: fetchAllDealsForMetrics,
-    refetchInterval: 30000,
-    staleTime: 10000,
+    refetchInterval: DASHBOARD_REFETCH_INTERVAL,
+    staleTime: DASHBOARD_STALE_TIME,
+    refetchOnWindowFocus: false,
     enabled: mounted,
   });
 
   const { data: adminProfile } = useQuery({
     queryKey: ["admin-profile"],
     queryFn: fetchAdminProfile,
-    staleTime: 60000,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
     enabled: mounted,
   });
 
-  // Calculate derived metrics - buyerEngagement still from paginated data for charts
+  // Derived metrics from server-side aggregates (all-deals scope)
   const buyerEngagement = React.useMemo(() => {
-    if (!allDealsData?.data) return { totalInvitations: 0, accepted: 0, pending: 0, rejected: 0 };
-
-    let totalInvitations = 0;
-    let accepted = 0;
-    let pending = 0;
-    let rejected = 0;
-
-    allDealsData.data.forEach((deal: DealSummary) => {
-      if (deal.statusSummary) {
-        totalInvitations += deal.statusSummary.totalTargeted;
-        accepted += deal.statusSummary.totalActive;
-        pending += deal.statusSummary.totalPending;
-        rejected += deal.statusSummary.totalRejected;
-      }
-    });
-
-    return { totalInvitations, accepted, pending, rejected };
-  }, [allDealsData]);
+    const summary = stats?.buyerResponseSummary;
+    return {
+      totalInvitations: summary?.totalInvitations || 0,
+      accepted: summary?.accepted || 0,
+      pending: summary?.pending || 0,
+      rejected: summary?.rejected || 0,
+    };
+  }, [stats]);
 
   const dealsByRewardLevel = React.useMemo(() => {
-    if (!allDealsData?.data) return { Seed: 0, Bloom: 0, Fruit: 0 };
-
-    const levels = { Seed: 0, Bloom: 0, Fruit: 0 };
-    allDealsData.data.forEach((deal: DealSummary) => {
-      if (deal.rewardLevel && Object.prototype.hasOwnProperty.call(levels, deal.rewardLevel)) {
-        levels[deal.rewardLevel as keyof typeof levels]++;
-      }
-    });
-    return levels;
-  }, [allDealsData]);
+    return {
+      Seed: stats?.rewardLevelBreakdown?.seed || 0,
+      Bloom: stats?.rewardLevelBreakdown?.bloom || 0,
+      Fruit: stats?.rewardLevelBreakdown?.fruit || 0,
+    };
+  }, [stats]);
 
   // Platform metrics from server-side stats (accurate across ALL deals)
+  const activeRevenueSize = stats?.activeRevenueSize || 0;
+  const activeEbitdaSize = stats?.activeEbitdaSize || 0;
   const totalRevenueSize = stats?.totalRevenueSize || 0;
   const totalEbitdaSize = stats?.totalEbitdaSize || 0;
   const marketplaceDeals = stats?.marketplaceDeals || 0;
@@ -369,57 +376,13 @@ export default function AdminOverviewPage() {
 
   // Deal value distribution data
   const dealValueDistribution = useMemo(() => {
-    if (!allDealsData?.data) return [];
-
-    const ranges = [
-      { name: "<$1M", min: 0, max: 1000000, count: 0 },
-      { name: "$1M-$5M", min: 1000000, max: 5000000, count: 0 },
-      { name: "$5M-$10M", min: 5000000, max: 10000000, count: 0 },
-      { name: "$10M-$50M", min: 10000000, max: 50000000, count: 0 },
-      { name: ">$50M", min: 50000000, max: Infinity, count: 0 },
-    ];
-
-    allDealsData.data.forEach((deal: DealSummary) => {
-      const price = deal.financialDetails?.askingPrice || 0;
-      for (const range of ranges) {
-        if (price >= range.min && price < range.max) {
-          range.count++;
-          break;
-        }
-      }
-    });
-
-    return ranges.map(r => ({ name: r.name, deals: r.count }));
-  }, [allDealsData]);
+    return stats?.dealValueDistribution || [];
+  }, [stats]);
 
   // Deals by month (last 6 months trend)
   const dealsTrendData = useMemo(() => {
-    if (!allDealsData?.data) return [];
-
-    const months: { [key: string]: number } = {};
-    const now = new Date();
-
-    // Initialize last 6 months
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = date.toLocaleDateString('en-US', { month: 'short' });
-      months[key] = 0;
-    }
-
-    // Count deals per month
-    allDealsData.data.forEach((deal: DealSummary) => {
-      const dealDate = new Date(deal.createdAt);
-      const monthsDiff = (now.getFullYear() - dealDate.getFullYear()) * 12 + (now.getMonth() - dealDate.getMonth());
-      if (monthsDiff >= 0 && monthsDiff < 6) {
-        const key = dealDate.toLocaleDateString('en-US', { month: 'short' });
-        if (months[key] !== undefined) {
-          months[key]++;
-        }
-      }
-    });
-
-    return Object.entries(months).map(([month, deals]) => ({ month, deals }));
-  }, [allDealsData]);
+    return stats?.dealsTrendLast6Months || [];
+  }, [stats]);
 
   // Calculate metrics
   const dealsGrowth = stats ? getPercentageChange(stats.dealsThisMonth, stats.dealsLastMonth) : 0;
@@ -462,6 +425,15 @@ export default function AdminOverviewPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 lg:gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openMetricsGuide}
+            className="hidden md:flex items-center gap-1 border-teal-200 text-teal-700 hover:bg-teal-50 hover:text-teal-800 transition-all"
+          >
+            <Info className="h-3.5 w-3.5" />
+            Metrics Guide
+          </Button>
           <div className="hidden sm:block text-right">
             <div className="font-medium text-gray-800 text-sm lg:text-base">{adminProfile?.fullName || "Loading..."}</div>
             <div className="text-[10px] lg:text-xs text-gray-500">{adminProfile?.email || ""}</div>
@@ -503,17 +475,17 @@ export default function AdminOverviewPage() {
               </CardContent>
             </Card>
 
-            {/* Active Deals */}
+            {/* Accepted Deals */}
             <Card className="bg-white border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-500">Active Deals</span>
+                  <span className="text-sm text-gray-500">Accepted Deals</span>
                   <div className="p-2 bg-emerald-50 rounded-lg">
                     <Activity className="h-4 w-4 text-emerald-600" />
                   </div>
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{formatNumber(activeDealsData?.total || 0)}</div>
-                <div className="text-xs text-emerald-600 mt-1">With buyer responses accepted</div>
+                <div className="text-xs text-emerald-600 mt-1">Deals with at least one accepted buyer response</div>
               </CardContent>
             </Card>
 
@@ -555,7 +527,7 @@ export default function AdminOverviewPage() {
                   </div>
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{formatNumber(stats?.totalBuyers || 0)}</div>
-                <div className="text-xs text-purple-600 mt-1">{responseRate}% response rate</div>
+                <div className="text-xs text-purple-600 mt-1">{responseRate}% overall response rate</div>
               </CardContent>
             </Card>
 
@@ -573,6 +545,23 @@ export default function AdminOverviewPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="mb-6 border-dashed border-teal-200 bg-teal-50/50">
+            <CardContent className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-xs text-teal-800">
+                Need definitions? Open the Metrics Guide to see exactly which values are all-deals totals vs active-only metrics.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={openMetricsGuide}
+                className="justify-start sm:justify-center text-teal-700 hover:text-teal-800 hover:bg-teal-100"
+              >
+                <Info className="h-3.5 w-3.5 mr-1" />
+                Open Guide
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* Row 2: Quick Actions */}
           <Card className="mb-6 bg-gradient-to-r from-teal-50 to-emerald-50 border-teal-100">
@@ -783,6 +772,8 @@ export default function AdminOverviewPage() {
                       <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} width={60} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }}
+                        formatter={(value: number, name: string) => [`${value} responses`, name]}
+                        labelFormatter={(label: string) => `${label} Buyers`}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                         {buyerResponseChartData.map((entry, index) => (
@@ -793,8 +784,13 @@ export default function AdminOverviewPage() {
                   </ResponsiveContainer>
                 </div>
                 <div className="text-center mt-2">
-                  <span className="text-xs text-gray-500">Response Rate: </span>
+                  <span className="text-xs text-gray-500">Overall Response Rate: </span>
                   <span className="text-xs font-semibold text-teal-600">{responseRate}%</span>
+                </div>
+                <div className="text-center mt-1">
+                  <span className="text-[11px] text-gray-500">
+                    Accepted {buyerEngagement.accepted} of {buyerEngagement.totalInvitations} total invitations
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -811,12 +807,20 @@ export default function AdminOverviewPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  <div className="flex justify-between items-center p-2 bg-gradient-to-r from-emerald-50 to-white rounded-lg">
+                    <span className="text-xs text-gray-600">Active Deals Revenue</span>
+                    <span className="text-sm font-bold text-emerald-600">{formatCurrency(activeRevenueSize)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-2 bg-gradient-to-r from-cyan-50 to-white rounded-lg">
+                    <span className="text-xs text-gray-600">Active Deals EBITDA</span>
+                    <span className="text-sm font-bold text-cyan-700">{formatCurrency(activeEbitdaSize)}</span>
+                  </div>
                   <div className="flex justify-between items-center p-2 bg-gradient-to-r from-teal-50 to-white rounded-lg">
-                    <span className="text-xs text-gray-600">Total Revenue Size</span>
+                    <span className="text-xs text-gray-600">Total Revenue (All Deals)</span>
                     <span className="text-sm font-bold text-teal-600">{formatCurrency(totalRevenueSize)}</span>
                   </div>
                   <div className="flex justify-between items-center p-2 bg-gradient-to-r from-blue-50 to-white rounded-lg">
-                    <span className="text-xs text-gray-600">Total EBITDA Size</span>
+                    <span className="text-xs text-gray-600">Total EBITDA (All Deals)</span>
                     <span className="text-sm font-bold text-blue-600">{formatCurrency(totalEbitdaSize)}</span>
                   </div>
                 <div className="flex justify-between items-center p-2 bg-gradient-to-r from-purple-50 to-white rounded-lg">
@@ -827,10 +831,13 @@ export default function AdminOverviewPage() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center p-2 bg-gradient-to-r from-amber-50 to-white rounded-lg">
-                    <span className="text-xs text-gray-600">Invitations</span>
+                    <span className="text-xs text-gray-600">Total Invitations (All Deals)</span>
                     <span className="text-sm font-bold text-amber-600">{serverTotalInvitations}</span>
                   </div>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-3">
+                  Active metrics include only deals with <span className="font-medium">status = active</span>. Total metrics include all deal statuses.
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -1016,7 +1023,7 @@ export default function AdminOverviewPage() {
           {/* Row 6: Monthly Comparison & KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             {/* Monthly Comparison Bar Chart */}
-            <Card className="bg-white hover:shadow-md transition-shadow">
+            <Card className="bg-white hover:shadow-md transition-shadow md:col-span-2 lg:col-span-1">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <div className="p-1.5 bg-indigo-100 rounded-md">
@@ -1026,7 +1033,7 @@ export default function AdminOverviewPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[120px]">
+                <div className="h-[120px] md:h-[200px] lg:h-[120px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={monthlyComparisonData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1079,11 +1086,11 @@ export default function AdminOverviewPage() {
                   </div>
                   <div className="text-center p-3 bg-white/10 rounded-lg backdrop-blur-sm">
                     <div className="text-2xl font-bold">{responseRate}%</div>
-                    <div className="text-xs text-white/80">Response Rate</div>
+                    <div className="text-xs text-white/80">Overall Response Rate</div>
                   </div>
                   <div className="text-center p-3 bg-white/10 rounded-lg backdrop-blur-sm">
                     <div className="text-2xl font-bold">{formatCurrency(totalEbitdaSize)}</div>
-                    <div className="text-xs text-white/80">Total EBITDA</div>
+                    <div className="text-xs text-white/80">Total EBITDA (All Deals)</div>
                   </div>
                 </div>
                 {/* Weekly KPIs */}
@@ -1245,6 +1252,46 @@ export default function AdminOverviewPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={metricsGuideOpen} onOpenChange={setMetricsGuideOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>How To Read Overview Metrics</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-gray-700">
+            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+              <p className="font-medium text-emerald-800">Accepted Deals</p>
+              <p>Deals with at least one buyer response marked as accepted. This is not the same as deal status = active.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+              <p className="font-medium text-blue-800">Marketplace</p>
+              <p>Deals currently visible on the Buyer Marketplace page: <code>isPublic = true</code> and <code>status != completed</code>.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-teal-50 border border-teal-100">
+              <p className="font-medium text-teal-800">Revenue / EBITDA Metrics</p>
+              <p><span className="font-medium">Active Deals Revenue/EBITDA</span>: sums for deals where <code>status = active</code>.</p>
+              <p><span className="font-medium">Total Revenue/EBITDA (All Deals)</span>: sums across all deal statuses in the system.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+              <p className="font-medium text-amber-800">Buyer Response</p>
+              <p>Accepted, Pending, Rejected are response counts from invitations. Overall Response Rate = Accepted / Total Invitations.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-purple-50 border border-purple-100">
+              <p className="font-medium text-purple-800">Invitations (All Deals)</p>
+              <p>Total number of targeted buyer invitations across all deals, including active, LOI, draft, and completed.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <p className="font-medium text-slate-800">Deal Status Cards</p>
+              <p><span className="font-medium">LOI Deals</span>: deals paused for LOI negotiation.</p>
+              <p><span className="font-medium">Off Market</span>: completed deals no longer open for new buyer activity.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-cyan-50 border border-cyan-100">
+              <p className="font-medium text-cyan-800">Weekly KPI Tiles</p>
+              <p><span className="font-medium">Deals Added</span> and <span className="font-medium">Buyers Added</span> use creation dates in the shown week windows.</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminProtectedRoute>
   );
 }

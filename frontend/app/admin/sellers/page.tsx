@@ -3,6 +3,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Search, Edit, Trash2, AlertTriangle, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Eye, EyeOff, Handshake, ExternalLink } from "lucide-react";
@@ -447,14 +454,14 @@ export default function SellersManagementDashboard() {
           )}
 
           {/* Page Title and Search */}
-          <div className="mb-6 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   type="search"
                   placeholder="Search"
-                  className="pl-10 w-full sm:w-64 bg-white border border-gray-200"
+                  className="pl-10 w-full sm:w-52 lg:w-56 bg-white border border-gray-200 h-9 text-xs sm:text-sm"
                   value={searchTerm}
                   onChange={handleSearch}
                 />
@@ -466,37 +473,45 @@ export default function SellersManagementDashboard() {
                   if (!sortByActiveDeals) setSortOrder("desc");
                   setCurrentPage(1);
                 }}
-                className={`text-xs sm:text-sm px-2 sm:px-4 ${sortByActiveDeals ? "bg-[#3aafa9] hover:bg-[#359a94]" : ""}`}
+                className={`h-9 text-xs sm:text-sm px-2 sm:px-3 ${sortByActiveDeals ? "bg-[#3aafa9] hover:bg-[#359a94]" : ""}`}
               >
                 <span className="hidden sm:inline">{sortByActiveDeals ? "Sorted by Active Deals" : "Sort by Active Deals"}</span>
                 <span className="sm:hidden">{sortByActiveDeals ? "Active ✓" : "Sort Active"}</span>
               </Button>
-              <select
+              <Select
                 value={sortOrder}
-                onChange={(e) => {
-                  setSortOrder(e.target.value as "asc" | "desc");
+                onValueChange={(value) => {
+                  setSortOrder(value as "asc" | "desc");
                   setCurrentPage(1);
                 }}
-                className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
               >
-                <option value="asc">A to Z</option>
-                <option value="desc">Z to A</option>
-              </select>
+                <SelectTrigger className="h-9 w-[105px] text-xs sm:text-sm">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">A to Z</SelectItem>
+                  <SelectItem value="desc">Z to A</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1">
               <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</span>
-              <select
-                value={sellersPerPage}
-                onChange={(e) => {
-                  setSellersPerPage(Number(e.target.value));
+              <Select
+                value={String(sellersPerPage)}
+                onValueChange={(value) => {
+                  setSellersPerPage(Number(value));
                   setCurrentPage(1); // Reset to first page when changing page size
                 }}
-                className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
               >
-                <option value="10">10</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
+                <SelectTrigger className="h-9 w-[95px] sm:w-[105px] text-xs sm:text-sm">
+                  <SelectValue placeholder="Per page" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

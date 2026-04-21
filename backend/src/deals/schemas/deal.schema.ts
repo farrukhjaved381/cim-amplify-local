@@ -380,6 +380,10 @@ export class Deal {
   @Prop({ required: false })
   closedWithBuyerEmail?: string;
 
+  @ApiProperty({ description: "Whether deal was closed with a CIM Amplify buyer", required: false, default: false })
+  @Prop({ default: false })
+  closedWithCimAmplify?: boolean;
+
   @ApiProperty({ description: "The buyer (ObjectId) the deal is in LOI with, if from CIM Amplify", required: false })
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Buyer", required: false })
   loiWithBuyer?: string;
@@ -423,6 +427,12 @@ DealSchema.index({ status: 1, "timeline.updatedAt": -1 }); // For active/complet
 DealSchema.index({ status: 1, createdAt: -1 }); // For deals sorted by creation date
 DealSchema.index({ seller: 1, status: 1 }); // For seller's deals by status
 DealSchema.index({ isPublic: 1, status: 1 }); // For marketplace deals
+
+// Additional compound indexes for high-traffic dashboard queries
+DealSchema.index({ seller: 1, createdAt: -1 }); // Seller's deals by date (seller dashboard)
+DealSchema.index({ targetedBuyers: 1, status: 1 }); // Buyer's pending/active deals
+DealSchema.index({ interestedBuyers: 1, status: 1 }); // Buyer's active (interested) deals
+DealSchema.index({ isPublic: 1, status: 1, createdAt: -1 }); // Marketplace sorted by date
 
 // Add createdAt and updatedAt timestamps
 DealSchema.pre("save", function (next) {

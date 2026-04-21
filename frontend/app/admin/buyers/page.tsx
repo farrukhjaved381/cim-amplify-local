@@ -3,6 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Search, Edit, Trash2, Building2, User, Mail, Phone, Globe, Briefcase, Calendar, CheckCircle, XCircle, Users, Loader2, Handshake, Eye, EyeOff, ExternalLink } from "lucide-react";
@@ -90,7 +97,6 @@ export default function BuyersManagementDashboard() {
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [buyerDealCounts, setBuyerDealCounts] = useState<Record<string, BuyerDealStatusCounts>>({});
   const [totalBuyers, setTotalBuyers] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalDeals, setModalDeals] = useState<any[]>([]);
@@ -104,6 +110,7 @@ export default function BuyersManagementDashboard() {
 
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [buyerCategory, setBuyerCategory] = useState<"all" | "active" | "pending" | "rejected">("all");
+  const [buyerSort, setBuyerSort] = useState<"default" | "name-asc" | "name-desc">("default");
   const [buyersPerPage, setBuyersPerPage] = useState(10);
   const [pageLoading, setPageLoading] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
@@ -193,39 +200,6 @@ export default function BuyersManagementDashboard() {
     };
     fetchBuyers();
   }, [currentPage, searchTerm, buyersPerPage, showIncompleteOnly, buyerCategory]);
-
-  useEffect(() => {
-    const fetchDealCounts = async () => {
-      const token = sessionStorage.getItem('token');
-      if (!token) return;
-      const counts: Record<string, BuyerDealStatusCounts> = {};
-      await Promise.all(
-        buyers.map(async (buyer) => {
-          const buyerId = buyer._id || buyer.id;
-          if (!buyerId) return;
-          try {
-            const res = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/deals/admin/buyer/${buyerId}/status-counts`,
-              {
-                headers: { Authorization: `Bearer ${token}` },
-              }
-            );
-            if (!res.ok) throw new Error("Failed to fetch deal status counts");
-            const data = await res.json();
-            counts[buyerId] = {
-              active: data.active || 0,
-              pending: data.pending || 0,
-              rejected: data.rejected || 0,
-            };
-          } catch {
-            counts[buyerId] = { active: 0, pending: 0, rejected: 0 };
-          }
-        })
-      );
-      setBuyerDealCounts(counts);
-    };
-    if (buyers.length > 0) fetchDealCounts();
-  }, [buyers]);
 
   const openDealModal = async (buyer: Buyer, status: "active" | "pending" | "rejected") => {
     setModalBuyer(buyer);
@@ -385,17 +359,13 @@ export default function BuyersManagementDashboard() {
   const totalPages = Math.ceil(totalBuyers / buyersPerPage);
   
   const getDealCounts = (buyer: Buyer) => {
-    const buyerId = String(buyer._id || buyer.id || "");
-    // If we're filtering by deal status, use the counts from the backend response
-    if (buyerCategory !== "all" && buyer.activeDealsCount !== undefined) {
-      return {
-        active: buyer.activeDealsCount || 0,
-        pending: buyer.pendingDealsCount || 0,
-        rejected: buyer.rejectedDealsCount || 0,
-      };
-    }
-    // Otherwise, use the separate fetch
-    return buyerId && buyerDealCounts[buyerId] ? buyerDealCounts[buyerId] : { active: 0, pending: 0, rejected: 0 };
+    // Counts come from the main /admin/buyers response (denormalized backend fields).
+    // This avoids N+1 requests and keeps table performance stable at high page sizes.
+    return {
+      active: buyer.activeDealsCount || 0,
+      pending: buyer.pendingDealsCount || 0,
+      rejected: buyer.rejectedDealsCount || 0,
+    };
   };
 
   const currentBuyers = buyers;
@@ -463,14 +433,14 @@ export default function BuyersManagementDashboard() {
       <div className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto">
           {error && <div className="text-red-500 mb-4">{error}</div>}
           {/* Page Title & Sorting */}
-          <div className="mb-6 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div className="mb-6 flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   type="search"
                   placeholder="Search"
-                  className="pl-10 w-full sm:w-64 bg-white border border-gray-200"
+                  className="pl-10 w-full sm:w-52 lg:w-56 bg-white border border-gray-200 h-9 text-xs sm:text-sm"
                   value={searchTerm}
                   onChange={handleSearch}
                 />
@@ -478,31 +448,37 @@ export default function BuyersManagementDashboard() {
               <Button
                 variant={showIncompleteOnly ? "default" : "outline"}
                 onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
-                className={`text-xs sm:text-sm px-2 sm:px-4 ${showIncompleteOnly ? "bg-[#3aafa9] hover:bg-[#359a94]" : ""}`}
+                className={`h-9 text-xs sm:text-sm px-2 sm:px-3 ${showIncompleteOnly ? "bg-[#3aafa9] hover:bg-[#359a94]" : ""}`}
               >
                 <span className="hidden sm:inline">{showIncompleteOnly ? "Show All Buyers" : "Incomplete Profile Buyers"}</span>
                 <span className="sm:hidden">{showIncompleteOnly ? "All" : "Incomplete"}</span>
               </Button>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Categorize:</label>
-                <select
+              <div className="flex items-center gap-1">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Category:</label>
+                <Select
                   value={buyerCategory}
-                  onChange={(e) => setBuyerCategory(e.target.value as "all" | "active" | "pending" | "rejected")}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
+                  onValueChange={(value) => {
+                    setBuyerCategory(value as "all" | "active" | "pending" | "rejected");
+                    setCurrentPage(1);
+                  }}
                 >
-                  <option value="all">All</option>
-                  <option value="active">Active Deals</option>
-                  <option value="pending">Pending Deals</option>
-                  <option value="rejected">Rejected Deals</option>
-                </select>
+                  <SelectTrigger className="h-9 w-[135px] sm:w-[145px] text-xs sm:text-sm">
+                    <SelectValue placeholder="Categorize" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="active">Active Deals</SelectItem>
+                    <SelectItem value="pending">Pending Deals</SelectItem>
+                    <SelectItem value="rejected">Rejected Deals</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1">
                 <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Sort:</label>
-                <select
-                  onChange={(e) => {
-                    const value = e.target.value;
+                <Select
+                  value={buyerSort}
+                  onValueChange={(value) => {
+                    setBuyerSort(value as "default" | "name-asc" | "name-desc");
                     if (value === "name-asc" || value === "name-desc") {
                       const order = value.split("-")[1];
                       const sorted = [...currentBuyers].sort((a, b) => {
@@ -513,27 +489,35 @@ export default function BuyersManagementDashboard() {
                       setBuyers(sorted);
                     }
                   }}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
                 >
-                  <option value="">Default</option>
-                  <option value="name-asc">Company Name A-Z</option>
-                  <option value="name-desc">Company Name Z-A</option>
-                </select>
+                  <SelectTrigger className="h-9 w-[150px] sm:w-[165px] text-xs sm:text-sm">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="name-asc">Company Name A-Z</SelectItem>
+                    <SelectItem value="name-desc">Company Name Z-A</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1">
                 <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">Per page:</span>
-                <select
-                  value={buyersPerPage}
-                  onChange={(e) => {
-                    setBuyersPerPage(Number(e.target.value));
+                <Select
+                  value={String(buyersPerPage)}
+                  onValueChange={(value) => {
+                    setBuyersPerPage(Number(value));
                     setCurrentPage(1); // Reset to first page when changing page size
                   }}
-                  className="border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
                 >
-                  <option value="10">10</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
+                  <SelectTrigger className="h-9 w-[95px] sm:w-[105px] text-xs sm:text-sm">
+                    <SelectValue placeholder="Per page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

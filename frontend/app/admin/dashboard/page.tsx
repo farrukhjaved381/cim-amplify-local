@@ -68,6 +68,7 @@ interface Deal {
   closedWithBuyer?: string;
   closedWithBuyerCompany?: string;
   closedWithBuyerEmail?: string;
+  closedWithCimAmplify?: boolean;
   wasLOIDeal?: boolean;
   businessModel?: BusinessModel;
   managementPreferences?: string;
@@ -173,6 +174,29 @@ const COMPANY_TYPE_OPTIONS = [
   "Single Acquisition Search",
   "Strategic Operating Company",
 ];
+
+const normalizeId = (value: any): string => {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object") {
+    if (typeof value._id === "string") return value._id.trim();
+    if (typeof value.id === "string") return value.id.trim();
+    if (typeof value.toString === "function") {
+      const converted = value.toString();
+      if (converted && converted !== "[object Object]") return converted.trim();
+    }
+  }
+  return "";
+};
+
+const hasCimAmplifyBuyer = (deal: Deal): boolean => {
+  return Boolean(
+    (deal as any).closedWithCimAmplify === true ||
+    normalizeId((deal as any).closedWithBuyer) ||
+    (deal as any).closedWithBuyerCompany ||
+    (deal as any).closedWithBuyerEmail
+  );
+};
 
 const BuyersActivityPopup: React.FC<{
   isOpen: boolean;
@@ -1020,6 +1044,14 @@ export default function DealManagementDashboard() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearch);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const dealsAbortRef = useRef<Record<"active" | "offMarket" | "allDeals" | "loi", AbortController | null>>({
+    active: null,
+    offMarket: null,
+    allDeals: null,
+    loi: null,
+  });
+  const tabCountsAbortRef = useRef<AbortController | null>(null);
+  const recentDealsRequestRef = useRef<Map<string, number>>(new Map());
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const [activeDeals, setActiveDeals] = useState<Deal[]>([]);
@@ -1180,14 +1212,14 @@ export default function DealManagementDashboard() {
 
         // Transform to match the expected format
         const transformedBuyers = buyers.map((buyer: any) => ({
-          buyerId: buyer._id,
+          buyerId: normalizeId(buyer?._id || buyer?.id),
           buyerName: buyer.fullName || "Unknown Buyer",
           companyName: buyer.companyName || "Unknown Company",
           buyerEmail: buyer.email || "",
           status: "active", // Mark all as active since they were ever active
           currentStatus: buyer.currentStatus,
           isCurrentlyActive: buyer.isCurrentlyActive,
-        }));
+        })).filter((buyer: any) => !!buyer.buyerId);
 
         setBuyerActivity(transformedBuyers);
 
@@ -1271,7 +1303,7 @@ export default function DealManagementDashboard() {
       };
       // Only add winningBuyerId if buyer is from CIM Amplify AND a buyer is selected
       if (offMarketData.buyerFromCIM === true && selectedWinningBuyer) {
-        body.winningBuyerId = selectedWinningBuyer;
+        body.winningBuyerId = normalizeId(selectedWinningBuyer);
       }
       const closeResponse = await fetch(
         `${apiUrl}/deals/${selectedDealForOffMarketDialog._id}/close`,
@@ -1409,6 +1441,43 @@ export default function DealManagementDashboard() {
     status: "active" | "offMarket" | "allDeals" | "loi",
     searchTerm: string = ""
   ) => {
+    const token = sessionStorage.getItem("token");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
+    if (!token) {
+      setLoading(false);
+      setSearchLoading(false);
+      return;
+    }
+
+    // Deduplicate ultra-close identical calls (common in React StrictMode DEV).
+    const requestKey = `${status}|${page}|${limit}|${searchTerm}`;
+    const now = Date.now();
+    const lastRequestAt = recentDealsRequestRef.current.get(requestKey) || 0;
+    if (now - lastRequestAt < 500) return;
+    recentDealsRequestRef.current.set(requestKey, now);
+
+    // Abort any in-flight request for the same tab/status before starting a new one.
+    if (dealsAbortRef.current[status]) {
+      dealsAbortRef.current[status]?.abort();
+    }
+    const controller = new AbortController();
+    dealsAbortRef.current[status] = controller;
+
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const fetchWith429Retry = async (url: string, init: RequestInit, retries = 2): Promise<Response> => {
+      let attempt = 0;
+      while (true) {
+        const res = await fetch(url, init);
+        if (res.status !== 429 || attempt >= retries) return res;
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : 400 * Math.pow(2, attempt);
+        attempt += 1;
+        await wait(backoffMs);
+      }
+    };
+
     // Set page loading state
     if (status === "active") setActivePageLoading(true);
     else if (status === "offMarket") setOffMarketPageLoading(true);
@@ -1416,8 +1485,6 @@ export default function DealManagementDashboard() {
     else if (status === "loi") setLoiPageLoading(true);
 
     try {
-      const token = sessionStorage.getItem('token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
       // Properly encode the search term to handle special characters
       const encodedSearchTerm = encodeURIComponent(searchTerm);
       let endpoint;
@@ -1434,49 +1501,32 @@ export default function DealManagementDashboard() {
       if (!endpoint) {
         throw new Error("Invalid deal status provided");
       }
-      const response = await fetch(endpoint, {
+      const response = await fetchWith429Retry(endpoint, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error(`Failed to fetch ${status} deals`);
+      if (!response.ok) {
+        const error: any = new Error(`Failed to fetch ${status} deals`);
+        error.status = response.status;
+        throw error;
+      }
       const data = await response.json();
       const dealsArray = Array.isArray(data.data) ? data.data : [data.data];
 
       const validDealsArray = dealsArray.filter((deal: Deal) => deal !== null && deal !== undefined);
 
-      const dealsWithSellers = await Promise.all(
-        validDealsArray.map(async (deal: Deal) => {
-          try {
-            // Fetch seller profile
-            const sellerRes = await fetch(`${apiUrl}/sellers/public/${deal.seller}`);
-            let sellerProfile = null;
-            if (sellerRes.ok) {
-              sellerProfile = await sellerRes.json();
-            }
-
-            // Fetch status summary for each deal
-            const statusRes = await fetch(`${apiUrl}/deals/${deal._id}/status-summary`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            });
-
-            let statusSummary = null;
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              statusSummary = statusData.summary;
-            }
-
-            return { ...deal, sellerProfile, statusSummary };
-          } catch {
-            return deal;
-          }
-        })
-      );
+      const dealsWithSellers = validDealsArray.map((deal: Deal) => {
+        let sellerProfile = (deal as any).sellerProfile || null;
+        if (Array.isArray(sellerProfile)) {
+          sellerProfile = sellerProfile[0] || null;
+        }
+        const statusSummary = (deal as any).statusSummary || null;
+        return { ...deal, sellerProfile, statusSummary };
+      });
 
       if (status === "active") {
         setActiveDeals(dealsWithSellers);
@@ -1497,6 +1547,15 @@ export default function DealManagementDashboard() {
       }
       setError(null);
     } catch (error: any) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+
+      if (error?.status === 429) {
+        setError("Too many requests. Please wait a moment and try again.");
+        return;
+      }
+
       if (status === "active") {
         setActiveDeals([]);
         setActiveTotalDeals(0);
@@ -1516,7 +1575,49 @@ export default function DealManagementDashboard() {
       }
       setError(error.message);
     } finally {
+      if (dealsAbortRef.current[status] === controller) {
+        dealsAbortRef.current[status] = null;
+      }
       setLoading(false);
+    }
+  };
+
+  const fetchAllTabCounts = async (search: string) => {
+    const token = sessionStorage.getItem("token");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://cim-backend.vercel.app";
+    if (!token) return;
+
+    if (tabCountsAbortRef.current) {
+      tabCountsAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    tabCountsAbortRef.current = controller;
+
+    const encodedSearchTerm = encodeURIComponent(search);
+
+    try {
+      const res = await fetch(`${apiUrl}/deals/admin/tab-counts?search=${encodedSearchTerm}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveTotalDeals(Number(data?.active || 0));
+        setOffMarketTotalDeals(Number(data?.offMarket || 0));
+        setAllDealsTotalDeals(Number(data?.allDeals || 0));
+        setLoiTotalDeals(Number(data?.loi || 0));
+      }
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        // keep existing counters on count-fetch failure
+      }
+    } finally {
+      if (tabCountsAbortRef.current === controller) {
+        tabCountsAbortRef.current = null;
+      }
     }
   };
 
@@ -1536,34 +1637,44 @@ export default function DealManagementDashboard() {
     };
   }, [searchTerm]);
 
-  useEffect(() => {
-    const fetchAllDeals = async () => {
-      await Promise.all([
-        fetchDeals(activeCurrentPage, dealsPerPage, "active", debouncedSearchTerm),
-        fetchDeals(offMarketCurrentPage, dealsPerPage, "offMarket", debouncedSearchTerm),
-        fetchDeals(allDealsCurrentPage, dealsPerPage, "allDeals", debouncedSearchTerm),
-        fetchDeals(loiCurrentPage, dealsPerPage, "loi", debouncedSearchTerm),
-      ]);
-      setSearchLoading(false);
-    };
-    fetchAllDeals();
-  }, [activeCurrentPage, offMarketCurrentPage, allDealsCurrentPage, loiCurrentPage, debouncedSearchTerm]);
+  const currentTabPage =
+    activeTab === "active"
+      ? activeCurrentPage
+      : activeTab === "offMarket"
+      ? offMarketCurrentPage
+      : activeTab === "allDeals"
+      ? allDealsCurrentPage
+      : loiCurrentPage;
 
   useEffect(() => {
-    if (activeTab === "active") {
-      setActiveCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "active", debouncedSearchTerm);
-    } else if (activeTab === "offMarket") {
-      setOffMarketCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "offMarket", debouncedSearchTerm);
-    } else if (activeTab === "allDeals") {
-      setAllDealsCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "allDeals", debouncedSearchTerm);
-    } else if (activeTab === "loi") {
-      setLoiCurrentPage(1);
-      fetchDeals(1, dealsPerPage, "loi", debouncedSearchTerm);
-    }
-  }, [activeTab]);
+    const fetchCurrentTabDeals = async () => {
+      if (activeTab === "active") {
+        await fetchDeals(currentTabPage, dealsPerPage, "active", debouncedSearchTerm);
+      } else if (activeTab === "offMarket") {
+        await fetchDeals(currentTabPage, dealsPerPage, "offMarket", debouncedSearchTerm);
+      } else if (activeTab === "allDeals") {
+        await fetchDeals(currentTabPage, dealsPerPage, "allDeals", debouncedSearchTerm);
+      } else if (activeTab === "loi") {
+        await fetchDeals(currentTabPage, dealsPerPage, "loi", debouncedSearchTerm);
+      }
+      setSearchLoading(false);
+    };
+    fetchCurrentTabDeals();
+  }, [activeTab, currentTabPage, debouncedSearchTerm]);
+
+  useEffect(() => {
+    fetchAllTabCounts(debouncedSearchTerm);
+  }, [debouncedSearchTerm]);
+
+  useEffect(() => {
+    return () => {
+      dealsAbortRef.current.active?.abort();
+      dealsAbortRef.current.offMarket?.abort();
+      dealsAbortRef.current.allDeals?.abort();
+      dealsAbortRef.current.loi?.abort();
+      tabCountsAbortRef.current?.abort();
+    };
+  }, []);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -2415,8 +2526,8 @@ export default function DealManagementDashboard() {
 
                             <div className="flex justify-between">
                               <span className="text-gray-500">Buyer From CIM Amplify:</span>
-                              <span className={`font-medium ${deal.closedWithBuyer && deal.closedWithBuyer !== "false" && deal.closedWithBuyer !== "" ? "text-green-600" : "text-gray-600"}`}>
-                                {deal.closedWithBuyer && deal.closedWithBuyer !== "false" && deal.closedWithBuyer !== "" ? "Yes" : "No"}
+                              <span className={`font-medium ${hasCimAmplifyBuyer(deal) ? "text-green-600" : "text-gray-600"}`}>
+                                {hasCimAmplifyBuyer(deal) ? "Yes" : "No"}
                               </span>
                             </div>
                             {deal.closedWithBuyerCompany && (

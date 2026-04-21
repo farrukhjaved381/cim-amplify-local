@@ -11,6 +11,7 @@ import {
   Handshake,
   Tag,
   ShoppingCart,
+  Mail,
   Eye,
   LogOut,
   X,
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/admin/dashboard", label: "Deals", icon: Handshake },
   { href: "/admin/buyers", label: "Buyers", icon: Tag },
   { href: "/admin/sellers", label: "Sellers", icon: ShoppingCart },
+  { href: "/admin/emails", label: "Emails", icon: Mail },
   { href: "/admin/team-management", label: "Team Management", icon: Users },
   { href: "/admin/viewprofile", label: "View Profile", icon: Eye },
 ];

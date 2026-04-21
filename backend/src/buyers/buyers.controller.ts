@@ -55,7 +55,7 @@ export class BuyersController {
   ) { }
 
   @Post("register")
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   @ApiOperation({ summary: "Register a new buyer" })
   @ApiResponse({ status: 201, description: "Buyer successfully registered" })
   @ApiResponse({ status: 409, description: "Email already exists" })
@@ -82,7 +82,7 @@ export class BuyersController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   @ApiOperation({ summary: 'Login a buyer' })
   @ApiResponse({ status: 200, description: 'Buyer successfully logged in' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })

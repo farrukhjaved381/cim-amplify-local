@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import { ChevronDown, ChevronRight, Search, Store, X, Info, DollarSign, Users, FileText, Briefcase, Loader2, ArrowLeft, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Store, X, Info, DollarSign, Users, FileText, Briefcase, Loader2, ArrowLeft, Upload, Eye } from "lucide-react";
 
 import {
   getIndustryData,
@@ -1551,6 +1551,13 @@ const renderGeographySelection = () => {
     }));
   };
 
+  const previewNdaDocument = () => {
+    if (formData.ndaDocument) {
+      const url = URL.createObjectURL(formData.ndaDocument);
+      window.open(url, '_blank');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -2792,6 +2799,15 @@ const renderGeographySelection = () => {
                         {(formData.ndaDocument.size / 1024 / 1024).toFixed(2)} MB
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={previewNdaDocument}
+                      className="p-2 text-[#3aafa9] hover:bg-teal-50 rounded-full transition-colors"
+                      aria-label="Preview NDA"
+                      title="View document"
+                    >
+                      <Eye className="h-5 w-5" />
+                    </button>
                     <button
                       type="button"
                       onClick={removeNdaDocument}

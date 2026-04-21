@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common"
-import { APP_GUARD } from "@nestjs/core"
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core"
+import { CacheControlInterceptor } from "./common/cache-control.interceptor"
 import { MongooseModule } from "@nestjs/mongoose"
 import { ConfigModule } from "@nestjs/config"
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler"
@@ -35,14 +36,27 @@ const isVercel = !!process.env.VERCEL || !existsSync(join(__dirname, '..', 'Uplo
       envFilePath: process.env.VERCEL === '1' ? [] : join(__dirname, '..', '.env'),
       validate: validateEnvironment,
     }),
+    // Tiered throttling — tuned for a ~100k-user platform where large NAT/CGNAT
+    // shared IPs (corporate networks, mobile carriers) must not trigger false-
+    // positive lockouts. These ceilings are deliberately high; the platform
+    // relies on upstream protection (Vercel, Cloudflare/WAF if added) and
+    // account-level defenses (bcrypt, account lockout, password-reset throttles)
+    // as the real security boundary, not this in-process throttler.
     ThrottlerModule.forRoot([
-      {
-        name: "default",
-        ttl: 60000,
-        limit: 20,
-      },
+      { name: "default", ttl: 60000, limit: 30000 },  // 500 req/sec/IP — effectively off for legit users
+      { name: "short", ttl: 1000, limit: 500 },       // burst protection only
+      { name: "long", ttl: 3600000, limit: 200000 },  // hourly sanity ceiling
     ]),
-    MongooseModule.forRoot(process.env.MONGODB_URI as string),
+    // Mongo connection tuned for high concurrency.
+    // Default pool (5-10) becomes the main bottleneck under load.
+    // maxPoolSize=100 handles thousands of concurrent users with MongoDB Atlas.
+    MongooseModule.forRoot(process.env.MONGODB_URI as string, {
+      maxPoolSize: 100,
+      minPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4, // IPv4 — avoids DNS resolution delays on some platforms
+    }),
     // ServeStaticModule only for local dev — Vercel has read-only filesystem
     ...(isVercel ? [] : [
       ServeStaticModule.forRoot({
@@ -68,6 +82,10 @@ const isVercel = !!process.env.VERCEL || !existsSync(join(__dirname, '..', 'Uplo
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheControlInterceptor,
     },
   ],
   controllers: [],

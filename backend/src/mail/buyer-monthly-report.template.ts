@@ -5,6 +5,7 @@
  */
 
 export interface BuyerReportDeal {
+  dealId: string;
   title: string;
   location: string;
   industry: string;
@@ -78,9 +79,11 @@ function renderActiveDealsTable(deals: BuyerReportDeal[], frontendUrl: string): 
 
   const rows = deals.map(d => {
     const rowBg = d.isLoi ? 'rgba(240,153,123,0.05)' : C.activeBg;
+    const dealUrl = `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}`;
+
     const actionCell = d.isLoi
-      ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
-      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};text-align:right;"><a href="${frontendUrl}/buyer/deals" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a></td>`;
+      ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
+      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;"><a href="${dealUrl}" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a></td>`;
 
     return `<tr>
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};vertical-align:middle;">
@@ -91,7 +94,7 @@ function renderActiveDealsTable(deals: BuyerReportDeal[], frontendUrl: string): 
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.revenue)}</td>
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.ebitda)}</td>
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.textMuted};">${esc(d.dateSince)}</td>
-      ${actionCell.replace(/border-bottom:0\.5px solid [^;]+;/g, `border-bottom:0.5px solid ${C.borderLight};background:${rowBg};`)}
+      ${actionCell}
     </tr>`;
   }).join('');
 
@@ -132,11 +135,13 @@ function renderPendingDealsTable(
   const rows = deals.map(d => {
     const rowBg = d.isLoi ? 'rgba(240,153,123,0.03)' : C.white;
     const ageClr = ageColor(d.daysWaiting);
+    const dealUrl = `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}`;
+
     const actionCell = d.isLoi
-      ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
-      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};text-align:right;">
-          <a href="${frontendUrl}/buyer/deals" style="font-size:11px;font-weight:500;background:${C.tealPrimary};color:#fff;border:none;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;margin-right:4px;">More Info</a>
-          <a href="${frontendUrl}/buyer/deals" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
+      ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
+      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;">
+          <a href="${dealUrl}" style="font-size:11px;font-weight:500;background:${C.tealPrimary};color:#fff;border:none;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;margin-right:4px;">More Info</a>
+          <a href="${dealUrl}" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
         </td>`;
 
     return `<tr>
@@ -148,7 +153,7 @@ function renderPendingDealsTable(
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.revenue)}</td>
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.ebitda)}</td>
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};"><span style="font-size:11px;color:${ageClr};font-weight:500;">${ageLabel(d.daysWaiting)}</span></td>
-      ${actionCell.replace(/background:[^;]*;/g, `background:${rowBg};`)}
+      ${actionCell}
     </tr>`;
   }).join('');
 

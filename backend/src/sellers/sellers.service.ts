@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { MailService, ILLUSTRATION_ATTACHMENT } from '../mail/mail.service';
 import { genericEmailTemplate } from '../mail/generic-email.template';
 import { getAdminNotificationEmail } from '../common/admin-notification-email';
+import { cached, cacheInvalidate } from '../common/memory-cache';
 
 const escapeRegexInput = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -73,6 +74,16 @@ export class SellersService {
   }
 
   async findAll(page: number = 1, limit: number = 10, search: string = '', sortBy: string = '', activeOnly: string = ''): Promise<any> {
+    if (!search) {
+      // 15s cache — below user perception, eliminates repeat DB hits from admin tables
+      // refreshing, pagination, and React Query refetches. No invalidation needed.
+      const key = `sellers:list:${page}:${limit}:${sortBy}:${activeOnly}`;
+      return cached(key, 15_000, () => this.findAllUncached(page, limit, search, sortBy, activeOnly));
+    }
+    return this.findAllUncached(page, limit, search, sortBy, activeOnly);
+  }
+
+  private async findAllUncached(page: number = 1, limit: number = 10, search: string = '', sortBy: string = '', activeOnly: string = ''): Promise<any> {
     try {
       const skip = (page - 1) * limit;
       

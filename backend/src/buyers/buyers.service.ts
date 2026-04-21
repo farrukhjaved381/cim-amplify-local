@@ -14,6 +14,7 @@ import { MailService, ILLUSTRATION_ATTACHMENT } from "../mail/mail.service";
 import { genericEmailTemplate, emailButton } from "../mail/generic-email.template";
 import { getAdminNotificationEmail } from "../common/admin-notification-email";
 import { getFrontendUrl } from "../common/frontend-url";
+import { cached, cacheInvalidate } from "../common/memory-cache";
 
 const escapeRegexInput = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const getFirstName = (fullName?: string | null): string => {
@@ -154,8 +155,18 @@ export class BuyersService {
   }
 
   async findAll(page: number = 1, limit: number = 10, search: string = '', sortBy: string = '', dealStatus: string = ''): Promise<any> {
-    console.log('[BUYERS SERVICE] === findAll called ===');
-    console.log('[BUYERS SERVICE] Parameters:', { page, limit, search, sortBy, dealStatus });
+    // Cache non-search buyer list queries (admin tables) for 30s.
+    // Search queries bypass cache (high cardinality, low hit rate).
+    if (!search) {
+      // Short TTL so we don't need per-mutation invalidation; 15s is below user perception
+      // and prevents repeat DB hits from dashboards, table re-renders, and React Query refetches.
+      const key = `buyers:list:${page}:${limit}:${sortBy}:${dealStatus}`;
+      return cached(key, 15_000, () => this.findAllUncached(page, limit, search, sortBy, dealStatus));
+    }
+    return this.findAllUncached(page, limit, search, sortBy, dealStatus);
+  }
+
+  private async findAllUncached(page: number = 1, limit: number = 10, search: string = '', sortBy: string = '', dealStatus: string = ''): Promise<any> {
 
     const skip = (page - 1) * limit;
 

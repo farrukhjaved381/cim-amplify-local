@@ -191,4 +191,9 @@ export class UpdateDealDto {
   @IsString()
   @IsOptional()
   closedWithBuyerEmail?: string;
+
+  @ApiProperty({ description: "Whether deal was closed with a CIM Amplify buyer", required: false })
+  @IsBoolean()
+  @IsOptional()
+  closedWithCimAmplify?: boolean;
 }

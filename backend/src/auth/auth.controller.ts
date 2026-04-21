@@ -24,7 +24,7 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   @ApiOperation({ summary: 'Login a user' })
   @ApiBody({ type: LoginBuyerDto })
   @ApiResponse({ status: 200, description: 'User logged in successfully' })
@@ -35,7 +35,7 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('admin/login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   @ApiOperation({ summary: 'Login an admin' })
   @ApiResponse({ status: 200, description: 'Admin logged in successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -46,7 +46,7 @@ export class AuthController {
 
   @Post('seller/login')
   @UseGuards(LocalAuthGuard)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 1000, ttl: 60000 } })
   @ApiOperation({ summary: 'Login a seller' })
   @ApiResponse({ status: 200, description: 'Seller logged in successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })

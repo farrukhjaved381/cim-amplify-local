@@ -37,6 +37,7 @@ import {
   Briefcase,
   Info,
   Upload,
+  Eye,
 } from "lucide-react";
 import { Country, State, City } from "country-state-city";
 import {
@@ -64,6 +65,13 @@ type CapitalAvailabilityType =
 
 const US_REGION_PREFIX = "United States > ";
 const US_KEY_REGIONS = ["Northeast", "Midwest", "South", "West"];
+const US_REGION_STATES: Record<string, string[]> = {
+  Northeast: ["Connecticut", "Maine", "Massachusetts", "New Hampshire", "Rhode Island", "Vermont", "New Jersey", "New York", "Pennsylvania"],
+  Midwest: ["Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin", "Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska", "North Dakota", "South Dakota"],
+  South: ["Delaware", "Florida", "Georgia", "Maryland", "North Carolina", "South Carolina", "Virginia", "West Virginia", "Alabama", "Kentucky", "Mississippi", "Tennessee", "Arkansas", "Louisiana", "Oklahoma", "Texas"],
+  West: ["Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming", "Alaska", "California", "Hawaii", "Oregon", "Washington"],
+};
+const ALL_US_REGION_STATE_NAMES = new Set(Object.values(US_REGION_STATES).flat());
 
 interface SellerFormData {
   dealTitle: string;
@@ -91,6 +99,7 @@ interface SellerFormData {
     mimetype: string;
     size: number;
     uploadedAt: Date;
+    base64Content?: string;
   } | null;
   t12FreeCashFlow?: number;
   t12NetIncome?: number;
@@ -421,6 +430,20 @@ export default function EditDealPageFixed() {
     setRemoveExistingNda(true);
   };
 
+  const previewNdaDocument = () => {
+    if (formData.ndaDocument) {
+      const url = URL.createObjectURL(formData.ndaDocument);
+      window.open(url, '_blank');
+    } else if (formData.existingNdaDocument?.base64Content) {
+      const byteChars = atob(formData.existingNdaDocument.base64Content.split(',').pop() || formData.existingNdaDocument.base64Content);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], { type: formData.existingNdaDocument.mimetype });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dealId) {
@@ -503,9 +526,9 @@ export default function EditDealPageFixed() {
         hideGuidelines: formData.hideGuidelines,
       };
 
-      // Handle NDA document
+      // Handle NDA document — always include in payload so backend never has to guess
       if (formData.ndaDocument) {
-        // New NDA file uploaded - convert to base64
+        // New NDA file uploaded — convert to base64
         const ndaFile = formData.ndaDocument;
         const base64Content = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -526,7 +549,19 @@ export default function EditDealPageFixed() {
           uploadedAt: new Date(),
         };
       } else if (removeExistingNda) {
-        // User wants to remove the existing NDA
+        // User explicitly removed the NDA
+        updatePayload.ndaDocument = null;
+      } else if (formData.existingNdaDocument) {
+        // NDA unchanged — send it back explicitly so it is never dropped
+        updatePayload.ndaDocument = {
+          originalName: formData.existingNdaDocument.originalName,
+          base64Content: formData.existingNdaDocument.base64Content,
+          mimetype: formData.existingNdaDocument.mimetype,
+          size: formData.existingNdaDocument.size,
+          uploadedAt: formData.existingNdaDocument.uploadedAt,
+        };
+      } else {
+        // No NDA at all — send null so backend state stays consistent
         updatePayload.ndaDocument = null;
       }
 
@@ -686,6 +721,7 @@ export default function EditDealPageFixed() {
         mimetype: dealData.ndaDocument.mimetype,
         size: dealData.ndaDocument.size,
         uploadedAt: dealData.ndaDocument.uploadedAt,
+        base64Content: dealData.ndaDocument.base64Content,
       } : null,
       t12FreeCashFlow: dealData.financialDetails?.t12FreeCashFlow || 0,
       t12NetIncome: dealData.financialDetails?.t12NetIncome || 0,
@@ -727,8 +763,47 @@ export default function EditDealPageFixed() {
             selectedName: savedGeography,
           });
         }
+      } else if (savedGeography.includes(' > ')) {
+        // "Country > State/Province" format (e.g., "Pakistan > Punjab")
+        const parts = savedGeography.split(' > ');
+        const countryName = parts[0];
+        const stateName = parts[1];
+        const matchedCountry = Country.getAllCountries().find(c => c.name === countryName);
+        if (matchedCountry) {
+          const states = State.getStatesOfCountry(matchedCountry.isoCode);
+          const matchedState = states.find(s => s.name === stateName);
+          // Load states into flatGeoData
+          setFlatGeoData(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newItems: GeoItem[] = [];
+            states.forEach(state => {
+              const stateId = `${matchedCountry.isoCode}-${state.isoCode}`;
+              if (!existingIds.has(stateId)) {
+                newItems.push({
+                  id: stateId,
+                  name: state.name,
+                  path: `${countryName} > ${state.name}`,
+                  type: 'state',
+                  countryCode: matchedCountry.isoCode,
+                  stateCode: state.isoCode,
+                });
+              }
+            });
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
+          // Expand country
+          setExpandedContinents(prev => ({ ...prev, [matchedCountry.isoCode]: true }));
+          if (matchedState) {
+            const stateId = `${matchedCountry.isoCode}-${matchedState.isoCode}`;
+            setGeoSelection({ selectedId: stateId, selectedName: savedGeography });
+          } else {
+            setGeoSelection({ selectedId: null, selectedName: savedGeography });
+          }
+        } else {
+          setGeoSelection({ selectedId: null, selectedName: savedGeography });
+        }
       } else {
-        // Country-only or legacy format — try to find the country
+        // Country-only — try to find the country
         const country = Country.getAllCountries().find(c => c.name === savedGeography);
         if (country) {
           setGeoSelection({
@@ -736,11 +811,7 @@ export default function EditDealPageFixed() {
             selectedName: savedGeography,
           });
         } else {
-          // Legacy state format (e.g., "Canada > Alberta") — keep as-is in pills
-          setGeoSelection({
-            selectedId: null,
-            selectedName: savedGeography,
-          });
+          setGeoSelection({ selectedId: null, selectedName: savedGeography });
         }
       }
     }
@@ -1326,8 +1397,14 @@ const renderGeographySelection = () => {
     if (!search) return true;
     if (country.name.toLowerCase().includes(search)) return true;
     if (country.name === "United States") {
-      return US_KEY_REGIONS.some((region) => region.toLowerCase().includes(search));
+      if (US_KEY_REGIONS.some((r) => r.toLowerCase().includes(search))) return true;
+      for (const states of Object.values(US_REGION_STATES)) {
+        if (states.some((s) => s.toLowerCase().includes(search))) return true;
+      }
     }
+    // Also search states/provinces for any country
+    const countryStates = flatGeoData.filter((item) => item.countryCode === country.id && item.type === "state");
+    if (countryStates.some((s) => s.name.toLowerCase().includes(search))) return true;
     return false;
   });
 
@@ -1335,15 +1412,15 @@ const renderGeographySelection = () => {
   const priorityCountries = countries.filter((country) => priorityCountryCodes.includes(country.id));
   const otherCountries = countries.filter((country) => !priorityCountryCodes.includes(country.id));
 
-  priorityCountries.sort((a, b) => {
-    const aIndex = priorityCountryCodes.indexOf(a.id);
-    const bIndex = priorityCountryCodes.indexOf(b.id);
-    return aIndex - bIndex;
-  });
-
+  priorityCountries.sort((a, b) => priorityCountryCodes.indexOf(a.id) - priorityCountryCodes.indexOf(b.id));
   otherCountries.sort((a, b) => a.name.localeCompare(b.name));
   const sortedCountries = [...priorityCountries, ...otherCountries];
   const isUS = (id: string) => id === "US";
+
+  const getCountryStates = (countryCode: string) =>
+    flatGeoData
+      .filter((item) => item.countryCode === countryCode && item.type === "state")
+      .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
@@ -1382,7 +1459,14 @@ const renderGeographySelection = () => {
       `}</style>
       <div className="space-y-2 font-poppins">
         {sortedCountries.map((country, countryIndex) => {
-          const countrySelected = geoSelection.selectedId === country.id;
+          const countrySelected =
+            geoSelection.selectedId === country.id ||
+            (!!geoSelection.selectedId && geoSelection.selectedId.startsWith(`${country.id}-`));
+          const isExpanded = expandedContinents[country.id];
+          const hasStatesLoaded = flatGeoData.some(
+            (item) => item.countryCode === country.id && item.type === "state"
+          );
+
           return (
             <div
               key={`country-${country.id}-${countryIndex}`}
@@ -1397,57 +1481,111 @@ const renderGeographySelection = () => {
                   onChange={() => selectGeography(country.id, country.name)}
                   className="geo-radio"
                 />
-                {isUS(country.id) ? (
-                  <div
-                    className="flex items-center cursor-pointer flex-1"
-                    onClick={() => toggleContinentExpansion(country.id)}
-                  >
-                    {expandedContinents[country.id] ? (
-                      <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
-                    )}
-                    <Label htmlFor={`geo-country-${country.id}`} className="text-[#344054] cursor-pointer font-medium">
-                      {country.name}
-                    </Label>
-                  </div>
-                ) : (
+                <div
+                  className="flex items-center cursor-pointer flex-1"
+                  onClick={async () => {
+                    if (!hasStatesLoaded && !isUS(country.id)) {
+                      await loadStatesAndCities(country.id);
+                    }
+                    toggleContinentExpansion(country.id);
+                  }}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
+                  )}
                   <Label htmlFor={`geo-country-${country.id}`} className="text-[#344054] cursor-pointer font-medium">
                     {country.name}
                   </Label>
-                )}
+                </div>
               </div>
 
-              {country.name === "United States" && expandedContinents[country.id] && (
-                  <div className="ml-6 mt-1 space-y-1">
-                    {US_KEY_REGIONS.map((region, regionIndex) => {
+              {/* United States: Regions + Individual States */}
+              {isUS(country.id) && isExpanded && (
+                <div className="ml-6 mt-1 space-y-1">
+                  <div className="mb-1">
+                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">Regions</div>
+                    {US_KEY_REGIONS.map((region) => {
                       const regionId = `US-REGION-${region}`;
                       const regionLabel = `${US_REGION_PREFIX}${region}`;
                       return (
-                      <div
-                        key={`region-${regionId}-${regionIndex}`}
-                        className="pl-2"
-                      >
+                        <div key={regionId} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`geo-${regionId}`}
+                              name="geography"
+                              checked={geoSelection.selectedId === regionId}
+                              onChange={() => selectGeography(regionId, regionLabel)}
+                              className="geo-radio"
+                            />
+                            <Label htmlFor={`geo-${regionId}`} className="text-[#344054] cursor-pointer font-medium">
+                              {region}
+                            </Label>
+                            <span className="text-[10px] text-gray-400 ml-1.5">
+                              ({US_REGION_STATES[region]?.length} states)
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1 border-t border-gray-100 mt-1 pt-1">Individual States</div>
+                    {Array.from(ALL_US_REGION_STATE_NAMES).sort().map((stateName) => {
+                      const stateObj = State.getStatesOfCountry("US").find((s) => s.name === stateName);
+                      if (!stateObj) return null;
+                      const stateId = `US-${stateObj.isoCode}`;
+                      const statePath = `${US_REGION_PREFIX}${stateName}`;
+                      return (
+                        <div key={stateId} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`geo-state-${stateId}`}
+                              name="geography"
+                              checked={geoSelection.selectedId === stateId}
+                              onChange={() => selectGeography(stateId, statePath)}
+                              className="geo-radio"
+                            />
+                            <Label htmlFor={`geo-state-${stateId}`} className="text-[#344054] cursor-pointer text-sm">
+                              {stateName}
+                            </Label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Non-US countries: states/provinces */}
+              {!isUS(country.id) && isExpanded && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {getCountryStates(country.id).length === 0 ? (
+                    <div className="pl-2 text-xs text-gray-400 py-1">No states/provinces available</div>
+                  ) : (
+                    getCountryStates(country.id).map((stateItem) => (
+                      <div key={stateItem.id} className="pl-2">
                         <div className="flex items-center">
                           <input
                             type="radio"
-                            id={`geo-${regionId}`}
+                            id={`geo-state-${stateItem.id}`}
                             name="geography"
-                            checked={geoSelection.selectedId === regionId}
-                            onChange={() => selectGeography(regionId, regionLabel)}
+                            checked={geoSelection.selectedId === stateItem.id}
+                            onChange={() => selectGeography(stateItem.id, stateItem.path)}
                             className="geo-radio"
                           />
-                          <Label
-                            htmlFor={`geo-${regionId}`}
-                            className="text-[#344054] cursor-pointer"
-                          >
-                            {region}
+                          <Label htmlFor={`geo-state-${stateItem.id}`} className="text-[#344054] cursor-pointer text-sm">
+                            {stateItem.name}
                           </Label>
                         </div>
                       </div>
-                    )})}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1541,8 +1679,53 @@ useEffect(() => {
         return;
       }
 
-      // Legacy: handle old state-format (e.g., "Canada > Alberta")
-      // Keep the value as-is in the pills display
+      // Handle "Country > State/Province" format (e.g., "Pakistan > Punjab")
+      if (savedGeography.includes(' > ')) {
+        const parts = savedGeography.split(' > ');
+        const countryName = parts[0];
+        const stateName = parts[1];
+
+        const matchedCountry = Country.getAllCountries().find(c => c.name === countryName);
+        if (matchedCountry) {
+          // Load states for this country, then find the state
+          const states = State.getStatesOfCountry(matchedCountry.isoCode);
+          const matchedState = states.find(s => s.name === stateName);
+
+          // Ensure states are in flatGeoData
+          setFlatGeoData(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newItems: GeoItem[] = [];
+            states.forEach(state => {
+              const stateId = `${matchedCountry.isoCode}-${state.isoCode}`;
+              if (!existingIds.has(stateId)) {
+                newItems.push({
+                  id: stateId,
+                  name: state.name,
+                  path: `${countryName} > ${state.name}`,
+                  type: 'state',
+                  countryCode: matchedCountry.isoCode,
+                  stateCode: state.isoCode,
+                });
+              }
+            });
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
+
+          // Expand the country so the state radio is visible
+          setExpandedContinents(prev => ({ ...prev, [matchedCountry.isoCode]: true }));
+
+          if (matchedState) {
+            const stateId = `${matchedCountry.isoCode}-${matchedState.isoCode}`;
+            setGeoSelection({
+              selectedId: stateId,
+              selectedName: savedGeography,
+            });
+            return;
+          }
+        }
+      }
+
+      // Fallback: keep the value for display but no radio selected
       setGeoSelection({
         selectedId: null,
         selectedName: savedGeography,
@@ -2540,6 +2723,15 @@ useEffect(() => {
                       </div>
                       <button
                         type="button"
+                        onClick={previewNdaDocument}
+                        className="p-2 text-[#3aafa9] hover:bg-teal-50 rounded-full transition-colors"
+                        aria-label="Preview NDA"
+                        title="View document"
+                      >
+                        <Eye className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={removeNdaDocument}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
                         aria-label="Remove NDA"
@@ -2567,6 +2759,17 @@ useEffect(() => {
                           {(formData.existingNdaDocument.size / 1024 / 1024).toFixed(2)} MB
                         </p>
                       </div>
+                      {formData.existingNdaDocument.base64Content && (
+                        <button
+                          type="button"
+                          onClick={previewNdaDocument}
+                          className="p-2 text-[#3aafa9] hover:bg-teal-50 rounded-full transition-colors"
+                          aria-label="Preview NDA"
+                          title="View document"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={removeNdaDocument}
