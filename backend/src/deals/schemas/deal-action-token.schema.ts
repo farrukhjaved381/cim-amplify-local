@@ -15,14 +15,20 @@ export class DealActionToken {
   @Prop({ required: true, index: true })
   dealId: string
 
-  @Prop({ required: true, index: true })
-  buyerId: string
+  @Prop({ type: String, default: null, index: true })
+  buyerId: string | null
+
+  @Prop({ type: String, default: null, index: true })
+  sellerId: string | null
+
+  @Prop({ type: String, default: 'buyer' })
+  recipientRole: 'buyer' | 'seller'
 
   @Prop({ default: false })
   used: boolean
 
   @Prop({ type: String, default: null })
-  actionTaken: 'active' | 'rejected' | null
+  actionTaken: 'active' | 'rejected' | 'loi' | 'completed' | null
 
   @Prop({ type: Date, default: null })
   usedAt: Date | null

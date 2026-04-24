@@ -79,6 +79,24 @@ export class Buyer {
   @Prop({ required: false, default: "" })
   referralSource: string
 
+  @ApiProperty({
+    description: "Buyer email preferences",
+    default: {
+      receiveDealEmails: true,
+    },
+  })
+  @Prop({
+    type: {
+      receiveDealEmails: { type: Boolean, default: true },
+    },
+    default: {
+      receiveDealEmails: true,
+    },
+  })
+  preferences: {
+    receiveDealEmails: boolean
+  }
+
   // Denormalized deal counts for performance
   @ApiProperty({ description: "Number of active deals", default: 0 })
   @Prop({ default: 0 })

@@ -571,7 +571,7 @@ export class MailService {
             this.dealsService.getBuyerDeals(buyerId, 'pending'),
           ]);
 
-          const reportData: BuyerReportData = this.buildBuyerReportData(buyer, activeDeals, pendingDeals, monthYear, frontendUrl, now);
+          const reportData: BuyerReportData = await this.buildBuyerReportData(buyer, activeDeals, pendingDeals, monthYear, frontendUrl, now);
           const emailBody = buyerMonthlyReportTemplate(reportData);
           const subject = `Your CIM Amplify Monthly Deal Report — ${monthYear}`;
 
@@ -765,7 +765,7 @@ export class MailService {
     return followUpsSent;
   }
 
-  private buildBuyerReportData(buyer: any, activeDeals: any[], pendingDeals: any[], monthYear: string, frontendUrl: string, now: Date): BuyerReportData {
+  private async buildBuyerReportData(buyer: any, activeDeals: any[], pendingDeals: any[], monthYear: string, frontendUrl: string, now: Date): Promise<BuyerReportData> {
     const formatCurrency = (amount: number | undefined): string => {
       if (!amount && amount !== 0) return 'N/A';
       if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(1)}B`;
@@ -796,12 +796,15 @@ export class MailService {
       isLoi: deal.status === 'loi',
     });
 
-    const activeDealRows: BuyerReportDeal[] = activeDeals.map((deal: any) => {
+    const activeDealRows: BuyerReportDeal[] = await Promise.all(activeDeals.map(async (deal: any) => {
       const invStatus = deal.invitationStatus instanceof Map
         ? deal.invitationStatus.get(buyerId)
         : deal.invitationStatus?.[buyerId];
-      return toDealRow(deal, invStatus?.respondedAt ? new Date(invStatus.respondedAt) : undefined);
-    });
+      const row = toDealRow(deal, invStatus?.respondedAt ? new Date(invStatus.respondedAt) : undefined);
+      const dealId = row.dealId;
+      const urls = await this.dealsService.createDealActionUrls(dealId, buyerId);
+      return { ...row, ...urls };
+    }));
 
     const newPendingRows: BuyerReportDeal[] = [];
     const oldPendingRows: BuyerReportDeal[] = [];
@@ -814,11 +817,13 @@ export class MailService {
         : d.invitationStatus?.[buyerId];
       const invitedAt = invStatus?.invitedAt ? new Date(invStatus.invitedAt) : new Date(d.createdAt);
       const row = toDealRow(d, invitedAt);
+      const urls = await this.dealsService.createDealActionUrls(row.dealId, buyerId);
+      const rowWithUrls = { ...row, ...urls };
 
       if (invitedAt >= thirtyDaysAgo) {
-        newPendingRows.push(row);
+        newPendingRows.push(rowWithUrls);
       } else {
-        oldPendingRows.push(row);
+        oldPendingRows.push(rowWithUrls);
       }
     }
 
@@ -863,6 +868,7 @@ export class MailService {
     const reportDeals: ReportDeal[] = [];
 
     for (const { deal, status } of allReportDeals) {
+      const dealId = deal._id instanceof Types.ObjectId ? deal._id.toHexString() : String(deal._id);
       const invStatusObj = deal.invitationStatus instanceof Map
         ? Object.fromEntries(deal.invitationStatus)
         : (deal.invitationStatus || {});
@@ -886,11 +892,14 @@ export class MailService {
       for (const { buyerId, entry } of activeBuyerEntries) {
         try {
           const buyer = await this.buyerModel.findById(buyerId).select('fullName companyName').lean().exec();
+          const flagInactiveUrl = await this.dealsService.createSellerBuyerFlagUrl(dealId, seller._id.toString(), buyerId);
           activeBuyers.push({
             buyerId,
             fullName: (buyer as any)?.fullName || 'Unknown Buyer',
             companyName: (buyer as any)?.companyName || '',
             interestedSince: formatDate(entry.respondedAt),
+            flagInactiveUrl,
+            flaggedInactive: !!entry?.flaggedInactive,
           });
         } catch {
           activeBuyers.push({ buyerId, fullName: 'Unknown Buyer', companyName: '', interestedSince: formatDate(entry.respondedAt) });
@@ -939,7 +948,6 @@ export class MailService {
       }
 
       totalMovements += movements.length;
-      const dealId = deal._id instanceof Types.ObjectId ? deal._id.toHexString() : String(deal._id);
 
       reportDeals.push({
         id: dealId,
@@ -952,6 +960,7 @@ export class MailService {
         passedCount,
         activeBuyers,
         movements,
+        ...(await this.dealsService.createSellerActionUrls(dealId, seller._id.toString())),
       });
     }
 

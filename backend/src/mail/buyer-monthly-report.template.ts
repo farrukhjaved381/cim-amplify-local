@@ -6,6 +6,8 @@
 
 export interface BuyerReportDeal {
   dealId: string;
+  activateUrl?: string;
+  passUrl?: string;
   title: string;
   location: string;
   industry: string;
@@ -79,11 +81,14 @@ function renderActiveDealsTable(deals: BuyerReportDeal[], frontendUrl: string): 
 
   const rows = deals.map(d => {
     const rowBg = d.isLoi ? 'rgba(240,153,123,0.05)' : C.activeBg;
-    const dealUrl = `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}`;
+    const activateUrl = d.activateUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=activate`;
+    const passUrl = d.passUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=pass`;
 
     const actionCell = d.isLoi
       ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
-      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;"><a href="${dealUrl}" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a></td>`;
+      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;">
+          <a href="${passUrl}" target="_blank" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
+        </td>`;
 
     return `<tr>
       <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};vertical-align:middle;">
@@ -135,13 +140,14 @@ function renderPendingDealsTable(
   const rows = deals.map(d => {
     const rowBg = d.isLoi ? 'rgba(240,153,123,0.03)' : C.white;
     const ageClr = ageColor(d.daysWaiting);
-    const dealUrl = `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}`;
+    const activateUrl = d.activateUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=activate`;
+    const passUrl = d.passUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=pass`;
 
     const actionCell = d.isLoi
       ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
       : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;">
-          <a href="${dealUrl}" style="font-size:11px;font-weight:500;background:${C.tealPrimary};color:#fff;border:none;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;margin-right:4px;">More Info</a>
-          <a href="${dealUrl}" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
+          <a href="${activateUrl}" target="_blank" style="font-size:11px;font-weight:500;background:${C.tealPrimary};color:#fff;border:none;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;margin-right:4px;">Active</a>
+          <a href="${passUrl}" target="_blank" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
         </td>`;
 
     return `<tr>

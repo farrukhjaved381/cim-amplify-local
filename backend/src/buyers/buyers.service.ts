@@ -115,6 +115,9 @@ export class BuyersService {
       email: normalizedEmail,
       password: hashedPassword,
       isEmailVerified: true, // Auto-verify since we removed email verification
+      preferences: {
+        receiveDealEmails: createBuyerDto.preferences?.receiveDealEmails ?? true,
+      },
     });
 
     let savedBuyer = await newBuyer.save();
@@ -625,6 +628,12 @@ export class BuyersService {
     if (updateData.phoneNumber !== undefined) {
       updateData.phone = updateData.phoneNumber;
       delete updateData.phoneNumber;
+    }
+
+    if (updateData.preferences && typeof updateData.preferences === "object") {
+      updateData.preferences = {
+        receiveDealEmails: updateData.preferences.receiveDealEmails ?? buyer.preferences?.receiveDealEmails ?? true,
+      };
     }
 
     // Hash password if being updated, otherwise remove it to prevent overwriting

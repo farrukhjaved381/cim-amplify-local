@@ -341,6 +341,9 @@ export class Deal {
       notes: String,
       decisionBy: { type: String, enum: ["buyer", "seller"] },
       introFollowUpSentAt: Date,
+      flaggedInactive: { type: Boolean, default: false },
+      flaggedInactiveAt: Date,
+      flaggedInactiveBy: { type: String, enum: ["buyer", "seller", "admin"] },
     },
     default: () => new Map(),
   })
@@ -353,6 +356,9 @@ export class Deal {
       notes?: string
       decisionBy?: "buyer" | "seller"
       introFollowUpSentAt?: Date
+      flaggedInactive?: boolean
+      flaggedInactiveAt?: Date
+      flaggedInactiveBy?: "buyer" | "seller" | "admin"
     }
   >
 

@@ -430,6 +430,41 @@ export class SellersController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("seller", "admin")
+  @Post("deals/:dealId/interested-buyers/:buyerId/flag-inactive")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Flag a specific interested buyer as inactive for a deal" })
+  @ApiParam({ name: "dealId", type: String, description: "Deal ID" })
+  @ApiParam({ name: "buyerId", type: String, description: "Buyer ID" })
+  @ApiResponse({ status: 200, description: "Buyer flagged as inactive" })
+  async flagInterestedBuyerInactive(
+    @Param('dealId') dealId: string,
+    @Param('buyerId') buyerId: string,
+    @Request() req: any,
+  ) {
+    if (!getEffectiveUserId(req.user)) {
+      throw new UnauthorizedException("User not authenticated");
+    }
+
+    const sellerId = getEffectiveUserId(req.user);
+    const deal = await this.dealsService.findOne(dealId);
+    if (req.user.role !== 'admin' && deal.seller.toString() !== sellerId) {
+      throw new ForbiddenException("You don't have permission to modify this deal");
+    }
+
+    const updatedDeal = await this.dealsService.flagInterestedBuyerInactive(
+      dealId,
+      buyerId,
+      req.user.role === 'admin' ? 'admin' : 'seller',
+    );
+
+    return {
+      message: 'Buyer flagged as inactive successfully',
+      deal: updatedDeal,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("seller")
   @Get("dashboard/buyer-engagement")
   @ApiBearerAuth()

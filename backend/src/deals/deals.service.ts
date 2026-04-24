@@ -181,8 +181,19 @@ export class DealsService {
     const ownerId = buyer?._id ? String(buyer._id) : "";
     if (!ownerId) return [];
 
+    const buyerRecord = await this.buyerModel.findById(ownerId, { preferences: 1, email: 1, fullName: 1 }).lean().exec() as any;
+    const allowOwnerDealEmails = buyerRecord?.preferences?.receiveDealEmails !== false;
+
     const activeMembers = await this.teamMemberModel
-      .find({ ownerId, ownerType: "buyer", isActive: true }, { email: 1, fullName: 1 })
+      .find(
+        {
+          ownerId,
+          ownerType: "buyer",
+          isActive: true,
+          permissions: "emails",
+        },
+        { email: 1, fullName: 1, permissions: 1 },
+      )
       .lean()
       .exec();
 
@@ -202,7 +213,7 @@ export class DealsService {
       return uniqueTeamRecipients;
     }
 
-    if (buyer.email && buyer.email.trim().length > 0) {
+    if (allowOwnerDealEmails && buyer.email && buyer.email.trim().length > 0) {
       return [
         {
           email: buyer.email.trim().toLowerCase(),
@@ -218,6 +229,90 @@ export class DealsService {
   /** Invalidate all admin caches after any deal/buyer/seller mutation */
   private invalidateAdminCaches(): void {
     cacheInvalidate('admin:', true);
+  }
+
+  async createDealActionUrls(dealId: string, buyerId: string): Promise<{ activateUrl: string; passUrl: string }> {
+    let activateUrl = `${getFrontendUrl()}/buyer/deals?action=activate&dealId=${dealId}`;
+    let passUrl = `${getFrontendUrl()}/buyer/deals?action=pass&dealId=${dealId}`;
+
+    try {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+      const signature = crypto.createHmac('sha256', hmacSecret)
+        .update(`${rawToken}:${dealId}:${buyerId}`)
+        .digest('hex');
+      await this.dealActionTokenModel.create({
+        token: rawToken,
+        signature,
+        dealId,
+        buyerId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+      activateUrl = `${getFrontendUrl()}/deal-action/${rawToken}?action=activate`;
+      passUrl = `${getFrontendUrl()}/deal-action/${rawToken}?action=pass`;
+    } catch (tokenErr) {
+      this.logger.error(`Token creation failed for buyer ${buyerId} on deal ${dealId}: ${(tokenErr as Error).message}. Falling back to dashboard URL.`);
+    }
+
+    return { activateUrl, passUrl };
+  }
+
+  async createSellerActionUrls(dealId: string, sellerId: string): Promise<{ loiUrl: string; offMarketUrl: string }> {
+    let loiUrl = `${getFrontendUrl()}/seller/dashboard?dealId=${encodeURIComponent(dealId)}`;
+    let offMarketUrl = `${getFrontendUrl()}/seller/dashboard?dealId=${encodeURIComponent(dealId)}`;
+
+    try {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const signature = crypto
+        .createHmac('sha256', process.env.JWT_SECRET || 'fallback-secret')
+        .update(`${rawToken}:${dealId}:${sellerId}`)
+        .digest('hex');
+
+      await this.dealActionTokenModel.create({
+        token: rawToken,
+        signature,
+        dealId,
+        buyerId: null,
+        sellerId,
+        recipientRole: 'seller',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+      loiUrl = `${getFrontendUrl()}/seller-action/${rawToken}?action=loi`;
+      offMarketUrl = `${getFrontendUrl()}/seller-action/${rawToken}?action=off-market`;
+    } catch (tokenErr) {
+      this.logger.error(`Seller token creation failed for seller ${sellerId} on deal ${dealId}: ${(tokenErr as Error).message}. Falling back to dashboard URL.`);
+    }
+
+    return { loiUrl, offMarketUrl };
+  }
+
+  async createSellerBuyerFlagUrl(dealId: string, sellerId: string, buyerId: string): Promise<string> {
+    let flagUrl = `${getFrontendUrl()}/seller/dashboard?dealId=${encodeURIComponent(dealId)}&buyerId=${encodeURIComponent(buyerId)}`;
+
+    try {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const signature = crypto
+        .createHmac('sha256', process.env.JWT_SECRET || 'fallback-secret')
+        .update(`${rawToken}:${dealId}:${sellerId}:${buyerId}`)
+        .digest('hex');
+
+      await this.dealActionTokenModel.create({
+        token: rawToken,
+        signature,
+        dealId,
+        buyerId,
+        sellerId,
+        recipientRole: 'seller',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+      flagUrl = `${getFrontendUrl()}/seller-action/${rawToken}?action=flag-inactive`;
+    } catch (tokenErr) {
+      this.logger.error(`Seller buyer flag token creation failed for seller ${sellerId}, buyer ${buyerId}, deal ${dealId}: ${(tokenErr as Error).message}. Falling back to dashboard URL.`);
+    }
+
+    return flagUrl;
   }
 
   async create(createDealDto: CreateDealDto): Promise<Deal> {
@@ -739,6 +834,136 @@ export class DealsService {
                 'buyer',
                 buyerSubject,
                 buyerHtmlBody,
+                buyerAttachments,
+                (deal._id as Types.ObjectId).toString(),
+              );
+            }),
+          );
+        }
+
+        // Also send the matching-style invite email to the buyer owner/team
+        // without changing the existing introduction email.
+        const inviteSubject = `YOU ARE INVITED TO PARTICIPATE IN A ${deal.title} DEAL`;
+        const ownerEmail = (buyer.email || '').trim().toLowerCase();
+        const inviteRecipients = ownerEmail
+          ? Array.from(
+              new Map(
+                [
+                  ...recipients,
+                  { email: ownerEmail, fullName: (buyer.fullName || '').trim() || 'User' },
+                ].map((recipient) => [recipient.email, recipient]),
+              ).values(),
+            )
+          : recipients;
+
+        if (inviteRecipients.length === 0) {
+          this.logger.warn(`No invite recipients resolved for buyer ${buyerId} on deal ${(deal._id as Types.ObjectId).toString()}`);
+        } else {
+          let activateUrl = `${getFrontendUrl()}/buyer/deals?action=activate&dealId=${(deal._id as Types.ObjectId).toString()}`;
+          let passUrl = `${getFrontendUrl()}/buyer/deals?action=pass&dealId=${(deal._id as Types.ObjectId).toString()}`;
+
+          try {
+            const rawToken = crypto.randomBytes(32).toString('hex');
+            const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+            const dealIdStr = (deal._id as Types.ObjectId).toString();
+            const signature = crypto.createHmac('sha256', hmacSecret)
+              .update(`${rawToken}:${dealIdStr}:${buyerId}`)
+              .digest('hex');
+            await this.dealActionTokenModel.create({
+              token: rawToken,
+              signature,
+              dealId: dealIdStr,
+              buyerId,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            });
+            activateUrl = `${getFrontendUrl()}/deal-action/${rawToken}?action=activate`;
+            passUrl = `${getFrontendUrl()}/deal-action/${rawToken}?action=pass`;
+          } catch (tokenErr) {
+            this.logger.error(`Token creation failed for buyer ${buyerId} on deal ${(deal._id as Types.ObjectId).toString()}: ${(tokenErr as Error).message}. Falling back to dashboard URL.`);
+          }
+
+          const hasNda = deal.ndaDocument && deal.ndaDocument.base64Content;
+          const ndaFileName = hasNda && deal.ndaDocument ? deal.ndaDocument.originalName : '';
+          const inviteEmailContent = `
+            <p><b>Details:</b> ${deal.companyDescription}</p>
+            <p><b>T12 Revenue</b>: ${deal.financialDetails?.trailingRevenueAmount ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails.trailingRevenueAmount) : '$0'}</p>
+            <p><b>T12 EBITDA</b>: ${deal.financialDetails?.trailingEBITDAAmount ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails.trailingEBITDAAmount) : '$0'}</p>
+
+            <!-- Action Buttons -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0;">
+              <tr>
+                <td align="center">
+                  <table border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="padding-right: 12px;">
+                        <a href="${activateUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #3AAFA9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Move to Active / Request Info</a>
+                      </td>
+                      <td align="center" style="padding-left: 12px;">
+                        <a href="${passUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #E35153; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Pass</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <p>Many of our deals are exclusive first look for CIM Amplify Members only. Head to your CIM Amplify dashboard under Pending to see more details.</p>
+            <p>Please keep your dashboard up to date by responding to Pending deals promptly.</p>
+            ${emailButton('View Dashboard', `${getFrontendUrl()}/buyer/deals`)}
+          `;
+
+          const buyerAttachments: any[] = [ILLUSTRATION_ATTACHMENT];
+          if (hasNda && deal.ndaDocument) {
+            const ndaBuffer = Buffer.from(deal.ndaDocument.base64Content, 'base64');
+            buyerAttachments.push({
+              filename: deal.ndaDocument.originalName,
+              content: ndaBuffer,
+              contentType: deal.ndaDocument.mimetype,
+            });
+          }
+
+          await Promise.allSettled(
+            inviteRecipients.map((recipient) => {
+              const inviteHtmlBody = genericEmailTemplate(
+                inviteSubject,
+                getFirstName(recipient.fullName),
+                inviteEmailContent + (hasNda ? `
+                  <table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 2px solid #3aafa9; border-radius: 8px; overflow: hidden;">
+                    <tr>
+                      <td style="background-color: #3aafa9; padding: 12px 16px;">
+                        <strong style="color: #ffffff; font-size: 14px;">📎 NDA DOCUMENT ATTACHED</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color: #e8f5f3; padding: 16px;">
+                        <table cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="padding-right: 12px;">
+                              <div style="width: 40px; height: 40px; background-color: #3aafa9; border-radius: 4px; text-align: center; line-height: 40px;">
+                                <span style="color: white; font-size: 18px;">📄</span>
+                              </div>
+                            </td>
+                            <td>
+                              <strong style="color: #333; font-size: 14px;">${ndaFileName}</strong><br>
+                              <span style="color: #666; font-size: 12px;">Please download the attachment</span>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin: 12px 0 0 0; color: #333; font-size: 13px;">
+                          <strong>Next steps:</strong> Fill out and sign the NDA, then send it directly to the Advisor at
+                          <a href="mailto:${seller.email}" style="color: #3aafa9;">${seller.email}</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                ` : '')
+              );
+
+              return this.mailService.sendEmailWithLogging(
+                recipient.email,
+                'buyer',
+                inviteSubject,
+                inviteHtmlBody,
                 buyerAttachments,
                 (deal._id as Types.ObjectId).toString(),
               );
@@ -2050,12 +2275,25 @@ export class DealsService {
 
       // Update invitation status
       const currentInvitation = dealDoc.invitationStatus.get(buyerId)
+      const preserveAdvisorFlag = status === "active" && currentInvitation?.flaggedInactive
+      const flagFields = preserveAdvisorFlag
+        ? {
+            flaggedInactive: true,
+            flaggedInactiveAt: currentInvitation?.flaggedInactiveAt,
+            flaggedInactiveBy: currentInvitation?.flaggedInactiveBy,
+          }
+        : {
+            flaggedInactive: false,
+            flaggedInactiveAt: undefined,
+            flaggedInactiveBy: undefined,
+          }
       dealDoc.invitationStatus.set(buyerId, {
         invitedAt: currentInvitation?.invitedAt || new Date(),
         respondedAt: new Date(),
         response: status === "active" ? "accepted" : status,
         notes: notes || "",
         decisionBy: 'buyer',
+        ...flagFields,
       })
 
       // Update interested buyers list
@@ -3138,6 +3376,10 @@ export class DealsService {
       const interestedBuyers = await this.buyerModel.aggregate(pipeline).exec();
 
       for (const buyer of interestedBuyers) {
+        const invitationStatusObj = deal.invitationStatus instanceof Map
+          ? deal.invitationStatus.get(String(buyer._id))
+          : (deal.invitationStatus as any)?.[String(buyer._id)];
+
         const interactions = await dealTrackingModel
           .find({
             deal: dealId,
@@ -3150,6 +3392,9 @@ export class DealsService {
         buyer.recentInteractions = interactions;
         buyer.lastInteraction = interactions[0]?.timestamp;
         buyer.totalInteractions = interactions.length;
+        buyer.flaggedInactive = !!invitationStatusObj?.flaggedInactive;
+        buyer.flaggedInactiveAt = invitationStatusObj?.flaggedInactiveAt || null;
+        buyer.flaggedInactiveBy = invitationStatusObj?.flaggedInactiveBy || null;
       }
 
       return interestedBuyers.sort(
@@ -3158,6 +3403,43 @@ export class DealsService {
     } catch (error) {
       throw new InternalServerErrorException(`Failed to get interested buyers details: ${error.message}`);
     }
+  }
+
+  async flagInterestedBuyerInactive(dealId: string, buyerId: string, actorRole: 'seller' | 'admin' = 'seller'): Promise<Deal> {
+    const deal = await this.dealModel.findById(dealId).exec();
+    if (!deal) {
+      throw new NotFoundException(`Deal with ID "${dealId}" not found`);
+    }
+
+    const buyerExists = (deal.interestedBuyers || []).map(String).includes(String(buyerId));
+    if (!buyerExists) {
+      throw new BadRequestException('Buyer is not associated with this deal.');
+    }
+
+    const current = deal.invitationStatus instanceof Map
+      ? deal.invitationStatus.get(String(buyerId))
+      : (deal.invitationStatus as any)?.[String(buyerId)];
+
+    const updatedStatus = {
+      invitedAt: current?.invitedAt,
+      respondedAt: current?.respondedAt,
+      response: 'rejected',
+      notes: current?.notes,
+      decisionBy: current?.decisionBy,
+      introFollowUpSentAt: current?.introFollowUpSentAt,
+      previousStatus: current?.response || 'accepted',
+      flaggedInactive: true,
+      flaggedInactiveAt: new Date(),
+      flaggedInactiveBy: actorRole,
+    } as any;
+
+    if (!(deal.invitationStatus instanceof Map)) {
+      deal.invitationStatus = new Map(Object.entries(deal.invitationStatus || {})) as any;
+    }
+
+    deal.invitationStatus.set(String(buyerId), updatedStatus);
+    deal.markModified('invitationStatus');
+    return await deal.save();
   }
 
   async getAllCompletedDeals(): Promise<Deal[]> {
@@ -4499,7 +4781,7 @@ export class DealsService {
    */
   async handleEmailAction(
     token: string,
-    action: 'activate' | 'pass',
+    action: 'activate' | 'pass' | 'loi' | 'off-market' | 'flag-inactive',
     ip?: string,
     userAgent?: string,
   ): Promise<{ success: boolean; message: string; dealTitle?: string }> {
@@ -4512,8 +4794,14 @@ export class DealsService {
 
     // Verify HMAC signature to ensure token data hasn't been tampered with
     const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+    const recipientId = actionToken.recipientRole === 'seller'
+      ? (actionToken.sellerId || '')
+      : (actionToken.buyerId || '');
+    const signaturePayload = actionToken.recipientRole === 'seller' && actionToken.buyerId
+      ? `${token}:${actionToken.dealId}:${recipientId}:${actionToken.buyerId}`
+      : `${token}:${actionToken.dealId}:${recipientId}`;
     const expectedSignature = crypto.createHmac('sha256', hmacSecret)
-      .update(`${token}:${actionToken.dealId}:${actionToken.buyerId}`)
+      .update(signaturePayload)
       .digest('hex');
 
     if (!crypto.timingSafeEqual(Buffer.from(actionToken.signature), Buffer.from(expectedSignature))) {
@@ -4526,39 +4814,82 @@ export class DealsService {
     }
 
     if (actionToken.used) {
-      const previousAction = actionToken.actionTaken === 'active' ? 'moved to Active' : 'passed on';
+      const previousAction = actionToken.actionTaken === 'active'
+        ? 'moved to Active'
+        : actionToken.actionTaken === 'loi'
+          ? 'paused for LOI'
+          : actionToken.actionTaken === 'completed'
+            ? 'taken off market'
+            : actionToken.recipientRole === 'seller' && action === 'flag-inactive'
+              ? 'already flagged inactive'
+            : 'passed on';
       return {
         success: true,
         message: `You have already ${previousAction} this deal.`,
       };
     }
 
-    const status: 'active' | 'rejected' = action === 'activate' ? 'active' : 'rejected';
-
     try {
-      const result = await this.updateDealStatusByBuyer(
-        actionToken.dealId,
-        actionToken.buyerId,
-        status,
-        `Action taken via email link`,
-      );
+      let result: any;
+      let statusMessage = 'Action taken via email link';
+
+      if (actionToken.recipientRole === 'seller') {
+        if (!actionToken.sellerId) {
+          throw new BadRequestException('Invalid seller action token.');
+        }
+
+        if (action === 'loi') {
+          result = await this.moveDealToLOI(actionToken.dealId, actionToken.sellerId, 'seller');
+          statusMessage = 'Deal paused for LOI via email link';
+        } else if (action === 'off-market') {
+          result = await this.closeDealseller(actionToken.dealId, actionToken.sellerId, undefined, 'Action taken via email link', undefined, 'seller');
+          statusMessage = 'Deal taken off market via email link';
+        } else if (action === 'flag-inactive') {
+          if (!actionToken.buyerId) {
+            throw new BadRequestException('Invalid buyer action token.');
+          }
+          result = await this.flagInterestedBuyerInactive(actionToken.dealId, actionToken.buyerId, 'seller');
+          statusMessage = 'Buyer flagged inactive via email link';
+        } else {
+          throw new BadRequestException("Invalid action for seller email link.");
+        }
+      } else {
+        if (!actionToken.buyerId) {
+          throw new BadRequestException('Invalid buyer action token.');
+        }
+
+        const status: 'active' | 'rejected' = action === 'activate' ? 'active' : 'rejected';
+        result = await this.updateDealStatusByBuyer(
+          actionToken.dealId,
+          actionToken.buyerId,
+          status,
+          statusMessage,
+        );
+      }
 
       // Mark token as used and log request metadata
       actionToken.used = true;
-      actionToken.actionTaken = status;
+      actionToken.actionTaken =
+        actionToken.recipientRole === 'seller'
+          ? (action === 'loi' ? 'loi' : 'completed')
+          : (action === 'activate' ? 'active' : 'rejected');
       actionToken.usedAt = new Date();
       actionToken.usedFromIp = ip || null;
       actionToken.usedUserAgent = userAgent || null;
       await actionToken.save();
 
       const dealTitle = result?.deal?.title || 'the deal';
-      const actionLabel = action === 'activate' ? 'moved to Active' : 'passed on';
-
-      this.logger.log(`Email action completed: buyer=${actionToken.buyerId}, deal=${actionToken.dealId}, action=${action}, IP=${ip || 'unknown'}`);
+      this.logger.log(`Email action completed: ${actionToken.recipientRole}=${recipientId}, deal=${actionToken.dealId}, action=${action}, IP=${ip || 'unknown'}`);
 
       return {
         success: true,
-        message: `You have successfully ${actionLabel} "${dealTitle}".`,
+        message: actionToken.recipientRole === 'seller'
+          ? (action === 'loi'
+            ? 'Deal has been paused for LOI.'
+            : action === 'flag-inactive'
+              ? 'Buyer has been flagged inactive.'
+              : 'Deal has been taken off market.')
+          : 'We have notified the Advisor to send you more information.',
         dealTitle,
       };
     } catch (error) {
