@@ -149,6 +149,18 @@ export default function AcquireProfilePage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD"];
 
+  useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
+
   // Form state with proper initialization
   const [formData, setFormData] = useState<CompanyProfile>({
     companyName: "",
@@ -188,6 +200,12 @@ export default function AcquireProfilePage() {
   const formatNumberWithCommas = (value: number | undefined) => {
     if (value === undefined) return "";
     return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
+  const getCurrencySymbol = (currency?: string) => {
+    if (currency === "EUR") return "€";
+    if (currency === "GBP") return "£";
+    return "$";
   };
 
   // Check for token and userId on mount
@@ -1476,7 +1494,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   return (
     <BuyerProtectedRoute>
-    <div className="min-h-screen bg-[#f0f4f8] py-8 px-4 font-poppins">
+    <div className="h-[100dvh] bg-[#f0f4f8]  font-poppins">
+      <div className="h-full overflow-y-auto py-8 px-4">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-semibold text-[#2f2b43] font-poppins">
@@ -1896,43 +1915,35 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       Min <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
-                        {formData.selectedCurrency === "USD"
-                          ? "$"
-                          : formData.selectedCurrency === "EUR"
-                          ? "€"
-                          : formData.selectedCurrency === "GBP"
-                          ? "£"
-                          : formData.selectedCurrency}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <div className="absolute left-0 top-1/2 z-10 -translate-y-1/2 flex items-center pl-3 pointer-events-none text-gray-500">
+                          {getCurrencySymbol(formData.selectedCurrency)}
+                        </div>
+                        <Input
+                          id="revenueMin"
+                          type="text"
+                          className={`border-[#d0d5dd] pl-7 ${
+                            fieldErrors["targetCriteria.revenueMin"]
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : ""
+                          }`}
+                          value={formatNumberWithCommas(
+                            formData.targetCriteria.revenueMin
+                          )}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, "");
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleNestedChange(
+                                "targetCriteria",
+                                "revenueMin",
+                                value ? Number(value) : undefined
+                              );
+                            }
+                          }}
+                          required
+                        />
                       </div>
-                      <Input
-                        id="revenueMin"
-                        type="text"
-                        className={`border-[#d0d5dd] ${
-                          formData.selectedCurrency.length > 2
-                            ? "pl-12"
-                            : "pl-8"
-                        } ${
-                          fieldErrors["targetCriteria.revenueMin"]
-                            ? "border-red-500 focus-visible:ring-red-500"
-                            : ""
-                        }`}
-                        value={formatNumberWithCommas(
-                          formData.targetCriteria.revenueMin
-                        )}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange(
-                              "targetCriteria",
-                              "revenueMin",
-                              value ? Number(value) : undefined
-                            );
-                          }
-                        }}
-                        required
-                      />
                       {fieldErrors["targetCriteria.revenueMin"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.revenueMin"]}
@@ -1947,43 +1958,35 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       Max <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
-                        {formData.selectedCurrency === "USD"
-                          ? "$"
-                          : formData.selectedCurrency === "EUR"
-                          ? "€"
-                          : formData.selectedCurrency === "GBP"
-                          ? "£"
-                          : formData.selectedCurrency}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <div className="absolute left-0 top-1/2 z-10 -translate-y-1/2 flex items-center pl-3 pointer-events-none text-gray-500">
+                          {getCurrencySymbol(formData.selectedCurrency)}
+                        </div>
+                        <Input
+                          id="revenueMax"
+                          type="text"
+                          className={`border-[#d0d5dd] pl-7 ${
+                            fieldErrors["targetCriteria.revenueMax"]
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : ""
+                          }`}
+                          value={formatNumberWithCommas(
+                            formData.targetCriteria.revenueMax
+                          )}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, "");
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleNestedChange(
+                                "targetCriteria",
+                                "revenueMax",
+                                value ? Number(value) : undefined
+                              );
+                            }
+                          }}
+                          required
+                        />
                       </div>
-                      <Input
-                        id="revenueMax"
-                        type="text"
-                        className={`border-[#d0d5dd] ${
-                          formData.selectedCurrency.length > 2
-                            ? "pl-12"
-                            : "pl-8"
-                        } ${
-                          fieldErrors["targetCriteria.revenueMax"]
-                            ? "border-red-500 focus-visible:ring-red-500"
-                            : ""
-                        }`}
-                        value={formatNumberWithCommas(
-                          formData.targetCriteria.revenueMax
-                        )}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange(
-                              "targetCriteria",
-                              "revenueMax",
-                              value ? Number(value) : undefined
-                            );
-                          }
-                        }}
-                        required
-                      />
                       {fieldErrors["targetCriteria.revenueMax"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.revenueMax"]}
@@ -2014,43 +2017,35 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       Min <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
-                        {formData.selectedCurrency === "USD"
-                          ? "$"
-                          : formData.selectedCurrency === "EUR"
-                          ? "€"
-                          : formData.selectedCurrency === "GBP"
-                          ? "£"
-                          : formData.selectedCurrency}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <div className="absolute left-0 top-1/2 z-10 -translate-y-1/2 flex items-center pl-3 pointer-events-none text-gray-500">
+                          {getCurrencySymbol(formData.selectedCurrency)}
+                        </div>
+                        <Input
+                          id="ebitdaMin"
+                          type="text"
+                          className={`border-[#d0d5dd] pl-7 ${
+                            fieldErrors["targetCriteria.ebitdaMin"]
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : ""
+                          }`}
+                          value={formatNumberWithCommas(
+                            formData.targetCriteria.ebitdaMin
+                          )}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, "");
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleNestedChange(
+                                "targetCriteria",
+                                "ebitdaMin",
+                                value ? Number(value) : undefined
+                              );
+                            }
+                          }}
+                          required
+                        />
                       </div>
-                      <Input
-                        id="ebitdaMin"
-                        type="text"
-                        className={`border-[#d0d5dd] ${
-                          formData.selectedCurrency.length > 2
-                            ? "pl-12"
-                            : "pl-8"
-                        } ${
-                          fieldErrors["targetCriteria.ebitdaMin"]
-                            ? "border-red-500 focus-visible:ring-red-500"
-                            : ""
-                        }`}
-                        value={formatNumberWithCommas(
-                          formData.targetCriteria.ebitdaMin
-                        )}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange(
-                              "targetCriteria",
-                              "ebitdaMin",
-                              value ? Number(value) : undefined
-                            );
-                          }
-                        }}
-                        required
-                      />
                       {fieldErrors["targetCriteria.ebitdaMin"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.ebitdaMin"]}
@@ -2065,44 +2060,36 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       Max <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
-                        {formData.selectedCurrency === "USD"
-                          ? "$"
-                          : formData.selectedCurrency === "EUR"
-                          ? "€"
-                          : formData.selectedCurrency === "GBP"
-                          ? "£"
-                          : formData.selectedCurrency}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <div className="absolute left-0 top-1/2 z-10 -translate-y-1/2 flex items-center pl-3 pointer-events-none text-gray-500">
+                          {getCurrencySymbol(formData.selectedCurrency)}
+                        </div>
+                        <Input
+                          id="ebitdaMax"
+                          required
+                          type="text"
+                          className={`border-[#d0d5dd] pl-7 ${
+                            fieldErrors["targetCriteria.ebitdaMax"]
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : ""
+                          }`}
+                          value={formatNumberWithCommas(
+                            formData.targetCriteria.ebitdaMax
+                          )}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, "");
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleNestedChange(
+                                "targetCriteria",
+                                "ebitdaMax",
+                                value ? Number(value) : undefined
+                              );
+                            }
+                          }}
+                          required
+                        />
                       </div>
-                      <Input
-                        id="ebitdaMax"
-                        required
-                        type="text"
-                        className={`border-[#d0d5dd] ${
-                          formData.selectedCurrency.length > 2
-                            ? "pl-12"
-                            : "pl-8"
-                        } ${
-                          fieldErrors["targetCriteria.ebitdaMax"]
-                            ? "border-red-500 focus-visible:ring-red-500"
-                            : ""
-                        }`}
-                        value={formatNumberWithCommas(
-                          formData.targetCriteria.ebitdaMax
-                        )}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange(
-                              "targetCriteria",
-                              "ebitdaMax",
-                              value ? Number(value) : undefined
-                            );
-                          }
-                        }}
-                        required
-                      />
                       {fieldErrors["targetCriteria.ebitdaMax"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.ebitdaMax"]}
@@ -2133,43 +2120,35 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       Min <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
-                        {formData.selectedCurrency === "USD"
-                          ? "$"
-                          : formData.selectedCurrency === "EUR"
-                          ? "€"
-                          : formData.selectedCurrency === "GBP"
-                          ? "£"
-                          : formData.selectedCurrency}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <div className="absolute left-0 top-1/2 z-10 -translate-y-1/2 flex items-center pl-3 pointer-events-none text-gray-500">
+                          {getCurrencySymbol(formData.selectedCurrency)}
+                        </div>
+                        <Input
+                          id="transactionSizeMin"
+                          type="text"
+                          className={`border-[#d0d5dd] pl-7 ${
+                            fieldErrors["targetCriteria.transactionSizeMin"]
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : ""
+                          }`}
+                          value={formatNumberWithCommas(
+                            formData.targetCriteria.transactionSizeMin
+                          )}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, "");
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleNestedChange(
+                                "targetCriteria",
+                                "transactionSizeMin",
+                                value ? Number(value) : undefined
+                              );
+                            }
+                          }}
+                          required
+                        />
                       </div>
-                      <Input
-                        id="transactionSizeMin"
-                        type="text"
-                        className={`border-[#d0d5dd] ${
-                          formData.selectedCurrency.length > 2
-                            ? "pl-12"
-                            : "pl-8"
-                        } ${
-                          fieldErrors["targetCriteria.transactionSizeMin"]
-                            ? "border-red-500 focus-visible:ring-red-500"
-                            : ""
-                        }`}
-                        value={formatNumberWithCommas(
-                          formData.targetCriteria.transactionSizeMin
-                        )}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange(
-                              "targetCriteria",
-                              "transactionSizeMin",
-                              value ? Number(value) : undefined
-                            );
-                          }
-                        }}
-                        required
-                      />
                       {fieldErrors["targetCriteria.transactionSizeMin"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.transactionSizeMin"]}
@@ -2184,44 +2163,36 @@ const handleSubmit = async (e: React.FormEvent) => {
                     >
                       Max <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500">
-                        {formData.selectedCurrency === "USD"
-                          ? "$"
-                          : formData.selectedCurrency === "EUR"
-                          ? "€"
-                          : formData.selectedCurrency === "GBP"
-                          ? "£"
-                          : formData.selectedCurrency}
+                    <div className="flex-1">
+                      <div className="relative">
+                        <div className="absolute left-0 top-1/2 z-10 -translate-y-1/2 flex items-center pl-3 pointer-events-none text-gray-500">
+                          {getCurrencySymbol(formData.selectedCurrency)}
+                        </div>
+                        <Input
+                          id="transactionSizeMax"
+                          required
+                          type="text"
+                          className={`border-[#d0d5dd] pl-7 ${
+                            fieldErrors["targetCriteria.transactionSizeMax"]
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : ""
+                          }`}
+                          value={formatNumberWithCommas(
+                            formData.targetCriteria.transactionSizeMax
+                          )}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/,/g, "");
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleNestedChange(
+                                "targetCriteria",
+                                "transactionSizeMax",
+                                value ? Number(value) : undefined
+                              );
+                            }
+                          }}
+                          required
+                        />
                       </div>
-                      <Input
-                        id="transactionSizeMax"
-                        required
-                        type="text"
-                        className={`border-[#d0d5dd] ${
-                          formData.selectedCurrency.length > 2
-                            ? "pl-12"
-                            : "pl-8"
-                        } ${
-                          fieldErrors["targetCriteria.transactionSizeMax"]
-                            ? "border-red-500 focus-visible:ring-red-500"
-                            : ""
-                        }`}
-                        value={formatNumberWithCommas(
-                          formData.targetCriteria.transactionSizeMax
-                        )}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/,/g, "");
-                          if (value === "" || /^\d+$/.test(value)) {
-                            handleNestedChange(
-                              "targetCriteria",
-                              "transactionSizeMax",
-                              value ? Number(value) : undefined
-                            );
-                          }
-                        }}
-                        required
-                      />
                       {fieldErrors["targetCriteria.transactionSizeMax"] && (
                         <p className="text-red-500 text-sm mt-1">
                           {fieldErrors["targetCriteria.transactionSizeMax"]}
@@ -2471,8 +2442,13 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </form>
       </div>
+      </div>
       <Toaster />
     </div>
     </BuyerProtectedRoute>
   );
 }
+
+
+
+

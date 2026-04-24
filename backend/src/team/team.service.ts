@@ -80,6 +80,86 @@ export class TeamService {
     }
   }
 
+  private async getOwnerContactEmail(
+    ownerId: string,
+    ownerType: "seller" | "buyer",
+  ): Promise<string | null> {
+    if (ownerType === "seller") {
+      const seller = await this.sellerModel.findById(ownerId).select("email").lean().exec()
+      return seller?.email ? String(seller.email).toLowerCase().trim() : null
+    }
+
+    const buyer = await this.buyerModel.findById(ownerId).select("email").lean().exec()
+    return buyer?.email ? String(buyer.email).toLowerCase().trim() : null
+  }
+
+  private async getTeamNotificationRecipients(
+    ownerId: string,
+    ownerType: "seller" | "buyer",
+    excludeEmails: string[] = [],
+  ): Promise<string[]> {
+    const normalizeEmail = (email: string): string => email.toLowerCase().trim()
+    const isNonEmptyString = (value: string | null | undefined): value is string =>
+      typeof value === "string" && value.trim().length > 0
+
+    const normalizedExcludes = new Set(
+      excludeEmails
+        .map((email) => normalizeEmail(email))
+        .filter(isNonEmptyString),
+    )
+    const ownerEmail = await this.getOwnerContactEmail(ownerId, ownerType)
+
+    const teamMembers = await this.teamMemberModel
+      .find({ ownerId, ownerType, isActive: true, permissions: "emails" }, { email: 1, permissions: 1 })
+      .lean()
+      .exec()
+
+    const recipients = [
+      ownerEmail,
+      ...teamMembers
+        .map((member) => (member?.email ? normalizeEmail(String(member.email)) : null))
+        .filter(isNonEmptyString),
+    ].filter((email): email is string => isNonEmptyString(email) && !normalizedExcludes.has(email))
+
+    return Array.from(new Set(recipients))
+  }
+
+  private async sendTeamNotificationEmail(
+    recipientEmail: string,
+    ownerType: "seller" | "buyer",
+    ownerInfo: { companyName: string; fullName: string },
+    newMember: TeamMemberDocument,
+  ): Promise<void> {
+    const frontendUrl = getFrontendUrl()
+    const dashboardUrl =
+      ownerType === "seller"
+        ? `${frontendUrl}/seller/team`
+        : `${frontendUrl}/buyer/team`
+    const roleLabel = ownerType === "seller" ? "Advisor" : "Buyer"
+
+    const emailContent = `
+      <p>A new ${roleLabel.toLowerCase()} team member has been added to <strong>${ownerInfo.companyName}</strong>'s team on CIM Amplify.</p>
+      <p><strong>Name:</strong> ${newMember.fullName}</p>
+      <p><strong>Email:</strong> ${newMember.email}</p>
+      <p>You can review and manage team access from your team page.</p>
+      ${emailButton("View Team", dashboardUrl)}
+    `.trim()
+
+    const emailBody = genericEmailTemplate(
+      "New Team Member Added",
+      ownerInfo.fullName,
+      emailContent,
+    )
+
+    await this.mailService.sendEmailWithLogging(
+      recipientEmail,
+      ownerType === "seller" ? "seller" : "buyer",
+      `New team member added at ${ownerInfo.companyName}`,
+      emailBody,
+      [ILLUSTRATION_ATTACHMENT],
+    )
+  }
+
   // ─── Owner endpoints ─────────────────────────────────
 
   async createMember(
@@ -397,6 +477,35 @@ export class TeamService {
       )
 
       this.logger.log(`Invitation email sent to ${member.email}`)
+
+      const sendTeamEmailNotifications = member.permissions.includes("emails")
+      if (!sendTeamEmailNotifications) {
+        this.logger.log(
+          `Email notifications disabled for team member ${member.email}; skipping owner/team notification emails`,
+        )
+        return
+      }
+
+      const notificationRecipients = await this.getTeamNotificationRecipients(
+        member.ownerId.toString(),
+        ownerType,
+        [member.email],
+      )
+
+      for (const recipientEmail of notificationRecipients) {
+        try {
+          await this.sendTeamNotificationEmail(
+            recipientEmail,
+            ownerType,
+            ownerInfo,
+            member,
+          )
+          this.logger.log(`Team notification email sent to ${recipientEmail}`)
+        } catch (notificationError) {
+          const error = notificationError instanceof Error ? notificationError.message : String(notificationError)
+          this.logger.error(`Failed to send team notification email to ${recipientEmail}: ${error}`)
+        }
+      }
     } catch (error) {
       this.logger.error(`Failed to send invitation email to ${member.email}: ${error.message}`)
     }

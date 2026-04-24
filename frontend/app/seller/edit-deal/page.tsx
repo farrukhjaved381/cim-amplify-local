@@ -66,19 +66,75 @@ type CapitalAvailabilityType =
 const US_REGION_PREFIX = "United States > ";
 const US_KEY_REGIONS = ["Northeast", "Midwest", "South", "West"];
 const US_REGION_STATES: Record<string, string[]> = {
-  Northeast: ["Connecticut", "Maine", "Massachusetts", "New Hampshire", "Rhode Island", "Vermont", "New Jersey", "New York", "Pennsylvania"],
-  Midwest: ["Illinois", "Indiana", "Michigan", "Ohio", "Wisconsin", "Iowa", "Kansas", "Minnesota", "Missouri", "Nebraska", "North Dakota", "South Dakota"],
-  South: ["Delaware", "Florida", "Georgia", "Maryland", "North Carolina", "South Carolina", "Virginia", "West Virginia", "Alabama", "Kentucky", "Mississippi", "Tennessee", "Arkansas", "Louisiana", "Oklahoma", "Texas"],
-  West: ["Arizona", "Colorado", "Idaho", "Montana", "Nevada", "New Mexico", "Utah", "Wyoming", "Alaska", "California", "Hawaii", "Oregon", "Washington"],
+  Northeast: [
+    "Connecticut",
+    "Maine",
+    "Massachusetts",
+    "New Hampshire",
+    "Rhode Island",
+    "Vermont",
+    "New Jersey",
+    "New York",
+    "Pennsylvania",
+  ],
+  Midwest: [
+    "Illinois",
+    "Indiana",
+    "Michigan",
+    "Ohio",
+    "Wisconsin",
+    "Iowa",
+    "Kansas",
+    "Minnesota",
+    "Missouri",
+    "Nebraska",
+    "North Dakota",
+    "South Dakota",
+  ],
+  South: [
+    "Delaware",
+    "Florida",
+    "Georgia",
+    "Maryland",
+    "North Carolina",
+    "South Carolina",
+    "Virginia",
+    "West Virginia",
+    "Alabama",
+    "Kentucky",
+    "Mississippi",
+    "Tennessee",
+    "Arkansas",
+    "Louisiana",
+    "Oklahoma",
+    "Texas",
+  ],
+  West: [
+    "Arizona",
+    "Colorado",
+    "Idaho",
+    "Montana",
+    "Nevada",
+    "New Mexico",
+    "Utah",
+    "Wyoming",
+    "Alaska",
+    "California",
+    "Hawaii",
+    "Oregon",
+    "Washington",
+  ],
 };
-const ALL_US_REGION_STATE_NAMES = new Set(Object.values(US_REGION_STATES).flat());
+const ALL_US_REGION_STATE_NAMES = new Set(
+  Object.values(US_REGION_STATES).flat(),
+);
 
 interface SellerFormData {
   dealTitle: string;
   companyDescription: string;
   geographySelections: string[];
   industrySelections: string[];
-  selectedIndustryDisplay?: string; 
+  selectedIndustryDisplay?: string;
   yearsInBusiness: number;
   trailingRevenue: number;
   trailingEBITDA: number;
@@ -226,10 +282,10 @@ const formatNumberWithCommas = (num: number): string => {
 
 const validateFinancials = (
   revenue: number,
-  ebitda: number
+  ebitda: number,
 ): { trailingRevenue?: string; trailingEBITDA?: string } => {
   const errors: { trailingRevenue?: string; trailingEBITDA?: string } = {};
-  
+
   const minEBITDA = 1000000;
   const minRevenue = 5000000;
 
@@ -248,11 +304,11 @@ const validateFinancials = (
   // Existing check: EBITDA must be less than Revenue
   if (revenue > 0 && ebitda >= revenue) {
     // This is an independent rule, can coexist with the above.
-    errors.trailingEBITDA = errors.trailingEBITDA 
+    errors.trailingEBITDA = errors.trailingEBITDA
       ? errors.trailingEBITDA + " Also, EBITDA must be less than Revenue."
       : "EBITDA must be less than Revenue";
   }
-  
+
   return errors;
 };
 
@@ -275,38 +331,39 @@ export default function EditDealPageFixed() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [existingDocuments, setExistingDocuments] = useState<DealDocument[]>(
-    []
+    [],
   );
-  
+
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [sellerData, setSellerData] = useState<any>(null);
-  
+
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const updateSellerPreferences = async () => {
     if (!dontShowAgain) return;
-    
+
     try {
-      const token = sessionStorage.getItem('token');
-      const sellerId = sessionStorage.getItem('userId');
+      const token = sessionStorage.getItem("token");
+      const sellerId = sessionStorage.getItem("userId");
       const apiUrl = API_BASE_URL;
-      
+
       const response = await fetch(`${apiUrl}/sellers/${sellerId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ hideGuidelines: true }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to update preferences: ${response.status}`);
       }
     } catch (error) {
       toast({
         title: "Warning",
-        description: "Failed to save preference. Modal may appear again next time.",
+        description:
+          "Failed to save preference. Modal may appear again next time.",
         variant: "destructive",
       });
     }
@@ -324,7 +381,7 @@ export default function EditDealPageFixed() {
       industries: {},
       subIndustries: {},
       activities: {},
-    }
+    },
   );
 
   const [expandedContinents, setExpandedContinents] = useState<
@@ -373,6 +430,13 @@ export default function EditDealPageFixed() {
 
   const [debouncedGeoSearch, setDebouncedGeoSearch] = useState("");
   const [debouncedIndustrySearch, setDebouncedIndustrySearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedGeoSearch(geoSearchTerm);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [geoSearchTerm]);
 
   const [expandedSubIndustries, setExpandedSubIndustries] = useState<
     Record<string, boolean>
@@ -433,27 +497,35 @@ export default function EditDealPageFixed() {
   const previewNdaDocument = () => {
     if (formData.ndaDocument) {
       const url = URL.createObjectURL(formData.ndaDocument);
-      window.open(url, '_blank');
+      window.open(url, "_blank");
     } else if (formData.existingNdaDocument?.base64Content) {
-      const byteChars = atob(formData.existingNdaDocument.base64Content.split(',').pop() || formData.existingNdaDocument.base64Content);
+      const byteChars = atob(
+        formData.existingNdaDocument.base64Content.split(",").pop() ||
+          formData.existingNdaDocument.base64Content,
+      );
       const byteArr = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([byteArr], { type: formData.existingNdaDocument.mimetype });
+      for (let i = 0; i < byteChars.length; i++)
+        byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], {
+        type: formData.existingNdaDocument.mimetype,
+      });
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      window.open(url, "_blank");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dealId) {
-      toast({ title: 'Missing deal ID', variant: 'destructive' });
+      toast({ title: "Missing deal ID", variant: "destructive" });
       return;
     }
-    
+
     // Validate financials
     const errors: { [key: string]: string } = {};
-    const selectedIndustries = Array.from(new Set((formData.industrySelections || []).filter(Boolean)));
+    const selectedIndustries = Array.from(
+      new Set((formData.industrySelections || []).filter(Boolean)),
+    );
     if (selectedIndustries.length === 0) {
       errors.industrySelections = "Please select at least 1 industry.";
     }
@@ -462,23 +534,31 @@ export default function EditDealPageFixed() {
     }
     const financialErrors = validateFinancials(
       formData.trailingRevenue,
-      formData.trailingEBITDA
+      formData.trailingEBITDA,
     );
     Object.assign(errors, financialErrors);
-    
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      toast({ title: 'Validation Error', description: 'Please fix the errors below.', variant: 'destructive' });
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors below.",
+        variant: "destructive",
+      });
       return;
     }
-    
+
     try {
       setIsSaving(true);
-      const token = sessionStorage.getItem('token');
+      const token = sessionStorage.getItem("token");
       const apiUrl = API_BASE_URL;
       if (!token) {
-        toast({ title: 'Authentication required', description: 'Please log in again.', variant: 'destructive' });
-        router.push('/seller/login');
+        toast({
+          title: "Authentication required",
+          description: "Please log in again.",
+          variant: "destructive",
+        });
+        router.push("/seller/login");
         return;
       }
 
@@ -488,41 +568,50 @@ export default function EditDealPageFixed() {
         companyType: formData.companyType || [],
         visibility: selectedReward || undefined,
         industrySector:
-          (Array.from(new Set((formData.industrySelections || []).filter(Boolean))).slice(0, 3)[0]) ||
-          dealData?.industrySector || 'Other',
-        industrySectors: Array.from(new Set((formData.industrySelections || []).filter(Boolean))).slice(0, 3),
+          Array.from(
+            new Set((formData.industrySelections || []).filter(Boolean)),
+          ).slice(0, 3)[0] ||
+          dealData?.industrySector ||
+          "Other",
+        industrySectors: Array.from(
+          new Set((formData.industrySelections || []).filter(Boolean)),
+        ).slice(0, 3),
         geographySelection:
           (formData.geographySelections && formData.geographySelections[0]) ||
           geoSelection.selectedName ||
-          dealData?.geographySelection || 'Global',
-        yearsInBusiness: formData.yearsInBusiness ?? dealData?.yearsInBusiness ?? 0,
+          dealData?.geographySelection ||
+          "Global",
+        yearsInBusiness:
+          formData.yearsInBusiness ?? dealData?.yearsInBusiness ?? 0,
         financialDetails: {
-          trailingRevenueCurrency: formData.currency || 'USD($)',
+          trailingRevenueCurrency: formData.currency || "USD($)",
           trailingRevenueAmount: Number(formData.trailingRevenue) || 0,
-          trailingEBITDACurrency: formData.currency || 'USD($)',
+          trailingEBITDACurrency: formData.currency || "USD($)",
           trailingEBITDAAmount: Number(formData.trailingEBITDA) || 0,
           avgRevenueGrowth: Number(formData.revenueGrowth) || 0,
-          netIncomeCurrency: formData.currency || 'USD($)',
+          netIncomeCurrency: formData.currency || "USD($)",
           netIncome: Number(formData.netIncome) || 0,
-          askingPriceCurrency: formData.currency || 'USD($)',
+          askingPriceCurrency: formData.currency || "USD($)",
           askingPrice: Number(formData.askingPrice) || 0,
           t12FreeCashFlow: Number(formData.t12FreeCashFlow) || 0,
           t12NetIncome: Number(formData.t12NetIncome) || 0,
         },
         businessModel: {
-          recurringRevenue: formData.businessModels.includes('recurring-revenue'),
-          projectBased: formData.businessModels.includes('project-based'),
-          assetLight: formData.businessModels.includes('asset-light'),
-          assetHeavy: formData.businessModels.includes('asset-heavy'),
+          recurringRevenue:
+            formData.businessModels.includes("recurring-revenue"),
+          projectBased: formData.businessModels.includes("project-based"),
+          assetLight: formData.businessModels.includes("asset-light"),
+          assetHeavy: formData.businessModels.includes("asset-heavy"),
         },
-        managementPreferences: formData.managementPreferences || '',
+        managementPreferences: formData.managementPreferences || "",
         buyerFit: {
           capitalAvailability: formData.capitalAvailability || [],
           minPriorAcquisitions: formData.minPriorAcquisitions || 0,
           minTransactionSize: formData.minTransactionSize || 0,
         },
         isPublic: !!formData.isPublic,
-        requiresBuyerFeeAboveAmplifyFees: !!formData.requiresBuyerFeeAboveAmplifyFees,
+        requiresBuyerFeeAboveAmplifyFees:
+          !!formData.requiresBuyerFeeAboveAmplifyFees,
         hideGuidelines: formData.hideGuidelines,
       };
 
@@ -534,7 +623,7 @@ export default function EditDealPageFixed() {
           const reader = new FileReader();
           reader.onload = () => {
             const result = reader.result as string;
-            const base64 = result.split(',')[1];
+            const base64 = result.split(",")[1];
             resolve(base64);
           };
           reader.onerror = reject;
@@ -566,9 +655,9 @@ export default function EditDealPageFixed() {
       }
 
       const resp = await fetch(`${apiUrl}/deals/${dealId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(updatePayload),
@@ -577,10 +666,17 @@ export default function EditDealPageFixed() {
         const txt = await resp.text();
         throw new Error(txt || `Failed to update deal (${resp.status})`);
       }
-      toast({ title: 'Deal updated', description: 'Your changes have been saved.' });
-      router.push('/seller/dashboard');
+      toast({
+        title: "Deal updated",
+        description: "Your changes have been saved.",
+      });
+      router.push("/seller/dashboard");
     } catch (err: any) {
-      toast({ title: 'Update failed', description: err.message || 'Please try again.', variant: 'destructive' });
+      toast({
+        title: "Update failed",
+        description: err.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -589,7 +685,7 @@ export default function EditDealPageFixed() {
   const flattenIndustryData = (
     items: Sector[] | IndustryGroup[] | Industry[] | SubIndustry[],
     parentPath = "",
-    result: IndustryItem[] = []
+    result: IndustryItem[] = [],
   ) => {
     items.forEach((item) => {
       const path = parentPath ? `${parentPath} > ${item.name}` : item.name;
@@ -609,7 +705,7 @@ export default function EditDealPageFixed() {
   };
 
   const normalizeCapitalAvailability = (
-    value: string
+    value: string,
   ): CapitalAvailabilityType | null => {
     const trimmedValue = value.trim();
     if (trimmedValue === CAPITAL_AVAILABILITY_OPTIONS.READY) {
@@ -622,241 +718,262 @@ export default function EditDealPageFixed() {
   };
 
   const fetchDealData = async () => {
-  if (!dealId) {
-    toast({
-      title: "Error",
-      description: "No deal ID provided",
-      variant: "destructive",
-    });
-    router.push("/seller/dashboard");
-    return;
-  }
-
+    if (!dealId) {
+      toast({
+        title: "Error",
+        description: "No deal ID provided",
+        variant: "destructive",
+      });
+      router.push("/seller/dashboard");
+      return;
+    }
 
     try {
       setIsLoading(true);
       const token = sessionStorage.getItem("token");
       const apiUrl = API_BASE_URL;
 
-    const response = await fetch(`${apiUrl}/deals/${dealId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch deal: ${response.statusText}`);
-    }
-
-    const dealData = await response.json();
-
-    let capitalAvailabilityArray: CapitalAvailabilityType[] = [];
-    if (Array.isArray(dealData.buyerFit?.capitalAvailability)) {
-      capitalAvailabilityArray = dealData.buyerFit.capitalAvailability
-        .map(normalizeCapitalAvailability)
-        .filter(
-          (item: unknown): item is CapitalAvailabilityType => item !== null
-        );
-    } else if (typeof dealData.buyerFit?.capitalAvailability === "string") {
-      const normalized = normalizeCapitalAvailability(
-        dealData.buyerFit.capitalAvailability
-      );
-      if (normalized) {
-        capitalAvailabilityArray = [normalized];
-      }
-    }
-
-    let companyTypeArray: string[] = [];
-    if (Array.isArray(dealData.companyType)) {
-      companyTypeArray = dealData.companyType.filter(Boolean);
-    } else if (
-      typeof dealData.companyType === "string" &&
-      dealData.companyType.trim()
-    ) {
-      companyTypeArray = dealData.companyType
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-    }
-
-    setFormData({
-      dealTitle: dealData.title || "",
-      companyDescription: dealData.companyDescription || "",
-      geographySelections: dealData.geographySelection
-        ? [dealData.geographySelection]
-        : [],
-      industrySelections: Array.isArray(dealData.industrySectors) && dealData.industrySectors.length > 0
-        ? dealData.industrySectors
-        : (dealData.industrySector ? [dealData.industrySector] : []),
-      selectedIndustryDisplay: Array.isArray(dealData.industrySectors) && dealData.industrySectors.length > 0
-        ? dealData.industrySectors.join(", ")
-        : (dealData.industrySector || undefined),
-      yearsInBusiness: dealData.yearsInBusiness || 0,
-      trailingRevenue: dealData.financialDetails?.trailingRevenueAmount || 0,
-      trailingEBITDA: dealData.financialDetails?.trailingEBITDAAmount || 0,
-      revenueGrowth: dealData.financialDetails?.avgRevenueGrowth || 0,
-      currency:
-        dealData.financialDetails?.trailingRevenueCurrency || "USD($)",
-      netIncome: dealData.financialDetails?.netIncome || 0,
-      askingPrice: dealData.financialDetails?.askingPrice || 0,
-      businessModels: [
-        ...(dealData.businessModel?.recurringRevenue
-          ? ["recurring-revenue"]
-          : []),
-        ...(dealData.businessModel?.projectBased ? ["project-based"] : []),
-        ...(dealData.businessModel?.assetLight ? ["asset-light"] : []),
-        ...(dealData.businessModel?.assetHeavy ? ["asset-heavy"] : []),
-      ],
-      managementPreferences: dealData.managementPreferences || "",
-      capitalAvailability: capitalAvailabilityArray,
-      companyType: [...new Set(companyTypeArray)],
-      minPriorAcquisitions:
-        dealData.buyerFit?.minPriorAcquisitions ?? undefined,
-      minTransactionSize: dealData.buyerFit?.minTransactionSize ?? undefined,
-      documents: [],
-      ndaDocument: null,
-      existingNdaDocument: dealData.ndaDocument ? {
-        originalName: dealData.ndaDocument.originalName,
-        mimetype: dealData.ndaDocument.mimetype,
-        size: dealData.ndaDocument.size,
-        uploadedAt: dealData.ndaDocument.uploadedAt,
-        base64Content: dealData.ndaDocument.base64Content,
-      } : null,
-      t12FreeCashFlow: dealData.financialDetails?.t12FreeCashFlow || 0,
-      t12NetIncome: dealData.financialDetails?.t12NetIncome || 0,
-      isPublic: !!dealData.isPublic,
-      requiresBuyerFeeAboveAmplifyFees: !!dealData.requiresBuyerFeeAboveAmplifyFees,
-      hideGuidelines: !!dealData.hideGuidelines,
-    });
-
-    setDealData(dealData);
-    setExistingDocuments(dealData.documents || []);
-    setSelectedReward(dealData.visibility || "seed");
-    
-    // Fetch seller data to check hideGuidelines preference
-    try {
-      const sellerResponse = await fetch(`${apiUrl}/sellers/profile`, {
+      const response = await fetch(`${apiUrl}/deals/${dealId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
-      if (sellerResponse.ok) {
-        const seller = await sellerResponse.json();
-        setSellerData(seller);
-        setShowGuidelines(!seller.hideGuidelines);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch deal: ${response.statusText}`);
       }
-    } catch (error) {
-      setShowGuidelines(true);
-    }
 
-    if (dealData.geographySelection) {
-      const savedGeography = dealData.geographySelection;
+      const dealData = await response.json();
 
-      // Handle US region format (e.g., "United States > Northeast")
-      if (savedGeography.startsWith(US_REGION_PREFIX)) {
-        const regionName = savedGeography.slice(US_REGION_PREFIX.length);
-        if (US_KEY_REGIONS.includes(regionName)) {
-          setExpandedContinents(prev => ({ ...prev, US: true }));
-          setGeoSelection({
-            selectedId: `US-REGION-${regionName}`,
-            selectedName: savedGeography,
-          });
+      let capitalAvailabilityArray: CapitalAvailabilityType[] = [];
+      if (Array.isArray(dealData.buyerFit?.capitalAvailability)) {
+        capitalAvailabilityArray = dealData.buyerFit.capitalAvailability
+          .map(normalizeCapitalAvailability)
+          .filter(
+            (item: unknown): item is CapitalAvailabilityType => item !== null,
+          );
+      } else if (typeof dealData.buyerFit?.capitalAvailability === "string") {
+        const normalized = normalizeCapitalAvailability(
+          dealData.buyerFit.capitalAvailability,
+        );
+        if (normalized) {
+          capitalAvailabilityArray = [normalized];
         }
-      } else if (savedGeography.includes(' > ')) {
-        // "Country > State/Province" format (e.g., "Pakistan > Punjab")
-        const parts = savedGeography.split(' > ');
-        const countryName = parts[0];
-        const stateName = parts[1];
-        const matchedCountry = Country.getAllCountries().find(c => c.name === countryName);
-        if (matchedCountry) {
-          const states = State.getStatesOfCountry(matchedCountry.isoCode);
-          const matchedState = states.find(s => s.name === stateName);
-          // Load states into flatGeoData
-          setFlatGeoData(prev => {
-            const existingIds = new Set(prev.map(item => item.id));
-            const newItems: GeoItem[] = [];
-            states.forEach(state => {
-              const stateId = `${matchedCountry.isoCode}-${state.isoCode}`;
-              if (!existingIds.has(stateId)) {
-                newItems.push({
-                  id: stateId,
-                  name: state.name,
-                  path: `${countryName} > ${state.name}`,
-                  type: 'state',
-                  countryCode: matchedCountry.isoCode,
-                  stateCode: state.isoCode,
-                });
-              }
+      }
+
+      let companyTypeArray: string[] = [];
+      if (Array.isArray(dealData.companyType)) {
+        companyTypeArray = dealData.companyType.filter(Boolean);
+      } else if (
+        typeof dealData.companyType === "string" &&
+        dealData.companyType.trim()
+      ) {
+        companyTypeArray = dealData.companyType
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+      }
+
+      setFormData({
+        dealTitle: dealData.title || "",
+        companyDescription: dealData.companyDescription || "",
+        geographySelections: dealData.geographySelection
+          ? [dealData.geographySelection]
+          : [],
+        industrySelections:
+          Array.isArray(dealData.industrySectors) &&
+          dealData.industrySectors.length > 0
+            ? dealData.industrySectors
+            : dealData.industrySector
+              ? [dealData.industrySector]
+              : [],
+        selectedIndustryDisplay:
+          Array.isArray(dealData.industrySectors) &&
+          dealData.industrySectors.length > 0
+            ? dealData.industrySectors.join(", ")
+            : dealData.industrySector || undefined,
+        yearsInBusiness: dealData.yearsInBusiness || 0,
+        trailingRevenue: dealData.financialDetails?.trailingRevenueAmount || 0,
+        trailingEBITDA: dealData.financialDetails?.trailingEBITDAAmount || 0,
+        revenueGrowth: dealData.financialDetails?.avgRevenueGrowth || 0,
+        currency:
+          dealData.financialDetails?.trailingRevenueCurrency || "USD($)",
+        netIncome: dealData.financialDetails?.netIncome || 0,
+        askingPrice: dealData.financialDetails?.askingPrice || 0,
+        businessModels: [
+          ...(dealData.businessModel?.recurringRevenue
+            ? ["recurring-revenue"]
+            : []),
+          ...(dealData.businessModel?.projectBased ? ["project-based"] : []),
+          ...(dealData.businessModel?.assetLight ? ["asset-light"] : []),
+          ...(dealData.businessModel?.assetHeavy ? ["asset-heavy"] : []),
+        ],
+        managementPreferences: dealData.managementPreferences || "",
+        capitalAvailability: capitalAvailabilityArray,
+        companyType: [...new Set(companyTypeArray)],
+        minPriorAcquisitions:
+          dealData.buyerFit?.minPriorAcquisitions ?? undefined,
+        minTransactionSize: dealData.buyerFit?.minTransactionSize ?? undefined,
+        documents: [],
+        ndaDocument: null,
+        existingNdaDocument: dealData.ndaDocument
+          ? {
+              originalName: dealData.ndaDocument.originalName,
+              mimetype: dealData.ndaDocument.mimetype,
+              size: dealData.ndaDocument.size,
+              uploadedAt: dealData.ndaDocument.uploadedAt,
+              base64Content: dealData.ndaDocument.base64Content,
+            }
+          : null,
+        t12FreeCashFlow: dealData.financialDetails?.t12FreeCashFlow || 0,
+        t12NetIncome: dealData.financialDetails?.t12NetIncome || 0,
+        isPublic: !!dealData.isPublic,
+        requiresBuyerFeeAboveAmplifyFees:
+          !!dealData.requiresBuyerFeeAboveAmplifyFees,
+        hideGuidelines: !!dealData.hideGuidelines,
+      });
+
+      setDealData(dealData);
+      setExistingDocuments(dealData.documents || []);
+      setSelectedReward(dealData.visibility || "seed");
+
+      // Fetch seller data to check hideGuidelines preference
+      try {
+        const sellerResponse = await fetch(`${apiUrl}/sellers/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (sellerResponse.ok) {
+          const seller = await sellerResponse.json();
+          setSellerData(seller);
+          setShowGuidelines(!seller.hideGuidelines);
+        }
+      } catch (error) {
+        setShowGuidelines(true);
+      }
+
+      if (dealData.geographySelection) {
+        const savedGeography = dealData.geographySelection;
+
+        // Handle US region format (e.g., "United States > Northeast")
+        if (savedGeography.startsWith(US_REGION_PREFIX)) {
+          const regionName = savedGeography.slice(US_REGION_PREFIX.length);
+          if (US_KEY_REGIONS.includes(regionName)) {
+            setExpandedContinents((prev) => ({ ...prev, US: true }));
+            setGeoSelection({
+              selectedId: `US-REGION-${regionName}`,
+              selectedName: savedGeography,
             });
-            return newItems.length > 0 ? [...prev, ...newItems] : prev;
-          });
-          // Expand country
-          setExpandedContinents(prev => ({ ...prev, [matchedCountry.isoCode]: true }));
-          if (matchedState) {
-            const stateId = `${matchedCountry.isoCode}-${matchedState.isoCode}`;
-            setGeoSelection({ selectedId: stateId, selectedName: savedGeography });
+          }
+        } else if (savedGeography.includes(" > ")) {
+          // "Country > State/Province" format (e.g., "Pakistan > Punjab")
+          const parts = savedGeography.split(" > ");
+          const countryName = parts[0];
+          const stateName = parts[1];
+          const matchedCountry = Country.getAllCountries().find(
+            (c) => c.name === countryName,
+          );
+          if (matchedCountry) {
+            const states = State.getStatesOfCountry(matchedCountry.isoCode);
+            const matchedState = states.find((s) => s.name === stateName);
+            // Load states into flatGeoData
+            setFlatGeoData((prev) => {
+              const existingIds = new Set(prev.map((item) => item.id));
+              const newItems: GeoItem[] = [];
+              states.forEach((state) => {
+                const stateId = `${matchedCountry.isoCode}-${state.isoCode}`;
+                if (!existingIds.has(stateId)) {
+                  newItems.push({
+                    id: stateId,
+                    name: state.name,
+                    path: `${countryName} > ${state.name}`,
+                    type: "state",
+                    countryCode: matchedCountry.isoCode,
+                    stateCode: state.isoCode,
+                  });
+                }
+              });
+              return newItems.length > 0 ? [...prev, ...newItems] : prev;
+            });
+            // Expand country
+            setExpandedContinents((prev) => ({
+              ...prev,
+              [matchedCountry.isoCode]: true,
+            }));
+            if (matchedState) {
+              const stateId = `${matchedCountry.isoCode}-${matchedState.isoCode}`;
+              setGeoSelection({
+                selectedId: stateId,
+                selectedName: savedGeography,
+              });
+            } else {
+              setGeoSelection({
+                selectedId: null,
+                selectedName: savedGeography,
+              });
+            }
           } else {
             setGeoSelection({ selectedId: null, selectedName: savedGeography });
           }
         } else {
-          setGeoSelection({ selectedId: null, selectedName: savedGeography });
-        }
-      } else {
-        // Country-only — try to find the country
-        const country = Country.getAllCountries().find(c => c.name === savedGeography);
-        if (country) {
-          setGeoSelection({
-            selectedId: country.isoCode,
-            selectedName: savedGeography,
-          });
-        } else {
-          setGeoSelection({ selectedId: null, selectedName: savedGeography });
+          // Country-only — try to find the country
+          const country = Country.getAllCountries().find(
+            (c) => c.name === savedGeography,
+          );
+          if (country) {
+            setGeoSelection({
+              selectedId: country.isoCode,
+              selectedName: savedGeography,
+            });
+          } else {
+            setGeoSelection({ selectedId: null, selectedName: savedGeography });
+          }
         }
       }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load deal data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error: any) {
-    toast({
-      title: "Error",
-      description: error.message || "Failed to load deal data",
-      variant: "destructive",
+  };
+
+  const loadStatesAndCities = async (countryCode: string) => {
+    const states = State.getStatesOfCountry(countryCode);
+    const countryName = Country.getCountryByCode(countryCode)?.name;
+
+    setFlatGeoData((prevGeoData) => {
+      const newGeoData = [...prevGeoData];
+      const existingIds = new Set(newGeoData.map((item) => item.id));
+
+      states.forEach((state) => {
+        const stateId = `${countryCode}-${state.isoCode}`;
+        const statePath = `${countryName} > ${state.name}`;
+
+        if (!existingIds.has(stateId)) {
+          newGeoData.push({
+            id: stateId,
+            name: state.name,
+            path: statePath,
+            type: "state",
+            countryCode: countryCode,
+            stateCode: state.isoCode,
+          });
+          existingIds.add(stateId);
+        }
+      });
+
+      return newGeoData;
     });
-  } finally {
-    setIsLoading(false);
-  }
-};
-
- const loadStatesAndCities = async (countryCode: string) => {
-  const states = State.getStatesOfCountry(countryCode);
-  const countryName = Country.getCountryByCode(countryCode)?.name;
-  
-  setFlatGeoData(prevGeoData => {
-    const newGeoData = [...prevGeoData];
-    const existingIds = new Set(newGeoData.map((item) => item.id));
-
-    states.forEach((state) => {
-      const stateId = `${countryCode}-${state.isoCode}`;
-      const statePath = `${countryName} > ${state.name}`;
-
-      if (!existingIds.has(stateId)) {
-        newGeoData.push({
-          id: stateId,
-          name: state.name,
-          path: statePath,
-          type: "state",
-          countryCode: countryCode,
-          stateCode: state.isoCode,
-        });
-        existingIds.add(stateId);
-      }
-    });
-
-    return newGeoData;
-  });
-};
+  };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -864,7 +981,7 @@ export default function EditDealPageFixed() {
 
   const handleNumberChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    fieldName: keyof SellerFormData
+    fieldName: keyof SellerFormData,
   ) => {
     const value =
       e.target.value === "" ? undefined : Number.parseFloat(e.target.value);
@@ -878,7 +995,7 @@ export default function EditDealPageFixed() {
   const handleCheckboxChange = (
     checked: boolean,
     value: string,
-    fieldName: "companyType" | "businessModels" | "managementPreferences"
+    fieldName: "companyType" | "businessModels" | "managementPreferences",
   ) => {
     setFormData((prev) => {
       const currentValues = Array.isArray(prev[fieldName])
@@ -894,10 +1011,7 @@ export default function EditDealPageFixed() {
     });
   };
 
-  const handleMultiSelectChange = (
-    option: string,
-    fieldName: string
-  ) => {
+  const handleMultiSelectChange = (option: string, fieldName: string) => {
     setFormData((prev) => {
       const arr = Array.isArray((prev as any)[fieldName])
         ? (prev as any)[fieldName]
@@ -913,7 +1027,7 @@ export default function EditDealPageFixed() {
 
   const handleCapitalAvailabilityChange = (
     checked: boolean,
-    value: CapitalAvailabilityType
+    value: CapitalAvailabilityType,
   ) => {
     setFormData((prev) => {
       const currentValues = Array.isArray(prev.capitalAvailability)
@@ -988,13 +1102,15 @@ export default function EditDealPageFixed() {
     });
 
     const allGroupsSelected = sector.industryGroups.every((g) =>
-      g.id === group.id ? isSelected : newIndustrySelection.industryGroups[g.id]
+      g.id === group.id
+        ? isSelected
+        : newIndustrySelection.industryGroups[g.id],
     );
 
     const allGroupsDeselected = sector.industryGroups.every((g) =>
       g.id === group.id
         ? !isSelected
-        : !newIndustrySelection.industryGroups[g.id]
+        : !newIndustrySelection.industryGroups[g.id],
     );
 
     if (allGroupsSelected) {
@@ -1010,7 +1126,7 @@ export default function EditDealPageFixed() {
   const toggleIndustry = (
     industry: Industry,
     group: IndustryGroup,
-    sector: Sector
+    sector: Sector,
   ) => {
     const newIndustrySelection = { ...industrySelection };
     const isSelected = !industrySelection.industries[industry.id];
@@ -1018,13 +1134,13 @@ export default function EditDealPageFixed() {
     newIndustrySelection.industries[industry.id] = isSelected;
 
     const allIndustriesSelected = group.industries.every((i) =>
-      i.id === industry.id ? isSelected : newIndustrySelection.industries[i.id]
+      i.id === industry.id ? isSelected : newIndustrySelection.industries[i.id],
     );
 
     const allIndustriesDeselected = group.industries.every((i) =>
       i.id === industry.id
         ? !isSelected
-        : !newIndustrySelection.industries[i.id]
+        : !newIndustrySelection.industries[i.id],
     );
 
     if (allIndustriesSelected) {
@@ -1036,13 +1152,13 @@ export default function EditDealPageFixed() {
     const allGroupsSelected = sector.industryGroups.every((g) =>
       g.id === group.id
         ? newIndustrySelection.industryGroups[g.id]
-        : newIndustrySelection.industryGroups[g.id]
+        : newIndustrySelection.industryGroups[g.id],
     );
 
     const allGroupsDeselected = sector.industryGroups.every((g) =>
       g.id === group.id
         ? !newIndustrySelection.industryGroups[g.id]
-        : !newIndustrySelection.industryGroups[g.id]
+        : !newIndustrySelection.industryGroups[g.id],
     );
 
     if (allGroupsSelected) {
@@ -1065,7 +1181,7 @@ export default function EditDealPageFixed() {
 
       const allGroupsSelected = sector.industryGroups.every((group) => {
         return group.industries.every(
-          (industry) => selection.industries[industry.id]
+          (industry) => selection.industries[industry.id],
         );
       });
 
@@ -1076,7 +1192,7 @@ export default function EditDealPageFixed() {
           const groupSelected = selection.industryGroups[group.id];
 
           const allIndustriesSelected = group.industries.every(
-            (industry) => selection.industries[industry.id]
+            (industry) => selection.industries[industry.id],
           );
 
           if (groupSelected && allIndustriesSelected) {
@@ -1129,7 +1245,7 @@ export default function EditDealPageFixed() {
             });
 
             const allGroupsDeselected = sector.industryGroups.every(
-              (g) => !newIndustrySelection.industryGroups[g.id]
+              (g) => !newIndustrySelection.industryGroups[g.id],
             );
 
             if (allGroupsDeselected) {
@@ -1144,14 +1260,14 @@ export default function EditDealPageFixed() {
                 found = true;
 
                 const allIndustriesDeselected = group.industries.every(
-                  (i) => !newIndustrySelection.industries[i.id]
+                  (i) => !newIndustrySelection.industries[i.id],
                 );
 
                 if (allIndustriesDeselected) {
                   newIndustrySelection.industryGroups[group.id] = false;
 
                   const allGroupsDeselected = sector.industryGroups.every(
-                    (g) => !newIndustrySelection.industryGroups[g.id]
+                    (g) => !newIndustrySelection.industryGroups[g.id],
                   );
 
                   if (allGroupsDeselected) {
@@ -1269,7 +1385,9 @@ export default function EditDealPageFixed() {
 
   const handleIndustryRadioChange = (industryName: string) => {
     setFormData((prev) => {
-      const current = Array.from(new Set((prev.industrySelections || []).filter(Boolean)));
+      const current = Array.from(
+        new Set((prev.industrySelections || []).filter(Boolean)),
+      );
       const exists = current.includes(industryName);
       if (!exists && current.length >= 3) {
         toast({
@@ -1301,7 +1419,7 @@ export default function EditDealPageFixed() {
             appearance: none;
             width: 1rem;
             height: 1rem;
-            border: 2px solid #D1D5DB;
+            border: 2px solid #d1d5db;
             border-radius: 50%;
             background-color: white;
             cursor: pointer;
@@ -1310,8 +1428,8 @@ export default function EditDealPageFixed() {
             flex-shrink: 0;
           }
           .industry-radio:checked {
-            background-color: #3AAFA9;
-            border-color: #3AAFA9;
+            background-color: #3aafa9;
+            border-color: #3aafa9;
           }
           .industry-radio:checked::after {
             content: "";
@@ -1359,7 +1477,9 @@ export default function EditDealPageFixed() {
                         <input
                           type="checkbox"
                           id={`group-${group.id}`}
-                          checked={formData.industrySelections.includes(group.name)}
+                          checked={formData.industrySelections.includes(
+                            group.name,
+                          )}
                           onChange={() => handleIndustryRadioChange(group.name)}
                           className="industry-radio"
                         />
@@ -1391,350 +1511,404 @@ export default function EditDealPageFixed() {
     );
   };
 
-const renderGeographySelection = () => {
-  const search = debouncedGeoSearch.trim().toLowerCase();
-  const countries = flatGeoData.filter((item) => item.type === "country").filter((country) => {
-    if (!search) return true;
-    if (country.name.toLowerCase().includes(search)) return true;
-    if (country.name === "United States") {
-      if (US_KEY_REGIONS.some((r) => r.toLowerCase().includes(search))) return true;
-      for (const states of Object.values(US_REGION_STATES)) {
-        if (states.some((s) => s.toLowerCase().includes(search))) return true;
-      }
-    }
-    // Also search states/provinces for any country
-    const countryStates = flatGeoData.filter((item) => item.countryCode === country.id && item.type === "state");
-    if (countryStates.some((s) => s.name.toLowerCase().includes(search))) return true;
-    return false;
-  });
-
-  const priorityCountryCodes = ['CA', 'US', 'MX'];
-  const priorityCountries = countries.filter((country) => priorityCountryCodes.includes(country.id));
-  const otherCountries = countries.filter((country) => !priorityCountryCodes.includes(country.id));
-
-  priorityCountries.sort((a, b) => priorityCountryCodes.indexOf(a.id) - priorityCountryCodes.indexOf(b.id));
-  otherCountries.sort((a, b) => a.name.localeCompare(b.name));
-  const sortedCountries = [...priorityCountries, ...otherCountries];
-  const isUS = (id: string) => id === "US";
-
-  const getCountryStates = (countryCode: string) =>
-    flatGeoData
-      .filter((item) => item.countryCode === countryCode && item.type === "state")
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-  return (
-    <>
-      <style jsx>{`
-        .geo-radio {
-          appearance: none;
-          width: 1rem;
-          height: 1rem;
-          border: 2px solid #D1D5DB;
-          border-radius: 50%;
-          background-color: white;
-          cursor: pointer;
-          position: relative;
-          margin-right: 0.5rem;
-          flex-shrink: 0;
+  const renderGeographySelection = () => {
+    const search = debouncedGeoSearch.trim().toLowerCase();
+    const countries = flatGeoData
+      .filter((item) => item.type === "country")
+      .filter((country) => {
+        if (!search) return true;
+        if (country.name.toLowerCase().includes(search)) return true;
+        if (country.name === "United States") {
+          if (US_KEY_REGIONS.some((r) => r.toLowerCase().includes(search)))
+            return true;
+          for (const states of Object.values(US_REGION_STATES)) {
+            if (states.some((s) => s.toLowerCase().includes(search)))
+              return true;
+          }
         }
-        .geo-radio:checked {
-          background-color: #3AAFA9;
-          border-color: #3AAFA9;
-        }
-        .geo-radio:checked::after {
-          content: "";
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 0.375rem;
-          height: 0.375rem;
-          border-radius: 50%;
-          background-color: white;
-        }
-        .geo-radio:focus {
-          outline: none;
-          box-shadow: 0 0 0 2px rgba(58, 175, 169, 0.2);
-        }
-      `}</style>
-      <div className="space-y-2 font-poppins">
-        {sortedCountries.map((country, countryIndex) => {
-          const countrySelected =
-            geoSelection.selectedId === country.id ||
-            (!!geoSelection.selectedId && geoSelection.selectedId.startsWith(`${country.id}-`));
-          const isExpanded = expandedContinents[country.id];
-          const hasStatesLoaded = flatGeoData.some(
-            (item) => item.countryCode === country.id && item.type === "state"
-          );
+        // Also search states/provinces for any country
+        const countryStates = flatGeoData.filter(
+          (item) => item.countryCode === country.id && item.type === "state",
+        );
+        if (countryStates.some((s) => s.name.toLowerCase().includes(search)))
+          return true;
+        return false;
+      });
 
-          return (
-            <div
-              key={`country-${country.id}-${countryIndex}`}
-              className="border-b border-gray-100 pb-1"
-            >
-              <div className="flex items-center">
-                <input
-                  type="radio"
-                  id={`geo-country-${country.id}`}
-                  name="geography"
-                  checked={countrySelected}
-                  onChange={() => selectGeography(country.id, country.name)}
-                  className="geo-radio"
-                />
-                <div
-                  className="flex items-center cursor-pointer flex-1"
-                  onClick={async () => {
-                    if (!hasStatesLoaded && !isUS(country.id)) {
-                      await loadStatesAndCities(country.id);
-                    }
-                    toggleContinentExpansion(country.id);
-                  }}
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
-                  )}
-                  <Label htmlFor={`geo-country-${country.id}`} className="text-[#344054] cursor-pointer font-medium">
-                    {country.name}
-                  </Label>
-                </div>
-              </div>
+    const priorityCountryCodes = ["CA", "US", "MX"];
+    const priorityCountries = countries.filter((country) =>
+      priorityCountryCodes.includes(country.id),
+    );
+    const otherCountries = countries.filter(
+      (country) => !priorityCountryCodes.includes(country.id),
+    );
 
-              {/* United States: Regions + Individual States */}
-              {isUS(country.id) && isExpanded && (
-                <div className="ml-6 mt-1 space-y-1">
-                  <div className="mb-1">
-                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">Regions</div>
-                    {US_KEY_REGIONS.map((region) => {
-                      const regionId = `US-REGION-${region}`;
-                      const regionLabel = `${US_REGION_PREFIX}${region}`;
-                      return (
-                        <div key={regionId} className="pl-2">
-                          <div className="flex items-center">
-                            <input
-                              type="radio"
-                              id={`geo-${regionId}`}
-                              name="geography"
-                              checked={geoSelection.selectedId === regionId}
-                              onChange={() => selectGeography(regionId, regionLabel)}
-                              className="geo-radio"
-                            />
-                            <Label htmlFor={`geo-${regionId}`} className="text-[#344054] cursor-pointer font-medium">
-                              {region}
-                            </Label>
-                            <span className="text-[10px] text-gray-400 ml-1.5">
-                              ({US_REGION_STATES[region]?.length} states)
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1 border-t border-gray-100 mt-1 pt-1">Individual States</div>
-                    {Array.from(ALL_US_REGION_STATE_NAMES).sort().map((stateName) => {
-                      const stateObj = State.getStatesOfCountry("US").find((s) => s.name === stateName);
-                      if (!stateObj) return null;
-                      const stateId = `US-${stateObj.isoCode}`;
-                      const statePath = `${US_REGION_PREFIX}${stateName}`;
-                      return (
-                        <div key={stateId} className="pl-2">
-                          <div className="flex items-center">
-                            <input
-                              type="radio"
-                              id={`geo-state-${stateId}`}
-                              name="geography"
-                              checked={geoSelection.selectedId === stateId}
-                              onChange={() => selectGeography(stateId, statePath)}
-                              className="geo-radio"
-                            />
-                            <Label htmlFor={`geo-state-${stateId}`} className="text-[#344054] cursor-pointer text-sm">
-                              {stateName}
-                            </Label>
-                          </div>
-                        </div>
-                      );
-                    })}
+    priorityCountries.sort(
+      (a, b) =>
+        priorityCountryCodes.indexOf(a.id) - priorityCountryCodes.indexOf(b.id),
+    );
+    otherCountries.sort((a, b) => a.name.localeCompare(b.name));
+    const sortedCountries = [...priorityCountries, ...otherCountries];
+    const isUS = (id: string) => id === "US";
+
+    const getCountryStates = (countryCode: string) =>
+      flatGeoData
+        .filter(
+          (item) => item.countryCode === countryCode && item.type === "state",
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    return (
+      <>
+        <style jsx>{`
+          .geo-radio {
+            appearance: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #d1d5db;
+            border-radius: 50%;
+            background-color: white;
+            cursor: pointer;
+            position: relative;
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+          }
+          .geo-radio:checked {
+            background-color: #3aafa9;
+            border-color: #3aafa9;
+          }
+          .geo-radio:checked::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 0.375rem;
+            height: 0.375rem;
+            border-radius: 50%;
+            background-color: white;
+          }
+          .geo-radio:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(58, 175, 169, 0.2);
+          }
+        `}</style>
+        <div className="space-y-2 font-poppins">
+          {sortedCountries.map((country, countryIndex) => {
+            const countrySelected =
+              geoSelection.selectedId === country.id ||
+              (!!geoSelection.selectedId &&
+                geoSelection.selectedId.startsWith(`${country.id}-`));
+            const isExpanded = expandedContinents[country.id];
+            const hasStatesLoaded = flatGeoData.some(
+              (item) =>
+                item.countryCode === country.id && item.type === "state",
+            );
+
+            return (
+              <div
+                key={`country-${country.id}-${countryIndex}`}
+                className="border-b border-gray-100 pb-1"
+              >
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id={`geo-country-${country.id}`}
+                    name="geography"
+                    checked={countrySelected}
+                    onChange={() => selectGeography(country.id, country.name)}
+                    className="geo-radio"
+                  />
+                  <div
+                    className="flex items-center cursor-pointer flex-1"
+                    onClick={async () => {
+                      if (!hasStatesLoaded && !isUS(country.id)) {
+                        await loadStatesAndCities(country.id);
+                      }
+                      toggleContinentExpansion(country.id);
+                    }}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 mr-1 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 mr-1 text-gray-500" />
+                    )}
+                    <Label
+                      htmlFor={`geo-country-${country.id}`}
+                      className="text-[#344054] cursor-pointer font-medium"
+                    >
+                      {country.name}
+                    </Label>
                   </div>
                 </div>
-              )}
 
-              {/* Non-US countries: states/provinces */}
-              {!isUS(country.id) && isExpanded && (
-                <div className="ml-6 mt-1 space-y-1">
-                  {getCountryStates(country.id).length === 0 ? (
-                    <div className="pl-2 text-xs text-gray-400 py-1">No states/provinces available</div>
-                  ) : (
-                    getCountryStates(country.id).map((stateItem) => (
-                      <div key={stateItem.id} className="pl-2">
-                        <div className="flex items-center">
-                          <input
-                            type="radio"
-                            id={`geo-state-${stateItem.id}`}
-                            name="geography"
-                            checked={geoSelection.selectedId === stateItem.id}
-                            onChange={() => selectGeography(stateItem.id, stateItem.path)}
-                            className="geo-radio"
-                          />
-                          <Label htmlFor={`geo-state-${stateItem.id}`} className="text-[#344054] cursor-pointer text-sm">
-                            {stateItem.name}
-                          </Label>
-                        </div>
+                {/* United States: Regions + Individual States */}
+                {isUS(country.id) && isExpanded && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    <div className="mb-1">
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">
+                        Regions
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-};
-useEffect(() => {
-  const fetchInitialData = async () => {
-    try {
-      const token = sessionStorage.getItem("token");
+                      {US_KEY_REGIONS.map((region) => {
+                        const regionId = `US-REGION-${region}`;
+                        const regionLabel = `${US_REGION_PREFIX}${region}`;
+                        return (
+                          <div key={regionId} className="pl-2">
+                            <div className="flex items-center">
+                              <input
+                                type="radio"
+                                id={`geo-${regionId}`}
+                                name="geography"
+                                checked={geoSelection.selectedId === regionId}
+                                onChange={() =>
+                                  selectGeography(regionId, regionLabel)
+                                }
+                                className="geo-radio"
+                              />
+                              <Label
+                                htmlFor={`geo-${regionId}`}
+                                className="text-[#344054] cursor-pointer font-medium"
+                              >
+                                {region}
+                              </Label>
+                              <span className="text-[10px] text-gray-400 ml-1.5">
+                                ({US_REGION_STATES[region]?.length} states)
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1 border-t border-gray-100 mt-1 pt-1">
+                        Individual States
+                      </div>
+                      {Array.from(ALL_US_REGION_STATE_NAMES)
+                        .sort()
+                        .map((stateName) => {
+                          const stateObj = State.getStatesOfCountry("US").find(
+                            (s) => s.name === stateName,
+                          );
+                          if (!stateObj) return null;
+                          const stateId = `US-${stateObj.isoCode}`;
+                          const statePath = `${US_REGION_PREFIX}${stateName}`;
+                          return (
+                            <div key={stateId} className="pl-2">
+                              <div className="flex items-center">
+                                <input
+                                  type="radio"
+                                  id={`geo-state-${stateId}`}
+                                  name="geography"
+                                  checked={geoSelection.selectedId === stateId}
+                                  onChange={() =>
+                                    selectGeography(stateId, statePath)
+                                  }
+                                  className="geo-radio"
+                                />
+                                <Label
+                                  htmlFor={`geo-state-${stateId}`}
+                                  className="text-[#344054] cursor-pointer text-sm"
+                                >
+                                  {stateName}
+                                </Label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
 
-      if (!token) {
-        return;
-      }
-
-      const allCountries = Country.getAllCountries();
-      const geoData: GeoItem[] = [];
-
-      const priorityCountryCodes = ['CA', 'US', 'MX'];
-      const priorityCountries = allCountries.filter(country => 
-        priorityCountryCodes.includes(country.isoCode)
-      );
-      const otherCountries = allCountries.filter(country => 
-        !priorityCountryCodes.includes(country.isoCode)
-      );
-
-      priorityCountries.sort((a, b) => {
-        return priorityCountryCodes.indexOf(a.isoCode) - priorityCountryCodes.indexOf(b.isoCode);
-      });
-
-      otherCountries.sort((a, b) => a.name.localeCompare(b.name));
-
-      [...priorityCountries, ...otherCountries].forEach((country) => {
-        geoData.push({
-          id: country.isoCode,
-          name: country.name,
-          path: country.name,
-          type: "country",
-          countryCode: country.isoCode,
-        });
-      });
-
-      setFlatGeoData(geoData);
-
-      const industryResponse = await getIndustryData();
-      setIndustryData(industryResponse);
-      setFlatIndustryData(flattenIndustryData(industryResponse.sectors));
-
-      await fetchDealData();
-      
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load form data. Please refresh the page.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-    }
+                {/* Non-US countries: states/provinces */}
+                {!isUS(country.id) && isExpanded && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {getCountryStates(country.id).length === 0 ? (
+                      <div className="pl-2 text-xs text-gray-400 py-1">
+                        No states/provinces available
+                      </div>
+                    ) : (
+                      getCountryStates(country.id).map((stateItem) => (
+                        <div key={stateItem.id} className="pl-2">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id={`geo-state-${stateItem.id}`}
+                              name="geography"
+                              checked={geoSelection.selectedId === stateItem.id}
+                              onChange={() =>
+                                selectGeography(stateItem.id, stateItem.path)
+                              }
+                              className="geo-radio"
+                            />
+                            <Label
+                              htmlFor={`geo-state-${stateItem.id}`}
+                              className="text-[#344054] cursor-pointer text-sm"
+                            >
+                              {stateItem.name}
+                            </Label>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
   };
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const token = sessionStorage.getItem("token");
 
-  fetchInitialData();
-
-}, [dealId]);
-
-useEffect(() => {
-  const handleGeographySelection = () => {
-    if (dealData?.geographySelection && flatGeoData.length > 0) {
-      const savedGeography = dealData.geographySelection;
-
-      // Check if it's a US region (e.g., "United States > Northeast")
-      if (savedGeography.startsWith(US_REGION_PREFIX)) {
-        const regionName = savedGeography.slice(US_REGION_PREFIX.length);
-        if (US_KEY_REGIONS.includes(regionName)) {
-          setExpandedContinents(prev => ({ ...prev, US: true }));
-          setGeoSelection({
-            selectedId: `US-REGION-${regionName}`,
-            selectedName: savedGeography,
-          });
+        if (!token) {
           return;
         }
-      }
 
-      // Check if it's a country-only selection
-      const country = Country.getAllCountries().find(c => c.name === savedGeography);
-      if (country) {
-        setGeoSelection({
-          selectedId: country.isoCode,
-          selectedName: savedGeography,
+        const allCountries = Country.getAllCountries();
+        const geoData: GeoItem[] = [];
+
+        const priorityCountryCodes = ["CA", "US", "MX"];
+        const priorityCountries = allCountries.filter((country) =>
+          priorityCountryCodes.includes(country.isoCode),
+        );
+        const otherCountries = allCountries.filter(
+          (country) => !priorityCountryCodes.includes(country.isoCode),
+        );
+
+        priorityCountries.sort((a, b) => {
+          return (
+            priorityCountryCodes.indexOf(a.isoCode) -
+            priorityCountryCodes.indexOf(b.isoCode)
+          );
         });
-        return;
-      }
 
-      // Handle "Country > State/Province" format (e.g., "Pakistan > Punjab")
-      if (savedGeography.includes(' > ')) {
-        const parts = savedGeography.split(' > ');
-        const countryName = parts[0];
-        const stateName = parts[1];
+        otherCountries.sort((a, b) => a.name.localeCompare(b.name));
 
-        const matchedCountry = Country.getAllCountries().find(c => c.name === countryName);
-        if (matchedCountry) {
-          // Load states for this country, then find the state
-          const states = State.getStatesOfCountry(matchedCountry.isoCode);
-          const matchedState = states.find(s => s.name === stateName);
-
-          // Ensure states are in flatGeoData
-          setFlatGeoData(prev => {
-            const existingIds = new Set(prev.map(item => item.id));
-            const newItems: GeoItem[] = [];
-            states.forEach(state => {
-              const stateId = `${matchedCountry.isoCode}-${state.isoCode}`;
-              if (!existingIds.has(stateId)) {
-                newItems.push({
-                  id: stateId,
-                  name: state.name,
-                  path: `${countryName} > ${state.name}`,
-                  type: 'state',
-                  countryCode: matchedCountry.isoCode,
-                  stateCode: state.isoCode,
-                });
-              }
-            });
-            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+        [...priorityCountries, ...otherCountries].forEach((country) => {
+          geoData.push({
+            id: country.isoCode,
+            name: country.name,
+            path: country.name,
+            type: "country",
+            countryCode: country.isoCode,
           });
+        });
 
-          // Expand the country so the state radio is visible
-          setExpandedContinents(prev => ({ ...prev, [matchedCountry.isoCode]: true }));
+        setFlatGeoData(geoData);
 
-          if (matchedState) {
-            const stateId = `${matchedCountry.isoCode}-${matchedState.isoCode}`;
+        const industryResponse = await getIndustryData();
+        setIndustryData(industryResponse);
+        setFlatIndustryData(flattenIndustryData(industryResponse.sectors));
+
+        await fetchDealData();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load form data. Please refresh the page.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [dealId]);
+
+  useEffect(() => {
+    const handleGeographySelection = () => {
+      if (dealData?.geographySelection && flatGeoData.length > 0) {
+        const savedGeography = dealData.geographySelection;
+
+        // Check if it's a US region (e.g., "United States > Northeast")
+        if (savedGeography.startsWith(US_REGION_PREFIX)) {
+          const regionName = savedGeography.slice(US_REGION_PREFIX.length);
+          if (US_KEY_REGIONS.includes(regionName)) {
+            setExpandedContinents((prev) => ({ ...prev, US: true }));
             setGeoSelection({
-              selectedId: stateId,
+              selectedId: `US-REGION-${regionName}`,
               selectedName: savedGeography,
             });
             return;
           }
         }
+
+        // Check if it's a country-only selection
+        const country = Country.getAllCountries().find(
+          (c) => c.name === savedGeography,
+        );
+        if (country) {
+          setGeoSelection({
+            selectedId: country.isoCode,
+            selectedName: savedGeography,
+          });
+          return;
+        }
+
+        // Handle "Country > State/Province" format (e.g., "Pakistan > Punjab")
+        if (savedGeography.includes(" > ")) {
+          const parts = savedGeography.split(" > ");
+          const countryName = parts[0];
+          const stateName = parts[1];
+
+          const matchedCountry = Country.getAllCountries().find(
+            (c) => c.name === countryName,
+          );
+          if (matchedCountry) {
+            // Load states for this country, then find the state
+            const states = State.getStatesOfCountry(matchedCountry.isoCode);
+            const matchedState = states.find((s) => s.name === stateName);
+
+            // Ensure states are in flatGeoData
+            setFlatGeoData((prev) => {
+              const existingIds = new Set(prev.map((item) => item.id));
+              const newItems: GeoItem[] = [];
+              states.forEach((state) => {
+                const stateId = `${matchedCountry.isoCode}-${state.isoCode}`;
+                if (!existingIds.has(stateId)) {
+                  newItems.push({
+                    id: stateId,
+                    name: state.name,
+                    path: `${countryName} > ${state.name}`,
+                    type: "state",
+                    countryCode: matchedCountry.isoCode,
+                    stateCode: state.isoCode,
+                  });
+                }
+              });
+              return newItems.length > 0 ? [...prev, ...newItems] : prev;
+            });
+
+            // Expand the country so the state radio is visible
+            setExpandedContinents((prev) => ({
+              ...prev,
+              [matchedCountry.isoCode]: true,
+            }));
+
+            if (matchedState) {
+              const stateId = `${matchedCountry.isoCode}-${matchedState.isoCode}`;
+              setGeoSelection({
+                selectedId: stateId,
+                selectedName: savedGeography,
+              });
+              return;
+            }
+          }
+        }
+
+        // Fallback: keep the value for display but no radio selected
+        setGeoSelection({
+          selectedId: null,
+          selectedName: savedGeography,
+        });
       }
+    };
 
-      // Fallback: keep the value for display but no radio selected
-      setGeoSelection({
-        selectedId: null,
-        selectedName: savedGeography,
-      });
-    }
-  };
-
-  handleGeographySelection();
-}, [dealData?.geographySelection, flatGeoData.length]);
+    handleGeographySelection();
+  }, [dealData?.geographySelection, flatGeoData.length]);
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -1790,8 +1964,8 @@ useEffect(() => {
                       </div>
                       <p className="text-sm mt-2 text-gray-600">
                         This deal will be made widely available on other deal
-                        platforms. Most of our buyers refuse deals from this level
-                        - you will get very few buyer matches.
+                        platforms. Most of our buyers refuse deals from this
+                        level - you will get very few buyer matches.
                       </p>
                     </div>
                     <div className="mt-auto">
@@ -1830,11 +2004,11 @@ useEffect(() => {
                         />
                       </div>
                       <p className="text-sm mt-2 text-gray-600">
-                        Give CIM Amplify a two week head start! This deal will be
-                        posted exclusively on CIM Amplify for two weeks and no
-                        other deal sites including your own website. Feel free to
-                        market directly to buyers you do not choose on CIM
-                        Amplify.
+                        Give CIM Amplify a two week head start! This deal will
+                        be posted exclusively on CIM Amplify for two weeks and
+                        no other deal sites including your own website. Feel
+                        free to market directly to buyers you do not choose on
+                        CIM Amplify.
                       </p>
                     </div>
                     <div className="mt-auto">
@@ -1842,8 +2016,8 @@ useEffect(() => {
                         <div className="p-4">
                           <div className="bg-[#3aafa9] text-white text-xs rounded-md px-3 py-3 inline-block">
                             <span className="text-[#F4E040]">$25</span> Amazon
-                            Gift Card for posting with us PLUS $5,000 if acquired
-                            via CIM Amplify
+                            Gift Card for posting with us PLUS $5,000 if
+                            acquired via CIM Amplify
                           </div>
                         </div>
                       </div>
@@ -1875,10 +2049,10 @@ useEffect(() => {
                       </div>
 
                       <p className="text-sm mt-2 text-gray-600">
-                        This deal will be posted exclusively on CIM Amplify and no
-                        other deal sites including your own website. Feel free to
-                        market directly to buyers you do not choose on CIM
-                        Amplify.
+                        This deal will be posted exclusively on CIM Amplify and
+                        no other deal sites including your own website. Feel
+                        free to market directly to buyers you do not choose on
+                        CIM Amplify.
                       </p>
                     </div>
                     <div className="mt-auto">
@@ -1886,8 +2060,8 @@ useEffect(() => {
                         <div className="p-4">
                           <div className="bg-[#3aafa9] text-white text-xs rounded-md px-3 py-3 inline-block">
                             <span className="text-[#F4E040]">$50</span> Amazon
-                            Gift Card for posting with us PLUS $10,000 if acquired
-                            via CIM Amplify
+                            Gift Card for posting with us PLUS $10,000 if
+                            acquired via CIM Amplify
                           </div>
                         </div>
                       </div>
@@ -1900,7 +2074,10 @@ useEffect(() => {
             {/* Overview Section */}
             <section>
               <h2 className="text-xl font-bold mb-2">Overview</h2>
-              <p className="text-sm font-semibold text-red-600 mb-6">Please do not include your company name or the name of your client on this form.</p>
+              <p className="text-sm font-semibold text-red-600 mb-6">
+                Please do not include your company name or the name of your
+                client on this form.
+              </p>
 
               <div className="space-y-6">
                 <div>
@@ -1988,7 +2165,7 @@ useEffect(() => {
                                     </svg>
                                   </button>
                                 </span>
-                              )
+                              ),
                             )}
                           </div>
                         </div>
@@ -2006,7 +2183,7 @@ useEffect(() => {
                       <label className="block text-sm font-medium text-gray-700">
                         Industry Selector <RequiredStar />
                       </label>
-                      <FloatingChatbot/>
+                      <FloatingChatbot />
                     </div>
                     <div className="border border-[#d0d5dd] rounded-md p-4 h-80 flex flex-col">
                       <div className="relative mb-4">
@@ -2015,7 +2192,9 @@ useEffect(() => {
                           placeholder="Search "
                           className="pl-8 border-[#d0d5dd]"
                           value={industrySearchTerm}
-                          onChange={(e) => setIndustrySearchTerm(e.target.value)}
+                          onChange={(e) =>
+                            setIndustrySearchTerm(e.target.value)
+                          }
                         />
                       </div>
 
@@ -2036,8 +2215,17 @@ useEffect(() => {
                                   onClick={() => removeIndustry(industry)}
                                   className="ml-1 text-gray-400 hover:text-gray-600 focus:outline-none"
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-3 w-3"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                      clipRule="evenodd"
+                                    />
                                   </svg>
                                 </button>
                               </span>
@@ -2079,13 +2267,13 @@ useEffect(() => {
                       <Checkbox
                         id="recurring-revenue"
                         checked={formData.businessModels.includes(
-                          "recurring-revenue"
+                          "recurring-revenue",
                         )}
                         onCheckedChange={(checked) =>
                           handleCheckboxChange(
                             Boolean(checked),
                             "recurring-revenue",
-                            "businessModels"
+                            "businessModels",
                           )
                         }
                         className="mr-2 border-[#d0d5dd]"
@@ -2102,13 +2290,13 @@ useEffect(() => {
                       <Checkbox
                         id="project-based"
                         checked={formData.businessModels.includes(
-                          "project-based"
+                          "project-based",
                         )}
                         onCheckedChange={(checked) =>
                           handleCheckboxChange(
                             Boolean(checked),
                             "project-based",
-                            "businessModels"
+                            "businessModels",
                           )
                         }
                         className="mr-2 border-[#d0d5dd]"
@@ -2121,12 +2309,14 @@ useEffect(() => {
                     <div className="flex items-center">
                       <Checkbox
                         id="asset-light"
-                        checked={formData.businessModels.includes("asset-light")}
+                        checked={formData.businessModels.includes(
+                          "asset-light",
+                        )}
                         onCheckedChange={(checked) =>
                           handleCheckboxChange(
                             Boolean(checked),
                             "asset-light",
-                            "businessModels"
+                            "businessModels",
                           )
                         }
                         className="mr-2 border-[#d0d5dd]"
@@ -2139,12 +2329,14 @@ useEffect(() => {
                     <div className="flex items-center">
                       <Checkbox
                         id="asset-heavy"
-                        checked={formData.businessModels.includes("asset-heavy")}
+                        checked={formData.businessModels.includes(
+                          "asset-heavy",
+                        )}
                         onCheckedChange={(checked) =>
                           handleCheckboxChange(
                             Boolean(checked),
                             "asset-heavy",
-                            "businessModels"
+                            "businessModels",
                           )
                         }
                         className="mr-2 border-[#d0d5dd]"
@@ -2179,8 +2371,12 @@ useEffect(() => {
 
             {/* Financials Section */}
             <section className="bg-[#f9f9f9] p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-2">Financials <RequiredStar /></h2>
-              <p className="text-sm text-gray-600 mb-6">Please use full numbers (e.g., 5,000,000 not 5M)</p>
+              <h2 className="text-xl font-semibold mb-2">
+                Financials <RequiredStar />
+              </h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Please use full numbers (e.g., 5,000,000 not 5M)
+              </p>
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2203,19 +2399,25 @@ useEffect(() => {
                         onChange={(e) => {
                           const rawValue = e.target.value.replace(/,/g, "");
                           if (rawValue === "" || /^-?\d*$/.test(rawValue)) {
-                            const numValue = rawValue === "" ? 0 : Number.parseFloat(rawValue);
+                            const numValue =
+                              rawValue === "" ? 0 : Number.parseFloat(rawValue);
                             handleNumberChange(
                               {
                                 target: { value: rawValue },
                               } as React.ChangeEvent<HTMLInputElement>,
-                              "trailingRevenue"
+                              "trailingRevenue",
                             );
 
-                            const validationErrors = validateFinancials(numValue, formData.trailingEBITDA);
+                            const validationErrors = validateFinancials(
+                              numValue,
+                              formData.trailingEBITDA,
+                            );
                             setRealtimeErrors((prev) => ({
                               ...prev,
-                              trailingRevenue: validationErrors.trailingRevenue || "",
-                              trailingEBITDA: validationErrors.trailingEBITDA || "",
+                              trailingRevenue:
+                                validationErrors.trailingRevenue || "",
+                              trailingEBITDA:
+                                validationErrors.trailingEBITDA || "",
                             }));
                           }
                         }}
@@ -2223,9 +2425,11 @@ useEffect(() => {
                         required
                       />
                     </div>
-                    {(fieldErrors.trailingRevenue || realtimeErrors.trailingRevenue) && (
+                    {(fieldErrors.trailingRevenue ||
+                      realtimeErrors.trailingRevenue) && (
                       <p className="text-red-500 text-sm mt-1">
-                        {fieldErrors.trailingRevenue || realtimeErrors.trailingRevenue}
+                        {fieldErrors.trailingRevenue ||
+                          realtimeErrors.trailingRevenue}
                       </p>
                     )}
                   </div>
@@ -2263,7 +2467,8 @@ useEffect(() => {
                       htmlFor="trailingEBITDA"
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Trailing 12 Month EBITDA(0 covers negative) <RequiredStar />
+                      Trailing 12 Month EBITDA(0 covers negative){" "}
+                      <RequiredStar />
                     </label>
                     <Input
                       id="trailingEBITDA"
@@ -2277,39 +2482,48 @@ useEffect(() => {
                       onChange={(e) => {
                         const rawValue = e.target.value.replace(/,/g, "");
                         if (rawValue === "" || /^-?\d*$/.test(rawValue)) {
-                          const numValue = rawValue === "" ? 0 : Number.parseFloat(rawValue);
+                          const numValue =
+                            rawValue === "" ? 0 : Number.parseFloat(rawValue);
                           handleNumberChange(
                             {
                               target: { value: rawValue },
                             } as React.ChangeEvent<HTMLInputElement>,
-                            "trailingEBITDA"
+                            "trailingEBITDA",
                           );
-                          
-                          const validationErrors = validateFinancials(formData.trailingRevenue, numValue);
+
+                          const validationErrors = validateFinancials(
+                            formData.trailingRevenue,
+                            numValue,
+                          );
                           setRealtimeErrors((prev) => ({
                             ...prev,
-                            trailingRevenue: validationErrors.trailingRevenue || "",
-                            trailingEBITDA: validationErrors.trailingEBITDA || "",
+                            trailingRevenue:
+                              validationErrors.trailingRevenue || "",
+                            trailingEBITDA:
+                              validationErrors.trailingEBITDA || "",
                           }));
                         }
                       }}
                       className="w-full"
                       required
                     />
-                    {(fieldErrors.trailingEBITDA || realtimeErrors.trailingEBITDA) && (
+                    {(fieldErrors.trailingEBITDA ||
+                      realtimeErrors.trailingEBITDA) && (
                       <p className="text-red-500 text-sm mt-1">
-                        {fieldErrors.trailingEBITDA || realtimeErrors.trailingEBITDA}
+                        {fieldErrors.trailingEBITDA ||
+                          realtimeErrors.trailingEBITDA}
                       </p>
                     )}
                   </div>
-
                 </div>
               </div>
             </section>
 
             {/* Optional Financial Information */}
             <section className="bg-[#f9f9f9] p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-6">Optional Financial Information</h2>
+              <h2 className="text-xl font-semibold mb-6">
+                Optional Financial Information
+              </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -2334,7 +2548,7 @@ useEffect(() => {
                           {
                             target: { value: rawValue },
                           } as React.ChangeEvent<HTMLInputElement>,
-                          "netIncome"
+                          "netIncome",
                         );
                       }
                     }}
@@ -2363,7 +2577,7 @@ useEffect(() => {
                           {
                             target: { value: rawValue },
                           } as React.ChangeEvent<HTMLInputElement>,
-                          "t12FreeCashFlow"
+                          "t12FreeCashFlow",
                         );
                       }
                     }}
@@ -2392,7 +2606,7 @@ useEffect(() => {
                           {
                             target: { value: rawValue },
                           } as React.ChangeEvent<HTMLInputElement>,
-                          "t12NetIncome"
+                          "t12NetIncome",
                         );
                       }
                     }}
@@ -2422,7 +2636,7 @@ useEffect(() => {
                           {
                             target: { value: rawValue },
                           } as React.ChangeEvent<HTMLInputElement>,
-                          "askingPrice"
+                          "askingPrice",
                         );
                       }
                     }}
@@ -2446,12 +2660,12 @@ useEffect(() => {
                     <Checkbox
                       id="ready-capital"
                       checked={formData.capitalAvailability.includes(
-                        CAPITAL_AVAILABILITY_OPTIONS.READY
+                        CAPITAL_AVAILABILITY_OPTIONS.READY,
                       )}
                       onCheckedChange={(checked) =>
                         handleCapitalAvailabilityChange(
                           Boolean(checked),
-                          CAPITAL_AVAILABILITY_OPTIONS.READY
+                          CAPITAL_AVAILABILITY_OPTIONS.READY,
                         )
                       }
                       className="border-[#d0d5dd]"
@@ -2468,12 +2682,12 @@ useEffect(() => {
                     <Checkbox
                       id="need-raise"
                       checked={formData.capitalAvailability.includes(
-                        CAPITAL_AVAILABILITY_OPTIONS.NEED
+                        CAPITAL_AVAILABILITY_OPTIONS.NEED,
                       )}
                       onCheckedChange={(checked) =>
                         handleCapitalAvailabilityChange(
                           Boolean(checked),
-                          CAPITAL_AVAILABILITY_OPTIONS.NEED
+                          CAPITAL_AVAILABILITY_OPTIONS.NEED,
                         )
                       }
                       className="border-[#d0d5dd]"
@@ -2560,7 +2774,10 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={() =>
-                            setFormData((prev) => ({ ...prev, companyType: [] }))
+                            setFormData((prev) => ({
+                              ...prev,
+                              companyType: [],
+                            }))
                           }
                           className="flex-1 px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded transition-colors"
                         >
@@ -2592,7 +2809,9 @@ useEffect(() => {
                                 ? "bg-blue-50 hover:bg-blue-100"
                                 : "hover:bg-gray-50"
                             }`}
-                            onClick={() => handleMultiSelectChange(option, "companyType")}
+                            onClick={() =>
+                              handleMultiSelectChange(option, "companyType")
+                            }
                           >
                             <div className="relative">
                               <input
@@ -2648,8 +2867,10 @@ useEffect(() => {
                       id="minPriorAcquisitions"
                       type="text"
                       value={
-                        typeof formData.minPriorAcquisitions === 'number'
-                          ? formatNumberWithCommas(formData.minPriorAcquisitions)
+                        typeof formData.minPriorAcquisitions === "number"
+                          ? formatNumberWithCommas(
+                              formData.minPriorAcquisitions,
+                            )
                           : ""
                       }
                       onChange={(e) => {
@@ -2659,7 +2880,7 @@ useEffect(() => {
                             {
                               target: { value: rawValue },
                             } as React.ChangeEvent<HTMLInputElement>,
-                            "minPriorAcquisitions"
+                            "minPriorAcquisitions",
                           );
                         }
                       }}
@@ -2678,7 +2899,7 @@ useEffect(() => {
                       id="minTransactionSize"
                       type="text"
                       value={
-                        typeof formData.minTransactionSize === 'number'
+                        typeof formData.minTransactionSize === "number"
                           ? formatNumberWithCommas(formData.minTransactionSize)
                           : ""
                       }
@@ -2689,7 +2910,7 @@ useEffect(() => {
                             {
                               target: { value: rawValue },
                             } as React.ChangeEvent<HTMLInputElement>,
-                            "minTransactionSize"
+                            "minTransactionSize",
                           );
                         }
                       }}
@@ -2702,9 +2923,12 @@ useEffect(() => {
 
             {/* NDA Upload Section */}
             <section className="bg-[#f9f9f9] p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-2">Upload NDA for this deal (optional)</h2>
+              <h2 className="text-xl font-semibold mb-2">
+                Upload NDA for this deal (optional)
+              </h2>
               <p className="text-sm text-gray-600 mb-4">
-                If you add your NDA here it will automatically be sent to buyers who request an introduction.
+                If you add your NDA here it will automatically be sent to buyers
+                who request an introduction.
               </p>
 
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#3aafa9] transition-colors">
@@ -2718,7 +2942,8 @@ useEffect(() => {
                           {formData.ndaDocument.name}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {(formData.ndaDocument.size / 1024 / 1024).toFixed(2)} MB
+                          {(formData.ndaDocument.size / 1024 / 1024).toFixed(2)}{" "}
+                          MB
                         </p>
                       </div>
                       <button
@@ -2740,8 +2965,18 @@ useEffect(() => {
                       </button>
                     </div>
                     <p className="text-sm text-green-600 flex items-center justify-center gap-1">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                       NDA will be sent to buyers upon introduction
                     </p>
@@ -2756,7 +2991,12 @@ useEffect(() => {
                           {formData.existingNdaDocument.originalName}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {(formData.existingNdaDocument.size / 1024 / 1024).toFixed(2)} MB
+                          {(
+                            formData.existingNdaDocument.size /
+                            1024 /
+                            1024
+                          ).toFixed(2)}{" "}
+                          MB
                         </p>
                       </div>
                       {formData.existingNdaDocument.base64Content && (
@@ -2780,8 +3020,18 @@ useEffect(() => {
                       </button>
                     </div>
                     <p className="text-sm text-green-600 flex items-center justify-center gap-1">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                       NDA attached - will be sent to buyers upon introduction
                     </p>
@@ -2831,23 +3081,43 @@ useEffect(() => {
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 text-blue-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M3 3h18v2H3V3zm1 4h16l-1.5 12.5A2 2 0 0 1 16.51 21H7.49a2 2 0 0 1-1.99-1.5L4 7zm4 2v8h2V9H8zm6 0v8h2V9h-2z"/></svg>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-5 w-5"
+                  >
+                    <path d="M3 3h18v2H3V3zm1 4h16l-1.5 12.5A2 2 0 0 1 16.51 21H7.49a2 2 0 0 1-1.99-1.5L4 7zm4 2v8h2V9H8zm6 0v8h2V9h-2z" />
+                  </svg>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-gray-900">List in Marketplace</label>
+                    <label className="text-sm font-semibold text-gray-900">
+                      List in Marketplace
+                    </label>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-white text-blue-700 border border-blue-200">Marketplace</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-white text-blue-700 border border-blue-200">
+                        Marketplace
+                      </span>
                       <input
                         aria-label="List in Marketplace"
                         type="checkbox"
                         checked={!!formData.isPublic}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, isPublic: e.target.checked }))}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            isPublic: e.target.checked,
+                          }))
+                        }
                         className="h-4 w-4 accent-teal-500"
                       />
                     </div>
                   </div>
-                  <p className="mt-1 text-xs text-blue-800">Marketplace allows all buyers on CIM Amplify to see this teaser. We suggest that you still select and invite buyers that are perfectly matched on the next screen.</p>
+                  <p className="mt-1 text-xs text-blue-800">
+                    Marketplace allows all buyers on CIM Amplify to see this
+                    teaser. We suggest that you still select and invite buyers
+                    that are perfectly matched on the next screen.
+                  </p>
                 </div>
               </div>
             </div>
@@ -2860,7 +3130,8 @@ useEffect(() => {
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-semibold text-gray-900">
-                      Does this deal require the buyer to pay a fee above CIM Amplify Fees?
+                      Does this deal require the buyer to pay a fee above CIM
+                      Amplify Fees?
                     </label>
                     <input
                       aria-label="Requires buyer fee above CIM Amplify Fees"
@@ -2876,7 +3147,8 @@ useEffect(() => {
                     />
                   </div>
                   <p className="mt-1 text-xs text-amber-800">
-                    If enabled, buyers who opted out of buy-side fee deals will not appear in matched buyers.
+                    If enabled, buyers who opted out of buy-side fee deals will
+                    not appear in matched buyers.
                   </p>
                 </div>
               </div>
@@ -2899,7 +3171,7 @@ useEffect(() => {
           <Toaster />
         </div>
       </SellerProtectedRoute>
-      
+
       {/* Deal Guidelines Modal - Fixed with higher z-index and proper positioning */}
       {showGuidelines && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[9999]">
@@ -2914,13 +3186,20 @@ useEffect(() => {
                 className="absolute top-3 right-3 text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-1.5 transition-all group"
                 aria-label="Close modal"
               >
-                <X size={20} className="transform group-hover:rotate-90 transition-transform duration-300" />
+                <X
+                  size={20}
+                  className="transform group-hover:rotate-90 transition-transform duration-300"
+                />
               </button>
-              
+
               <div className="flex items-center justify-center">
                 <div className="text-center">
-                  <h2 className="text-2xl font-bold text-white">Deal Guidelines</h2>
-                  <p className="text-teal-100 text-sm">Review before proceeding</p>
+                  <h2 className="text-2xl font-bold text-white">
+                    Deal Guidelines
+                  </h2>
+                  <p className="text-teal-100 text-sm">
+                    Review before proceeding
+                  </p>
                 </div>
               </div>
             </div>
@@ -2932,18 +3211,30 @@ useEffect(() => {
                   <span className="w-1 h-5 bg-teal-600 rounded-full"></span>
                   Important Notes
                 </h3>
-                
+
                 <div className="space-y-3">
                   {[
-                    { icon: DollarSign, text: 'Deals must have a minimum of $1 Million in EBITDA or $5 Million in revenue' },
-                    { icon: Users, text: 'Deals must be posted by an M&A Advisor' },
-                    { icon: FileText, text: 'A Confidential Information Memorandum, or similar data, must be available' },
-                    { icon: Briefcase, text: 'Only M&A deals may be posted. No other deal type will be accepted' }
+                    {
+                      icon: DollarSign,
+                      text: "Deals must have a minimum of $1 Million in EBITDA or $5 Million in revenue",
+                    },
+                    {
+                      icon: Users,
+                      text: "Deals must be posted by an M&A Advisor",
+                    },
+                    {
+                      icon: FileText,
+                      text: "A Confidential Information Memorandum, or similar data, must be available",
+                    },
+                    {
+                      icon: Briefcase,
+                      text: "Only M&A deals may be posted. No other deal type will be accepted",
+                    },
                   ].map((item, index) => {
                     const Icon = item.icon;
                     return (
-                      <div 
-                        key={index} 
+                      <div
+                        key={index}
                         className="flex items-start gap-3 group hover:translate-x-1 transition-transform duration-200"
                       >
                         <div className="flex-shrink-0 mt-0.5">

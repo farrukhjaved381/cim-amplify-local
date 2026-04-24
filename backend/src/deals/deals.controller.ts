@@ -971,18 +971,18 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
   @Post("email-action/:token")
   @ApiOperation({ summary: "Handle deal action from email link (no login required)" })
   @ApiParam({ name: "token", description: "Unique action token from the email" })
-  @ApiQuery({ name: "action", enum: ["activate", "pass"], description: "The action to perform" })
+  @ApiQuery({ name: "action", enum: ["activate", "pass", "loi", "off-market", "flag-inactive"], description: "The action to perform" })
   @ApiResponse({ status: 200, description: "Action completed successfully" })
   @ApiResponse({ status: 400, description: "Invalid action or expired token" })
   @ApiResponse({ status: 404, description: "Token not found" })
   @ApiResponse({ status: 429, description: "Too many requests" })
   async handleEmailAction(
     @Param("token") token: string,
-    @Query("action") action: string,
+    @Query("action") action: 'activate' | 'pass' | 'loi' | 'off-market' | 'flag-inactive',
     @Request() req: any,
   ) {
-    if (action !== "activate" && action !== "pass") {
-      throw new BadRequestException("Invalid action. Must be 'activate' or 'pass'.")
+    if (!["activate", "pass", "loi", "off-market", "flag-inactive"].includes(action)) {
+      throw new BadRequestException("Invalid action. Must be one of 'activate', 'pass', 'loi', 'off-market', or 'flag-inactive'.")
     }
 
     const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';

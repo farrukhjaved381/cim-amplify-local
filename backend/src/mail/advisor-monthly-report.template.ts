@@ -9,6 +9,8 @@ export interface ReportBuyer {
   fullName: string;
   companyName: string;
   interestedSince: string; // formatted date
+  flagInactiveUrl?: string;
+  flaggedInactive?: boolean;
 }
 
 export interface BuyerMovement {
@@ -30,6 +32,8 @@ export interface ReportDeal {
   passedCount: number;
   activeBuyers: ReportBuyer[];
   movements: BuyerMovement[];
+  loiUrl?: string;
+  offMarketUrl?: string;
 }
 
 export interface AdvisorReportData {
@@ -104,8 +108,9 @@ function renderBuyersTable(buyers: ReportBuyer[], dealId: string, frontendUrl: s
         <span style="font-size:11px;color:${C.textMuted};display:block;">${escapeHtml(b.companyName)}</span>
       </td>
       <td style="padding:10px 16px;font-size:13px;color:${C.textPrimary};vertical-align:middle;">${escapeHtml(b.interestedSince)}</td>
-      <td style="padding:10px 16px;text-align:right;vertical-align:middle;">
-        <a href="${reportLink}" style="display:inline-block;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;background:${C.flagBg};border:1.5px solid ${C.flagBorder};color:${C.flagText};text-decoration:none;white-space:nowrap;">Flag as Inactive</a>
+    <td style="padding:10px 16px;text-align:right;vertical-align:middle;">
+        ${(b.flaggedInactive ? `<span style="display:inline-block;margin-right:8px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:600;background:#fff1f0;color:#a02808;border:1px solid #f0b8ac;vertical-align:middle;">Flagged Inactive</span>` : '')}
+        ${b.flaggedInactive ? '' : `<a href="${(b as any).flagInactiveUrl || reportLink}" style="display:inline-block;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;background:${C.flagBg};border:1.5px solid ${C.flagBorder};color:${C.flagText};text-decoration:none;white-space:nowrap;">Flag as Inactive</a>`}
       </td>
     </tr>
   `}).join('');
@@ -169,7 +174,8 @@ function renderDealCard(deal: ReportDeal, monthYear: string, frontendUrl: string
     : `background:${C.activeBg};color:${C.activeText};`;
   const badgeLabel = isLoi ? 'Under LOI' : 'Active Listing';
 
-  const dealUrl = `${frontendUrl}/seller/dashboard?dealId=${encodeURIComponent(deal.id)}`;
+  const loiUrl = deal.loiUrl || `${frontendUrl}/seller-action/${encodeURIComponent(deal.id)}?action=loi`;
+  const offMarketUrl = deal.offMarketUrl || `${frontendUrl}/seller-action/${encodeURIComponent(deal.id)}?action=off-market`;
 
   const loiBtnStyle = isLoi
     ? `opacity:0.5;cursor:default;background:${C.loiBg};border:1px solid #e8c84e;color:${C.loiText};`
@@ -218,10 +224,10 @@ function renderDealCard(deal: ReportDeal, monthYear: string, frontendUrl: string
         <table style="border-collapse:collapse;">
           <tr>
             <td style="padding-right:8px;">
-              <a href="${dealUrl}" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;${loiBtnStyle}">${loiBtnLabel}</a>
+              <a href="${loiUrl}" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;${loiBtnStyle}">${loiBtnLabel}</a>
             </td>
             <td>
-              <a href="${dealUrl}" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;background:#f5f5f5;border:1px solid #ccc;color:#444;">Mark as Off Market</a>
+              <a href="${offMarketUrl}" style="display:inline-block;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;background:#f5f5f5;border:1px solid #ccc;color:#444;">Mark as Off Market</a>
             </td>
           </tr>
         </table>

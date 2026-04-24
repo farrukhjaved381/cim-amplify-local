@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
 import {
   UserPlus,
@@ -16,7 +17,6 @@ import {
   Shield,
   Mail,
   Check,
-  X,
 } from "lucide-react"
 import {
   getTeamMembers,
@@ -51,12 +51,14 @@ const SELLER_PERMISSION_LABELS: Record<string, string> = {
   "deal-history": "Deal History / Off Market",
   "loi-deals": "LOI Deals",
   "view-profile": "View Profile",
+  emails: "Emails",
 }
 
 const BUYER_PERMISSION_LABELS: Record<string, string> = {
   dashboard: "All Deals",
   marketplace: "Marketplace",
   "company-profile": "Company Profile",
+  emails: "Emails",
 }
 
 const PERMISSION_LABELS: Record<string, string> = {
@@ -319,14 +321,14 @@ export function TeamManagement({ ownerType }: TeamManagementProps) {
 
       {/* Add Member Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[94vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-teal-500" />
               Add Team Member
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
+           <div className="flex-1 px-1 min-h-0 overflow-y-auto space-y-4 my-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <div>
               <Label>Full Name *</Label>
               <Input
@@ -356,33 +358,60 @@ export function TeamManagement({ ownerType }: TeamManagementProps) {
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {availablePermissions.map((perm) => (
-                  <button
-                    key={perm}
-                    type="button"
-                    onClick={() => togglePermission(perm)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                      formPermissions.includes(perm)
-                        ? "bg-teal-50 border-teal-300 text-teal-700"
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    <div
-                      className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                  perm === "emails" ? (
+                      <div
+                        key={perm}
+                        className="col-span-2 flex items-center justify-between px-3 py-2.5 rounded-xl border bg-white border-gray-200"
+                      >
+                        <div>
+                          <span className="text-sm font-medium text-gray-700 block">
+                            {PERMISSION_LABELS[perm] || perm}
+                          </span>
+                          <span className="text-[11px] text-gray-500">
+                            When ON, this member receives deal invites and team notification emails.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {formPermissions.includes(perm) ? "On" : "Off"}
+                          </span>
+                          <Switch
+                            checked={formPermissions.includes(perm)}
+                            onCheckedChange={() => togglePermission(perm)}
+                          />
+                        </div>
+                      </div>
+                  ) : (
+                    <button
+                      key={perm}
+                      type="button"
+                      onClick={() => togglePermission(perm)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                         formPermissions.includes(perm)
-                          ? "bg-teal-500 border-teal-500"
-                          : "border-gray-300"
+                          ? "bg-teal-50 border-teal-300 text-teal-700"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}
                     >
-                      {formPermissions.includes(perm) && (
-                        <Check className="h-3 w-3 text-white" />
-                      )}
-                    </div>
-                    {PERMISSION_LABELS[perm] || perm}
-                  </button>
+                      <div
+                        className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                          formPermissions.includes(perm)
+                            ? "bg-teal-500 border-teal-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {formPermissions.includes(perm) && (
+                          <Check className="h-3 w-3 text-white" />
+                        )}
+                      </div>
+                      {PERMISSION_LABELS[perm] || perm}
+                    </button>
+                  )
                 ))}
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-2">
+            
+          </div>
+          <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
                 onClick={() => setAddDialogOpen(false)}
@@ -399,20 +428,19 @@ export function TeamManagement({ ownerType }: TeamManagementProps) {
                 Add Member
               </Button>
             </div>
-          </div>
         </DialogContent>
       </Dialog>
 
       {/* Edit Member Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5 text-teal-500" />
               Edit Team Member
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4 mt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <div>
               <Label>Full Name</Label>
               <Input
@@ -434,29 +462,49 @@ export function TeamManagement({ ownerType }: TeamManagementProps) {
               </Label>
               <div className="grid grid-cols-2 gap-2">
                 {availablePermissions.map((perm) => (
-                  <button
-                    key={perm}
-                    type="button"
-                    onClick={() => togglePermission(perm)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                      formPermissions.includes(perm)
-                        ? "bg-teal-50 border-teal-300 text-teal-700"
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
+                  perm === "emails" ? (
                     <div
-                      className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                      key={perm}
+                      className="col-span-2 flex items-center justify-between px-3 py-2.5 rounded-xl border bg-white border-gray-200"
+                    >
+                      <span className="text-sm font-medium text-gray-700">
+                        {PERMISSION_LABELS[perm] || perm}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {formPermissions.includes(perm) ? "On" : "Off"}
+                        </span>
+                        <Switch
+                          checked={formPermissions.includes(perm)}
+                          onCheckedChange={() => togglePermission(perm)}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      key={perm}
+                      type="button"
+                      onClick={() => togglePermission(perm)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                         formPermissions.includes(perm)
-                          ? "bg-teal-500 border-teal-500"
-                          : "border-gray-300"
+                          ? "bg-teal-50 border-teal-300 text-teal-700"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}
                     >
-                      {formPermissions.includes(perm) && (
-                        <Check className="h-3 w-3 text-white" />
-                      )}
-                    </div>
-                    {PERMISSION_LABELS[perm] || perm}
-                  </button>
+                      <div
+                        className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                          formPermissions.includes(perm)
+                            ? "bg-teal-500 border-teal-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {formPermissions.includes(perm) && (
+                          <Check className="h-3 w-3 text-white" />
+                        )}
+                      </div>
+                      {PERMISSION_LABELS[perm] || perm}
+                    </button>
+                  )
                 ))}
               </div>
             </div>
@@ -511,6 +559,7 @@ export function TeamManagement({ ownerType }: TeamManagementProps) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+
   )
 }

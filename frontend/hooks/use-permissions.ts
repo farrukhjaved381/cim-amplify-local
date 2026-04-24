@@ -9,12 +9,14 @@ export const SELLER_PERMISSIONS = [
   "deal-history",
   "loi-deals",
   "view-profile",
+  "emails",
 ] as const
 
 export const BUYER_PERMISSIONS = [
   "dashboard",
   "marketplace",
   "company-profile",
+  "emails",
 ] as const
 
 export type SellerPermission = (typeof SELLER_PERMISSIONS)[number]

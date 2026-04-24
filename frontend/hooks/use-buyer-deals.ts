@@ -53,6 +53,9 @@ export interface BuyerProfile {
   profilePicture: string | null;
   phoneNumber?: string;
   website?: string;
+  preferences?: {
+    receiveDealEmails: boolean;
+  };
 }
 
 export interface CompanyProfileData {

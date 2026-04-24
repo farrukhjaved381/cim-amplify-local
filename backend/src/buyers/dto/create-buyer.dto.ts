@@ -39,5 +39,15 @@ export class CreateBuyerDto {
   @IsString()
   @IsOptional()
   referralSource?: string
+
+  @ApiProperty({
+    description: "Buyer email preferences",
+    required: false,
+    example: { receiveDealEmails: true },
+  })
+  @IsOptional()
+  preferences?: {
+    receiveDealEmails?: boolean
+  }
 }
 

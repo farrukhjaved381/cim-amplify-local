@@ -45,6 +45,8 @@ interface Deal {
   askingPriceCurrency?: string;
   managementPreferences?: string;
   isLoi?: boolean;
+  flaggedInactive?: boolean;
+  invitationResponse?: "requested" | "pending" | "accepted" | "rejected";
 }
 
 interface Document {
@@ -242,12 +244,12 @@ export default function DealsPage() {
       }
 
       const data = await response.json();
+      const currentBuyerId = sessionStorage.getItem("userId");
 
       const mappedDeals = data.map((deal: any) => ({
         id: deal._id,
         sellerId: typeof deal.seller === "string" ? deal.seller : deal.seller?._id,
         title: deal.title,
-        status: status,
         companyDescription: deal.companyDescription,
         industry: deal.industrySector,
         geography: deal.geographySelection,
@@ -271,9 +273,21 @@ export default function DealsPage() {
         askingPriceCurrency: deal.financialDetails?.askingPriceCurrency || "$",
         managementPreferences: deal.managementPreferences || deal.managementFuturePreferences || '',
         isLoi: deal.status === 'loi' || deal.isLoi === true,
+        flaggedInactive: !!(currentBuyerId && (
+          (deal.invitationStatus instanceof Object && (deal.invitationStatus as any)[currentBuyerId]?.flaggedInactive) ||
+          (deal.invitationStatus?.[currentBuyerId]?.flaggedInactive)
+        )),
+        invitationResponse: currentBuyerId
+          ? (deal.invitationStatus instanceof Object && (deal.invitationStatus as any)[currentBuyerId]?.response) ||
+            deal.invitationStatus?.[currentBuyerId]?.response ||
+            undefined
+          : undefined,
       }));
 
-      return mappedDeals;
+      return mappedDeals.map((deal: Deal) => ({
+        ...deal,
+        status: deal.flaggedInactive && deal.invitationResponse !== "accepted" ? "passed" : status,
+      }));
     } catch (error) {
       return [];
     }
@@ -983,6 +997,7 @@ export default function DealsPage() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredDeals.map((deal) => {
+                const isCurrentlyFlagged = deal.flaggedInactive && deal.invitationResponse !== "accepted";
                 const sellerIdStr = typeof deal.sellerId === "string" ? deal.sellerId : undefined;
                 const sellerInfo = sellerIdStr && sellerInfoMap[sellerIdStr]
                   ? sellerInfoMap[sellerIdStr]
@@ -992,7 +1007,9 @@ export default function DealsPage() {
                   <div
                     key={deal.id}
                     className={`bg-white rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-xl ${
-                      deal.isLoi
+                      isCurrentlyFlagged
+                        ? "border-red-200 bg-gradient-to-br from-red-50/60 to-white"
+                        : deal.isLoi
                         ? "border-amber-200 bg-gradient-to-br from-amber-50/50 to-white"
                         : "border-gray-100 hover:border-teal-200"
                     }`}
@@ -1004,6 +1021,16 @@ export default function DealsPage() {
                           <AlertTriangle className="w-4 h-4 text-amber-600" />
                           <p className="text-sm font-medium text-amber-800">
                             Under LOI - We&apos;ll notify you if available again
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {isCurrentlyFlagged && (
+                      <div className="px-5 py-3 bg-gradient-to-r from-red-100 to-red-50 border-b border-red-200">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600" />
+                          <p className="text-sm font-medium text-red-800">
+                            You are flagged for this deal
                           </p>
                         </div>
                       </div>
@@ -1062,16 +1089,16 @@ export default function DealsPage() {
                         </div>
 
 
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
-                          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                            <DollarSign className="w-3 h-3 text-blue-500" />
-                            Asking Price
-                          </p>
-                          <p className="text-xs text-gray-400">{getCurrencyLabel(deal.askingPriceCurrency, deal.trailingRevenueCurrency)}</p>
-                          <p className="text-lg font-bold text-gray-900">
-                            {deal.askingPrice ? formatCurrency(deal.askingPrice) : <span className="text-gray-400 text-sm">N/A</span>}
-                          </p>
-                        </div>
+                        {deal.askingPrice !== undefined && deal.askingPrice !== 0 && (
+                          <div className="bg-white rounded-xl p-3 border border-gray-100">
+                            <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                              <DollarSign className="w-3 h-3 text-blue-500" />
+                              Asking Price
+                            </p>
+                            <p className="text-xs text-gray-400">{getCurrencyLabel(deal.askingPriceCurrency, deal.trailingRevenueCurrency)}</p>
+                            <p className="text-lg font-bold text-gray-900">{formatCurrency(deal.askingPrice)}</p>
+                          </div>
+                        )}
                         {deal.t12FreeCashFlow !== undefined && deal.t12FreeCashFlow !== 0 && (
                           <div className="bg-white rounded-xl p-3 border border-gray-100">
                             <p className="text-xs text-gray-500 mb-1">T12 Free Cash Flow</p>
@@ -1190,7 +1217,7 @@ export default function DealsPage() {
                           )}
                         </Button>
                       )}
-                      {deal.status !== "passed" && !deal.isLoi && (
+                      {deal.status !== "passed" && !deal.isLoi && !isCurrentlyFlagged && (
                         <Button
                           variant="outline"
                           className="bg-white border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl"
@@ -1210,6 +1237,18 @@ export default function DealsPage() {
                           )}
                         </Button>
                       )}
+                      {isCurrentlyFlagged && (
+                        <div className="w-full text-right space-y-2">
+                          <p className="text-sm font-medium text-red-600">
+                            Flagged by advisor for this deal
+                          </p>
+                          {activeTab === "passed" && (
+                            <p className="text-xs text-red-500">
+                              You can reactivate it if you want to continue engaging.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {activeTab === "passed" && !deal.isLoi && (
                         <Button
                           className="bg-teal-500 hover:bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-200"
@@ -1224,7 +1263,7 @@ export default function DealsPage() {
                           ) : (
                             <>
                               <RefreshCw className="h-4 w-4 mr-2" />
-                              Reactivate
+                              Reactivate Deal
                             </>
                           )}
                         </Button>
