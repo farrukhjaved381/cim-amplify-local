@@ -10,11 +10,21 @@ export default function DealActionPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const token = params?.token as string;
-  const action = searchParams?.get('action') as 'activate' | 'pass' | null;
+  const action = searchParams?.get('action') as 'activate' | 'pass' | 'loi' | 'off-market' | 'flag-inactive' | null;
+  const role = searchParams?.get('role') as 'buyer' | 'seller' | null;
 
   const [state, setState] = useState<ActionState>('loading');
   const [message, setMessage] = useState('');
   const [dealTitle, setDealTitle] = useState('');
+  const [showCloseHint, setShowCloseHint] = useState(false);
+  const [awaitingConfirm, setAwaitingConfirm] = useState(action === 'flag-inactive' && role === 'seller');
+
+  const tryCloseTab = () => {
+    window.close();
+    setTimeout(() => {
+      setShowCloseHint(true);
+    }, 250);
+  };
 
   useEffect(() => {
     if (!token || !action) {
@@ -23,9 +33,17 @@ export default function DealActionPage() {
       return;
     }
 
-    if (action !== 'activate' && action !== 'pass') {
+    if (!action || !['activate', 'pass', 'loi', 'off-market', 'flag-inactive'].includes(action)) {
       setState('error');
       setMessage('Invalid action. The link may be malformed.');
+      return;
+    }
+
+    if (action === 'flag-inactive' && role === 'seller') {
+      setState('success');
+      setMessage('Do you want to mark this buyer as inactive for this deal? This will only affect this one buyer on this one deal.');
+      setDealTitle('');
+      setAwaitingConfirm(true);
       return;
     }
 
@@ -59,7 +77,53 @@ export default function DealActionPage() {
     performAction();
   }, [token, action]);
 
-  const isActivate = action === 'activate';
+  useEffect(() => {
+    if (state !== 'success' && state !== 'already_done') return;
+    if (action === 'flag-inactive' && role === 'seller') return;
+
+    const closeTimer = setTimeout(() => {
+      tryCloseTab();
+    }, 5000);
+
+    return () => clearTimeout(closeTimer);
+  }, [state]);
+
+  const isActivate = action === 'activate' || action === 'loi';
+  const isSellerAction = role === 'seller';
+  const isFlagFlow = action === 'flag-inactive' && role === 'seller';
+
+  const handleConfirmFlag = async (confirmed: boolean) => {
+    if (!confirmed) {
+      setState('already_done');
+      setMessage('No changes were made.');
+      setAwaitingConfirm(false);
+      return;
+    }
+
+    setState('loading');
+    setMessage('Flagging the buyer as inactive...');
+    setAwaitingConfirm(false);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const response = await fetch(`${apiUrl}/deals/email-action/${token}?action=flag-inactive`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setState('success');
+        setMessage(data.message || 'Buyer flagged inactive successfully.');
+        if (data.dealTitle) setDealTitle(data.dealTitle);
+      } else {
+        setState('error');
+        setMessage(data.message || 'Something went wrong. Please try again later.');
+      }
+    } catch {
+      setState('error');
+      setMessage('Unable to connect to the server. Please try again later.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] flex items-center justify-center px-3 sm:px-4 md:px-6 py-6 sm:py-8 font-poppins">
@@ -121,9 +185,13 @@ export default function DealActionPage() {
             {/* Title */}
             <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-[#2f2b43] mb-2 sm:mb-3">
               {state === 'loading' && 'Processing your request...'}
-              {state === 'success' && isActivate && 'Deal Moved to Active'}
-              {state === 'success' && !isActivate && 'Deal Passed'}
-              {state === 'already_done' && 'Action Already Taken'}
+              {state === 'success' && isSellerAction && action === 'loi' && 'Deal Paused for LOI'}
+              {state === 'success' && isSellerAction && action === 'off-market' && 'Deal Taken Off Market'}
+              {state === 'success' && isSellerAction && action === 'flag-inactive' && 'Buyer Flagged Inactive'}
+              {state === 'success' && !isSellerAction && isActivate && 'Deal Moved to Active'}
+              {state === 'success' && !isSellerAction && !isActivate && 'Deal Passed'}
+              {state === 'already_done' && isFlagFlow && 'Buyer Already Flagged'}
+              {state === 'already_done' && !isFlagFlow && 'Action Already Taken'}
               {state === 'error' && 'Something Went Wrong'}
             </h1>
 
@@ -134,15 +202,59 @@ export default function DealActionPage() {
                 : message}
             </p>
 
-            {/* Dashboard button */}
-            {state !== 'loading' && (
-              <a
-                href="/buyer/deals"
-                className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-white font-medium text-sm transition-colors hover:opacity-90"
-                style={{ backgroundColor: '#3AAFA9' }}
-              >
-                Go to Dashboard
-              </a>
+            {/* Action buttons */}
+            {state !== 'loading' && !awaitingConfirm && !isFlagFlow && (
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <a
+                  href={isSellerAction ? "/seller/dashboard" : "/buyer/deals"}
+                  className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-white font-medium text-sm transition-colors hover:opacity-90"
+                  style={{ backgroundColor: '#3AAFA9' }}
+                >
+                  Go to {isSellerAction ? 'Dashboard' : 'Dashboard'}
+                </a>
+                <button
+                  type="button"
+                  onClick={tryCloseTab}
+                  className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm transition-colors hover:bg-gray-50"
+                >
+                  Close Tab
+                </button>
+              </div>
+            )}
+            {state !== 'loading' && isFlagFlow && !awaitingConfirm && (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={tryCloseTab}
+                  className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm transition-colors hover:bg-gray-50"
+                >
+                  Close Tab
+                </button>
+              </div>
+            )}
+            {awaitingConfirm && (
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => handleConfirmFlag(true)}
+                  className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-white font-medium text-sm transition-colors hover:opacity-90"
+                  style={{ backgroundColor: '#E35153' }}
+                >
+                  Yes, flag inactive
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmFlag(false)}
+                  className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg border border-gray-300 text-gray-700 font-medium text-sm transition-colors hover:bg-gray-50"
+                >
+                  No, cancel
+                </button>
+              </div>
+            )}
+            {showCloseHint && (
+              <p className="text-xs text-gray-500 mt-3">
+                Your browser may block automatic tab closing. You can close it manually.
+              </p>
             )}
           </div>
 

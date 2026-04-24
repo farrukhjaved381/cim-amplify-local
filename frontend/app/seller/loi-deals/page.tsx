@@ -762,7 +762,14 @@ export default function LOIDealsPage() {
                               {(buyer.buyerName || "B").charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <div className="font-semibold text-sm text-gray-900">{buyer.buyerName || "Unknown Buyer"}</div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-semibold text-sm text-gray-900">{buyer.buyerName || "Unknown Buyer"}</div>
+                                {buyer.flaggedInactive && (
+                                  <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                                    Flagged
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
                             </div>
                           </div>

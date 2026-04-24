@@ -21,8 +21,19 @@ import SellerProtectedRoute from "@/components/seller/protected-route";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
 import { Country, State, City } from "country-state-city";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SellerNav } from "@/components/seller/seller-nav";
@@ -129,6 +140,9 @@ interface Buyer {
   lastActivity?: string;
   decisionBy?: string;
   sellerApproved?: boolean;
+  flaggedInactive?: boolean;
+  flaggedInactiveAt?: string;
+  flaggedInactiveBy?: string;
 }
 
 interface CompanyProfile {
@@ -136,7 +150,7 @@ interface CompanyProfile {
   companyName: string;
   companyType: string;
   description?: string;
-  website:string;
+  website: string;
   capitalEntity?: string;
   dealsCompletedLast5Years: number;
   averageDealSize: number;
@@ -182,7 +196,7 @@ interface MatchedBuyer {
   _id: string;
   buyerId: string;
   buyerName: string;
-  website:string;
+  website: string;
   buyerEmail: string;
   companyName: string;
   companyType: string;
@@ -236,7 +250,7 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
     Record<string, boolean>
   >({});
   const [expandedStates, setExpandedStates] = useState<Record<string, boolean>>(
-    {}
+    {},
   );
 
   // Helper to get all state and city names for a country
@@ -252,8 +266,6 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
     });
     return allNames;
   };
-  
-
 
   // Handler for country checkbox
   const handleCountryToggle = (country: any) => {
@@ -265,13 +277,13 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
     if (isSelected) {
       // Deselect country and all children
       newSelected = selectedCountries.filter(
-        (item) => item !== countryName && !allChildren.includes(item)
+        (item) => item !== countryName && !allChildren.includes(item),
       );
     } else {
       // Select country and all children
       newSelected = [
         ...selectedCountries.filter(
-          (item) => item !== countryName && !allChildren.includes(item)
+          (item) => item !== countryName && !allChildren.includes(item),
         ),
         countryName,
         ...allChildren,
@@ -285,7 +297,7 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
     const stateName = `${country.name} > ${state.name}`;
     const cities = City.getCitiesOfState(country.isoCode, state.isoCode);
     const allChildren = cities.map(
-      (city) => `${country.name} > ${state.name} > ${city.name}`
+      (city) => `${country.name} > ${state.name} > ${city.name}`,
     );
     const isSelected = selectedCountries.includes(stateName);
 
@@ -293,13 +305,13 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
     if (isSelected) {
       // Deselect state and all its cities
       newSelected = selectedCountries.filter(
-        (item) => item !== stateName && !allChildren.includes(item)
+        (item) => item !== stateName && !allChildren.includes(item),
       );
     } else {
       // Select state and all its cities
       newSelected = [
         ...selectedCountries.filter(
-          (item) => item !== stateName && !allChildren.includes(item)
+          (item) => item !== stateName && !allChildren.includes(item),
         ),
         stateName,
         ...allChildren,
@@ -366,7 +378,7 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
                       type="checkbox"
                       id={`geo-${country.isoCode}-${state.isoCode}`}
                       checked={selectedCountries.includes(
-                        `${country.name} > ${state.name}`
+                        `${country.name} > ${state.name}`,
                       )}
                       onChange={() => handleStateToggle(country, state)}
                       className="mr-2 h-4 w-4 text-[#3aafa9] focus:ring-[#3aafa9]"
@@ -398,7 +410,7 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
                     <div className="ml-6 mt-1 space-y-1">
                       {City.getCitiesOfState(
                         country.isoCode,
-                        state.isoCode
+                        state.isoCode,
                       ).map((city, cityIndex) => (
                         <div
                           key={`city-${city.name}-${cityIndex}`}
@@ -409,7 +421,7 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
                               type="checkbox"
                               id={`geo-${country.isoCode}-${state.isoCode}-${city.name}`}
                               checked={selectedCountries.includes(
-                                `${country.name} > ${state.name} > ${city.name}`
+                                `${country.name} > ${state.name} > ${city.name}`,
                               )}
                               onChange={() =>
                                 handleCityToggle(country, state, city)
@@ -439,16 +451,16 @@ const GeographySelector: React.FC<GeographySelectorProps> = ({
 
 export default function DealDetailsPage() {
   const [showAllIndustries, setShowAllIndustries] = useState(false);
-const [showAllCountries, setShowAllCountries] = useState(false);
+  const [showAllCountries, setShowAllCountries] = useState(false);
   const [deal, setDeal] = useState<Deal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusSummary, setStatusSummary] = useState<StatusSummary | null>(
-    null
+    null,
   );
   const [userProfile, setUserProfile] = useState<any>(null);
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(
-    null
+    null,
   );
   const [matchedBuyers, setMatchedBuyers] = useState<MatchedBuyer[]>([]);
   const [selectedBuyers, setSelectedBuyers] = useState<string[]>([]);
@@ -482,6 +494,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   const [selectedWinningBuyer, setSelectedWinningBuyer] = useState<string>("");
   const [buyerActivityLoading, setBuyerActivityLoading] = useState(false);
   const [isClosingDeal, setIsClosingDeal] = useState(false);
+  const [flaggingBuyerId, setFlaggingBuyerId] = useState<string | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -493,8 +506,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     const fetchSellerProfile = async () => {
       try {
         const token = sessionStorage.getItem("token");
-        const apiUrl =
-          getApiUrl();
+        const apiUrl = getApiUrl();
         const response = await fetch(`${apiUrl}/sellers/profile`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -528,8 +540,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       try {
         setLoading(true);
         const token = sessionStorage.getItem("token");
-        const apiUrl =
-          getApiUrl();
+        const apiUrl = getApiUrl();
         if (!token) {
           router.push("/seller/login?error=no_token");
           return;
@@ -542,7 +553,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         });
         if (!response.ok) {
           throw new Error(
-            `API Error: ${response.status} ${response.statusText}`
+            `API Error: ${response.status} ${response.statusText}`,
           );
         }
         const data = await response.json();
@@ -569,7 +580,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       setLoadingCompanyProfile(true);
       const apiUrl = getApiUrl();
       const response = await fetch(
-        `${apiUrl}/company-profiles/public/${companyProfileId}`
+        `${apiUrl}/company-profiles/public/${companyProfileId}`,
       );
 
       if (response.ok) {
@@ -623,12 +634,15 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           const buyerDetails = await Promise.all(buyerDetailsPromises);
 
           // Fetch all company profiles once
-          const companyProfilesResponse = await fetch(`${apiUrl}/company-profiles/public`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
+          const companyProfilesResponse = await fetch(
+            `${apiUrl}/company-profiles/public`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
             },
-          });
+          );
           let allCompanyProfiles: CompanyProfile[] = [];
           if (companyProfilesResponse.ok) {
             allCompanyProfiles = await companyProfilesResponse.json();
@@ -639,11 +653,17 @@ const [showAllCountries, setShowAllCountries] = useState(false);
             const buyerId = buyerIds[i];
             const invitation = data.deal.invitationStatus[buyerId];
             const buyerInfo = buyerDetails[i];
-            
-            // Ensure companyProfileId is a string before using it to find the company profile
-            const companyProfileIdString = buyerInfo?.companyProfileId ? (typeof buyerInfo.companyProfileId === 'object' ? (buyerInfo.companyProfileId as any)._id.toString() : buyerInfo.companyProfileId) : undefined;
 
-            const companyProfile = allCompanyProfiles.find(cp => cp._id === companyProfileIdString);
+            // Ensure companyProfileId is a string before using it to find the company profile
+            const companyProfileIdString = buyerInfo?.companyProfileId
+              ? typeof buyerInfo.companyProfileId === "object"
+                ? (buyerInfo.companyProfileId as any)._id.toString()
+                : buyerInfo.companyProfileId
+              : undefined;
+
+            const companyProfile = allCompanyProfiles.find(
+              (cp) => cp._id === companyProfileIdString,
+            );
 
             processedBuyers.push({
               _id: buyerId,
@@ -668,21 +688,33 @@ const [showAllCountries, setShowAllCountries] = useState(false);
               invitedAt: invitation?.invitedAt,
               lastActivity: invitation?.respondedAt,
               decisionBy: invitation?.decisionBy,
-              sellerApproved: invitation?.response === 'pending' && invitation?.decisionBy === 'seller',
+              flaggedInactive: !!invitation?.flaggedInactive,
+              flaggedInactiveAt: invitation?.flaggedInactiveAt,
+              flaggedInactiveBy: invitation?.flaggedInactiveBy,
+              sellerApproved:
+                invitation?.response === "pending" &&
+                invitation?.decisionBy === "seller",
             });
           }
         }
         const categorizedBuyers = {
           active: processedBuyers.filter(
             (buyer) =>
-              buyer.status === "accepted" || buyer.status === "interested" || buyer.sellerApproved
+              buyer.status === "accepted" ||
+              buyer.status === "interested" ||
+              buyer.sellerApproved,
           ),
           pending: processedBuyers.filter(
-            (buyer) => buyer.status === "requested" || (buyer.status === "pending" && !buyer.sellerApproved) || !buyer.status
+            (buyer) =>
+              buyer.status === "requested" ||
+              (buyer.status === "pending" && !buyer.sellerApproved) ||
+              !buyer.status,
           ),
           rejected: processedBuyers.filter(
             (buyer) =>
-              buyer.status === "rejected" || buyer.status === "declined"
+              buyer.flaggedInactive ||
+              buyer.status === "rejected" ||
+              buyer.status === "declined",
           ),
         };
         const updatedData = {
@@ -718,8 +750,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       const fetchMatchingBuyers = async () => {
         try {
           const token = sessionStorage.getItem("token");
-          const apiUrl =
-            getApiUrl();
+          const apiUrl = getApiUrl();
           const response = await fetch(
             `${apiUrl}/deals/${dealId}/matching-buyers`,
             {
@@ -727,7 +758,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
               },
-            }
+            },
           );
           if (response.ok) {
             const buyers = await response.json();
@@ -750,12 +781,14 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     logout(); // logout() from useAuth already handles redirect
   };
 
-  const industries = selectedCompanyProfile?.targetCriteria?.industrySectors || [];
+  const industries =
+    selectedCompanyProfile?.targetCriteria?.industrySectors || [];
   const countries = selectedCompanyProfile?.targetCriteria?.countries || [];
-  
-  const visibleIndustries = showAllIndustries ? industries : industries.slice(0, 5);
+
+  const visibleIndustries = showAllIndustries
+    ? industries
+    : industries.slice(0, 5);
   const visibleCountries = showAllCountries ? countries : countries.slice(0, 5);
-  
 
   // Helper functions
   const handleBuyerClick = async (buyer: Buyer) => {
@@ -764,12 +797,62 @@ const [showAllCountries, setShowAllCountries] = useState(false);
 
     // Fetch company profile if companyProfileId exists
     if (buyer.companyProfileId) {
-      const companyProfileIdString = typeof buyer.companyProfileId === 'object' && buyer.companyProfileId !== null
-        ? (buyer.companyProfileId as any)._id.toString()
-        : buyer.companyProfileId;
+      const companyProfileIdString =
+        typeof buyer.companyProfileId === "object" &&
+        buyer.companyProfileId !== null
+          ? (buyer.companyProfileId as any)._id.toString()
+          : buyer.companyProfileId;
       await fetchCompanyProfile(companyProfileIdString);
     } else if (buyer.website) {
-      setSelectedCompanyProfile({ ...selectedCompanyProfile, website: buyer.website } as CompanyProfile);
+      setSelectedCompanyProfile({
+        ...selectedCompanyProfile,
+        website: buyer.website,
+      } as CompanyProfile);
+    }
+  };
+
+  const handleFlagBuyerInactive = async (buyer: Buyer) => {
+    if (!deal) return;
+    const isCurrentlyFlagged = buyer.flaggedInactive && buyer.status !== "accepted";
+    if (isCurrentlyFlagged) return;
+
+    const confirmed = window.confirm(
+      `Do you want to mark ${buyer.buyerName || "this buyer"} as inactive for this deal? This will only affect this one buyer on this one deal.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setFlaggingBuyerId(buyer.buyerId);
+      const token = sessionStorage.getItem("token");
+      const apiUrl = getApiUrl();
+      const response = await fetch(
+        `${apiUrl}/sellers/deals/${deal._id}/interested-buyers/${buyer.buyerId}/flag-inactive`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to flag buyer inactive");
+      }
+
+      toast({
+        title: "Buyer flagged inactive",
+        description: `${buyer.buyerName || "Buyer"} has been flagged inactive for this deal.`,
+      });
+      await fetchStatusSummary();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to flag buyer inactive",
+        variant: "destructive",
+      });
+    } finally {
+      setFlaggingBuyerId(null);
     }
   };
 
@@ -796,10 +879,10 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     const currencySymbol = currency.includes("USD")
       ? "$"
       : currency.includes("EUR")
-      ? "€"
-      : currency.includes("GBP")
-      ? "£"
-      : "$";
+        ? "€"
+        : currency.includes("GBP")
+          ? "£"
+          : "$";
     return `${currencySymbol}${amount.toLocaleString()}`;
   };
 
@@ -824,12 +907,15 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     try {
       const token = sessionStorage.getItem("token");
       const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/deals/${deal._id}/ever-active-buyers`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${apiUrl}/deals/${deal._id}/ever-active-buyers`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       if (!response.ok) return [];
       const buyers = await response.json();
       const transformed = buyers.map((buyer: any) => ({
@@ -854,15 +940,19 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     try {
       const token = sessionStorage.getItem("token");
       const apiUrl = getApiUrl();
-      const body = isCimBuyer && selectedLoiBuyer ? { loiBuyerId: selectedLoiBuyer } : {};
-      const response = await fetch(`${apiUrl}/deals/${deal._id}/pause-for-loi`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const body =
+        isCimBuyer && selectedLoiBuyer ? { loiBuyerId: selectedLoiBuyer } : {};
+      const response = await fetch(
+        `${apiUrl}/deals/${deal._id}/pause-for-loi`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -871,7 +961,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
 
       toast({
         title: "Deal Paused for LOI",
-        description: "The deal has been moved to LOI - Deals. You can find it in the LOI - Deals section.",
+        description:
+          "The deal has been moved to LOI - Deals. You can find it in the LOI - Deals section.",
       });
       setLoiDialogOpen(false);
       router.push("/seller/dashboard");
@@ -898,8 +989,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
   };
 
   const formatTransactionValue = (value: string) => {
-    const numericValue = value.replace(/\D/g, '');
-    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const numericValue = value.replace(/\D/g, "");
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
   // Fetch buyers who have ever had this deal in Active
@@ -909,12 +1000,15 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       const token = sessionStorage.getItem("token");
       const apiUrl = getApiUrl();
 
-      const response = await fetch(`${apiUrl}/deals/${deal._id}/ever-active-buyers`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${apiUrl}/deals/${deal._id}/ever-active-buyers`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
 
       if (response.ok) {
         const buyers = await response.json();
@@ -949,7 +1043,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     }
   }, [offMarketDialogOpen, deal, currentDialogStep]);
 
-  const activeBuyerOptions = buyerActivity.filter((buyer) => buyer?.status === "active");
+  const activeBuyerOptions = buyerActivity.filter(
+    (buyer) => buyer?.status === "active",
+  );
 
   useEffect(() => {
     if (loiDialogOpen && loiDialogStep === 2) {
@@ -1011,7 +1107,10 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     try {
       const token = sessionStorage.getItem("token");
       const apiUrl = getApiUrl();
-      const transactionValueNumeric = offMarketData.transactionValue.replace(/,/g, "");
+      const transactionValueNumeric = offMarketData.transactionValue.replace(
+        /,/g,
+        "",
+      );
 
       const response = await fetch(`${apiUrl}/deals/${deal._id}/close`, {
         method: "POST",
@@ -1020,7 +1119,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          finalSalePrice: transactionValueNumeric ? Number(transactionValueNumeric) : undefined,
+          finalSalePrice: transactionValueNumeric
+            ? Number(transactionValueNumeric)
+            : undefined,
           winningBuyerId: selectedWinningBuyer || undefined,
           buyerFromCIM: !!selectedWinningBuyer,
         }),
@@ -1032,7 +1133,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       setOffMarketDialogOpen(false);
       toast({
         title: "Deal Completed",
-        description: "The deal has been marked as completed and removed from your active deals",
+        description:
+          "The deal has been marked as completed and removed from your active deals",
       });
       router.push("/seller/dashboard");
     } catch (error: any) {
@@ -1052,7 +1154,10 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     try {
       const token = sessionStorage.getItem("token");
       const apiUrl = getApiUrl();
-      const transactionValueNumeric = offMarketData.transactionValue.replace(/,/g, "");
+      const transactionValueNumeric = offMarketData.transactionValue.replace(
+        /,/g,
+        "",
+      );
 
       const response = await fetch(`${apiUrl}/deals/${deal._id}/close`, {
         method: "POST",
@@ -1061,7 +1166,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          finalSalePrice: transactionValueNumeric ? Number(transactionValueNumeric) : undefined,
+          finalSalePrice: transactionValueNumeric
+            ? Number(transactionValueNumeric)
+            : undefined,
           buyerFromCIM: false,
         }),
       });
@@ -1072,7 +1179,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       setOffMarketDialogOpen(false);
       toast({
         title: "Deal Completed",
-        description: "The deal has been marked as closed and removed from your active deals",
+        description:
+          "The deal has been marked as closed and removed from your active deals",
       });
       router.push("/seller/dashboard");
     } catch (error: any) {
@@ -1091,6 +1199,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       return "bg-gray-100 text-gray-700";
     }
     switch (status.toLowerCase()) {
+      case "flagged inactive":
+      case "flagged":
+        return "bg-red-100 text-red-700";
       case "active":
       case "accepted":
       case "interested":
@@ -1165,7 +1276,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
       const actualBuyerIds = targetBuyers
         .map((selectedProfileId) => {
           const buyerProfile = matchedBuyers.find(
-            (b) => b._id === selectedProfileId
+            (b) => b._id === selectedProfileId,
           );
           if (!buyerProfile || !buyerProfile.buyerId) {
             return null;
@@ -1200,7 +1311,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
         }
         throw new Error(
           errorData.message ||
-            `API Error: ${response.status} ${response.statusText}`
+            `API Error: ${response.status} ${response.statusText}`,
         );
       }
       const result = await response.json();
@@ -1231,8 +1342,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
     const fetchMatchingBuyers = async () => {
       try {
         const token = sessionStorage.getItem("token");
-        const apiUrl =
-          getApiUrl();
+        const apiUrl = getApiUrl();
         const response = await fetch(
           `${apiUrl}/deals/${dealId}/matching-buyers`,
           {
@@ -1240,7 +1350,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-          }
+          },
         );
         if (response.ok) {
           const buyers = await response.json();
@@ -1279,12 +1389,19 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                     <span className="sr-only">Toggle menu</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[280px] sm:w-[350px] flex flex-col h-full overflow-hidden">
+                <SheetContent
+                  side="left"
+                  className="w-[280px] sm:w-[350px] flex flex-col h-full overflow-hidden"
+                >
                   <SheetHeader>
                     <SheetTitle>Menu</SheetTitle>
                   </SheetHeader>
                   <div className="mt-6 flex-1 overflow-y-auto pb-6">
-                    <SellerNav activePage="dashboard" onLogout={handleLogout} onNavigate={() => setMobileMenuOpen(false)} />
+                    <SellerNav
+                      activePage="dashboard"
+                      onLogout={handleLogout}
+                      onNavigate={() => setMobileMenuOpen(false)}
+                    />
                   </div>
                 </SheetContent>
               </Sheet>
@@ -1517,7 +1634,7 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                   {buyer.targetCriteria?.preferredBusinessModels
                                     ?.length
                                     ? buyer.targetCriteria.preferredBusinessModels.join(
-                                        ", "
+                                        ", ",
                                       )
                                     : "Not specified"}
                                 </div>
@@ -1536,7 +1653,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                     ))}
                   </div>
                 </div>
-              ) : !loadingBuyers && hasFetchedBuyers && matchedBuyers.length === 0 ? (
+              ) : !loadingBuyers &&
+                hasFetchedBuyers &&
+                matchedBuyers.length === 0 ? (
                 <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600 mb-6">
                   No buyers are matched for this deal
                 </div>
@@ -1579,15 +1698,17 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                 {/* Buyer Status Summary */}
                 <div className="bg-white rounded-lg shadow mb-6">
                   <div className="p-6 border-b border-gray-200">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <h3 className="text-lg text-[#0D9488] font-medium">
+                    <div className="flex w-full flex-col-[0.8fr,1.2fr] sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <h3 className="text-lg max-w-lg  text-[#0D9488] font-medium">
                         {deal.title}
                       </h3>
                       {/* Action Buttons */}
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap  gap-2">
                         <Button
                           variant="outline"
-                          onClick={() => router.push(`/seller/edit-deal?id=${deal._id}`)}
+                          onClick={() =>
+                            router.push(`/seller/edit-deal?id=${deal._id}`)
+                          }
                           className="py-2 text-xs sm:text-sm border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-all duration-200"
                         >
                           <Edit3 className="h-4 w-4 mr-1" />
@@ -1673,72 +1794,140 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                           </div>
                         </div>
 
-{/* Active Buyers */}  
-{statusSummary.buyersByStatus.active.length > 0 && (
+                        {/* Active Buyers */}
+                        {statusSummary.buyersByStatus.active.length > 0 && (
                           <div className="mb-6">
-                            <h4 className="text-md font-medium mb-3 text-green-700">Active Buyers</h4>
+                            <h4 className="text-md font-medium mb-3 text-green-700">
+                              Active Buyers
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full table-fixed">
-                                <colgroup>
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                </colgroup>
+                              <table className="w-full table-auto">
                                 <thead>
                                   <tr className="text-left border-b border-gray-200">
-                                    <th className="pb-3 font-medium text-gray-600">Buyer</th>
-                                    <th className="pb-3 font-medium text-gray-600">Company</th>
-                                    <th className="pb-3 font-medium text-gray-600">Status</th>
-                                    <th className="pb-3 font-medium text-gray-600">Date</th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Buyer
+                                    </th>
+                                    <th className="hidden sm:table-cell pb-3 font-medium text-gray-600">
+                                      Company
+                                    </th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Status
+                                    </th>
+                                    <th className="hidden md:table-cell pb-3 font-medium text-gray-600">
+                                      Date
+                                    </th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Action
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {statusSummary.buyersByStatus.active.map((buyer) => (
-                                    <tr key={buyer._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                      <td className="py-4 pr-4">
-                                        <div className="flex items-center">
-                                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 mr-3 flex-shrink-0">
-                                            {buyer.buyerName &&
-                                            buyer.buyerName !== `Buyer ${buyer.buyerId.slice(-4)}` ? (
-                                              buyer.buyerName.charAt(0).toUpperCase()
+                                  {statusSummary.buyersByStatus.active.map(
+                                    (buyer) => (
+                                      <tr
+                                        key={buyer._id}
+                                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                                      >
+                                        <td className="py-4 pr-4">
+                                          <div className="flex items-center">
+                                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 mr-3 flex-shrink-0">
+                                              {buyer.buyerName &&
+                                              buyer.buyerName !==
+                                                `Buyer ${buyer.buyerId.slice(-4)}` ? (
+                                                buyer.buyerName
+                                                  .charAt(0)
+                                                  .toUpperCase()
+                                              ) : (
+                                                <User className="h-5 w-5" />
+                                              )}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p
+                                                className="font-medium truncate cursor-pointer"
+                                                onClick={() =>
+                                                  handleBuyerClick(buyer)
+                                                }
+                                              >
+                                                {buyer.buyerName}
+                                              </p>
+                                              <p className="text-sm text-gray-500 truncate">
+                                                {buyer.buyerEmail}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="hidden sm:table-cell py-4 pr-4">
+                                          <span
+                                            className={`truncate block ${
+                                              buyer.companyName ===
+                                              "Company not available"
+                                                ? "text-gray-500 text-sm"
+                                                : ""
+                                            }`}
+                                          >
+                                            {buyer.companyName}
+                                          </span>
+                                        </td>
+                                        <td className="py-4 pr-4">
+                                          {(() => {
+                                            const isMarketplace =
+                                              !!statusSummary?.deal?.isPublic;
+                                            const isCurrentlyFlagged =
+                                              buyer.flaggedInactive && buyer.status !== "accepted";
+                                            const displayStatus =
+                                              isCurrentlyFlagged
+                                                ? "flagged by advisor"
+                                                : isMarketplace &&
+                                                    buyer.sellerApproved
+                                                  ? "request accepted"
+                                                  : buyer.status || "pending";
+                                            return (
+                                              <span
+                                                className={`px-3 py-2 rounded-full text-xs font-bold capitalize whitespace-nowrap ${getStatusColor(displayStatus)}`}
+                                              >
+                                                {displayStatus}
+                                              </span>
+                                            );
+                                          })()}
+                                        </td>
+                                        <td className="hidden md:table-cell py-4 text-sm whitespace-nowrap">
+                                          {formatDate(buyer.invitedAt)}
+                                        </td>
+                                        <td className="py-4 pr-1">
+                                          {(() => {
+                                            const isCurrentlyFlagged =
+                                              buyer.flaggedInactive && buyer.status !== "accepted";
+                                            return isCurrentlyFlagged ? (
+                                              <span className="text-xs font-medium text-red-600">
+                                                Flagged by advisor
+                                              </span>
                                             ) : (
-                                              <User className="h-5 w-5" />
-                                            )}
-                                          </div>
-                                          <div className="min-w-0">
-                                            <p className="font-medium truncate cursor-pointer" onClick={() => handleBuyerClick(buyer)}>{buyer.buyerName}</p>
-                                            <p className="text-sm text-gray-500 truncate">{buyer.buyerEmail}</p>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="py-4 pr-4">
-                                        <span
-                                          className={`truncate block ${
-                                            buyer.companyName === "Company not available" ? "text-gray-500 text-sm" : ""
-                                          }`}
-                                        >
-                                          {buyer.companyName}
-                                        </span>
-                                      </td>
-                                      <td className="py-4 pr-4">
-                                        {(() => {
-                                          const isMarketplace = !!statusSummary?.deal?.isPublic;
-                                          const displayStatus = isMarketplace && buyer.sellerApproved
-                                            ? 'request accepted'
-                                            : (buyer.status || 'pending');
-                                          return (
-                                            <span
-                                              className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(displayStatus)}`}
-                                            >
-                                              {displayStatus}
-                                            </span>
-                                          );
-                                        })()}
-                                      </td>
-                                      <td className="py-4 text-sm whitespace-nowrap">{formatDate(buyer.invitedAt)}</td>
-                                    </tr>
-                                  ))}
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-red-600 border-red-200 hover:bg-red-50"
+                                                onClick={() =>
+                                                  handleFlagBuyerInactive(buyer)
+                                                }
+                                                disabled={
+                                                  flaggingBuyerId ===
+                                                  buyer.buyerId
+                                                }
+                                              >
+                                                {flaggingBuyerId ===
+                                                buyer.buyerId ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  "Flag Inactive"
+                                                )}
+                                              </Button>
+                                            );
+                                          })()}
+                                        </td>
+                                      </tr>
+                                    ),
+                                  )}
                                 </tbody>
                               </table>
                             </div>
@@ -1747,56 +1936,68 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                         {/* Pending Buyers */}
                         {statusSummary.buyersByStatus.pending.length > 0 && (
                           <div className="mb-6">
-                            <h4 className="text-md font-medium mb-3 text-blue-700">Pending Buyers</h4>
+                            <h4 className="text-md font-medium mb-3 text-blue-700">
+                              Pending Buyers
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full table-fixed">
-                                <colgroup>
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                </colgroup>
+                              <table className="w-full table-auto">
                                 <thead>
                                   <tr className="text-left border-b border-gray-200">
-                                    <th className="pb-3 font-medium text-gray-600">Company</th>
-                                    <th className="pb-3 font-medium text-gray-600">Status</th>
-                                    <th className="pb-3 font-medium text-gray-600">Date</th>
-                                    <th className="pb-3 font-medium text-gray-600">Action</th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Company
+                                    </th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Status
+                                    </th>
+                                    <th className="hidden md:table-cell pb-3 font-medium text-gray-600">
+                                      Date
+                                    </th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Action
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {statusSummary.buyersByStatus.pending.map((buyer) => (
-                                    <tr
-                                      key={buyer._id}
-                                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                                    >
-                                      <td className="py-4 pr-4">
-                                        <div className="flex items-center">
-                                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3 flex-shrink-0">
-                                            <User className="h-5 w-5" />
+                                  {statusSummary.buyersByStatus.pending.map(
+                                    (buyer) => (
+                                      <tr
+                                        key={buyer._id}
+                                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                                      >
+                                        <td className="py-4 pr-4">
+                                          <div className="flex items-center">
+                                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3 flex-shrink-0">
+                                              <User className="h-5 w-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="font-medium truncate">
+                                                {buyer.companyName &&
+                                                buyer.companyName !==
+                                                  "Company not available"
+                                                  ? buyer.companyName
+                                                  : "Anonymous Company"}
+                                              </p>
+                                            </div>
                                           </div>
-                                          <div className="min-w-0">
-                                            <p className="font-medium truncate">
-                                              {buyer.companyName && buyer.companyName !== "Company not available"
-                                                ? buyer.companyName
-                                                : "Anonymous Company"}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="py-4 pr-4">
-                                        <span
-                                          className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(buyer.status || 'pending')}`}
-                                        >
-                                          {buyer.status || 'pending'}
-                                        </span>
-                                      </td>
-                                      <td className="py-4 text-sm whitespace-nowrap">{formatDate(buyer.invitedAt)}</td>
-                                      <td className="py-4 pr-4">
-                                        <span className="text-gray-400 text-sm">Awaiting response</span>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                        </td>
+                                        <td className="py-4 pr-4">
+                                          <span
+                                            className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(buyer.status || "pending")}`}
+                                          >
+                                            {buyer.status || "pending"}
+                                          </span>
+                                        </td>
+                                        <td className="hidden md:table-cell py-4 text-sm whitespace-nowrap">
+                                          {formatDate(buyer.invitedAt)}
+                                        </td>
+                                        <td className="py-4 pr-4">
+                                          <span className="text-gray-400 text-sm">
+                                            Awaiting response
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ),
+                                  )}
                                 </tbody>
                               </table>
                             </div>
@@ -1845,7 +2046,11 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                           </h4>
                                           <div className="space-y-3 text-sm">
                                             {/* Only show contact name and email for Active buyers */}
-                                            {(selectedBuyer.status === 'accepted' || selectedBuyer.status === 'interested' || selectedBuyer.sellerApproved) ? (
+                                            {selectedBuyer.status ===
+                                              "accepted" ||
+                                            selectedBuyer.status ===
+                                              "interested" ||
+                                            selectedBuyer.sellerApproved ? (
                                               <>
                                                 <div>
                                                   <span className="text-gray-500 font-medium">
@@ -1871,8 +2076,17 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                                       Website:{" "}
                                                     </span>
                                                     <span className="text-gray-900">
-                                                      <a href={selectedCompanyProfile.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                                                        {selectedCompanyProfile.website}
+                                                      <a
+                                                        href={
+                                                          selectedCompanyProfile.website
+                                                        }
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:underline"
+                                                      >
+                                                        {
+                                                          selectedCompanyProfile.website
+                                                        }
                                                       </a>
                                                     </span>
                                                   </div>
@@ -1881,7 +2095,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                             ) : (
                                               <div className="bg-gray-50 p-3 rounded-lg">
                                                 <p className="text-gray-500 text-sm italic">
-                                                  Contact details will be available once the buyer accepts the deal invitation.
+                                                  Contact details will be
+                                                  available once the buyer
+                                                  accepts the deal invitation.
                                                 </p>
                                               </div>
                                             )}
@@ -1908,7 +2124,8 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                           <div className="space-y-3 text-sm">
                                             <div>
                                               <span className="text-gray-500 font-medium">
-                                                Deals Completed (Last 5 years):{" "}
+                                                Deals Completed (Last 5
+                                                years):{" "}
                                               </span>
                                               <span className="text-gray-900 font-semibold">
                                                 {selectedCompanyProfile?.dealsCompletedLast5Years?.toLocaleString() ||
@@ -1998,64 +2215,81 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                                                   .preferredBusinessModels
                                                   ?.length > 0
                                                   ? selectedCompanyProfile.targetCriteria.preferredBusinessModels.join(
-                                                      ", "
+                                                      ", ",
                                                     )
                                                   : "Not specified"}
                                               </div>
                                             </div>
-<div>
-  <span className="text-gray-500 font-medium">Target Industries: </span>
-  <div className="text-gray-900 mt-1">
-    {visibleIndustries.length > 0 ? (
-      <>
-        {visibleIndustries.join(", ")}
-        {industries.length > 5 && (
-          <button
-            onClick={() => setShowAllIndustries(!showAllIndustries)}
-            className="ml-2 text-blue-600 underline text-xs"
-          >
-            {showAllIndustries
-              ? "Show less"
-              : `+${industries.length - 5} more`}
-          </button>
-        )}
-      </>
-    ) : (
-      "Not specified"
-    )}
-  </div>
-</div>
+                                            <div>
+                                              <span className="text-gray-500 font-medium">
+                                                Target Industries:{" "}
+                                              </span>
+                                              <div className="text-gray-900 mt-1">
+                                                {visibleIndustries.length >
+                                                0 ? (
+                                                  <>
+                                                    {visibleIndustries.join(
+                                                      ", ",
+                                                    )}
+                                                    {industries.length > 5 && (
+                                                      <button
+                                                        onClick={() =>
+                                                          setShowAllIndustries(
+                                                            !showAllIndustries,
+                                                          )
+                                                        }
+                                                        className="ml-2 text-blue-600 underline text-xs"
+                                                      >
+                                                        {showAllIndustries
+                                                          ? "Show less"
+                                                          : `+${industries.length - 5} more`}
+                                                      </button>
+                                                    )}
+                                                  </>
+                                                ) : (
+                                                  "Not specified"
+                                                )}
+                                              </div>
+                                            </div>
 
-<div>
-  <span className="text-gray-500 font-medium">Target Geographies: </span>
-  <div className="text-gray-900 mt-1">
-    {visibleCountries.length > 0 ? (
-      <>
-        {visibleCountries.join(", ")}
-        {countries.length > 5 && (
-          <button
-            onClick={() => setShowAllCountries(!showAllCountries)}
-            className="ml-2 text-blue-600 underline text-xs"
-          >
-            {showAllCountries
-              ? "Show less"
-              : `+${countries.length - 5} more`}
-          </button>
-        )}
-      </>
-    ) : (
-      "Not specified"
-    )}
-  </div>
-</div>
-
+                                            <div>
+                                              <span className="text-gray-500 font-medium">
+                                                Target Geographies:{" "}
+                                              </span>
+                                              <div className="text-gray-900 mt-1">
+                                                {visibleCountries.length > 0 ? (
+                                                  <>
+                                                    {visibleCountries.join(
+                                                      ", ",
+                                                    )}
+                                                    {countries.length > 5 && (
+                                                      <button
+                                                        onClick={() =>
+                                                          setShowAllCountries(
+                                                            !showAllCountries,
+                                                          )
+                                                        }
+                                                        className="ml-2 text-blue-600 underline text-xs"
+                                                      >
+                                                        {showAllCountries
+                                                          ? "Show less"
+                                                          : `+${countries.length - 5} more`}
+                                                      </button>
+                                                    )}
+                                                  </>
+                                                ) : (
+                                                  "Not specified"
+                                                )}
+                                              </div>
+                                            </div>
                                           </div>
 
                                           {selectedCompanyProfile.targetCriteria
                                             .description && (
                                             <div className="mt-6">
                                               <span className="text-gray-500 font-medium">
-                                                Investment Focus Description:{" "}
+                                                Investment Focus
+                                                Description:{" "}
                                               </span>
                                               <div className="text-gray-900 mt-2 p-4 bg-gray-50 rounded-lg">
                                                 {
@@ -2105,75 +2339,101 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                           </div>
                         )}
 
-{/* Rejected Buyers */}
-{statusSummary.buyersByStatus.rejected.length > 0 && (
+                        {/* Rejected Buyers */}
+                        {statusSummary.buyersByStatus.rejected.length > 0 && (
                           <div>
-                            <h4 className="text-md font-medium mb-3 text-red-700">Rejected Buyers</h4>
+                            <h4 className="text-md font-medium mb-3 text-red-700">
+                              Rejected Buyers
+                            </h4>
                             <div className="overflow-x-auto">
-                              <table className="w-full table-fixed">
-                                <colgroup>
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                  <col className="w-1/4" />
-                                </colgroup>
+                              <table className="w-full table-auto">
                                 <thead>
                                   <tr className="text-left border-b border-gray-200">
-                                    <th className="pb-3 font-medium text-gray-600">Company</th>
-                                    <th className="pb-3 font-medium text-gray-600">Status</th>
-                                    <th className="pb-3 font-medium text-gray-600">Date</th>
-                                    <th className="pb-3 font-medium text-gray-600">Reason</th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Company
+                                    </th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Status
+                                    </th>
+                                    <th className="hidden md:table-cell pb-3 font-medium text-gray-600">
+                                      Date
+                                    </th>
+                                    <th className="pb-3 font-medium text-gray-600">
+                                      Reason
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {statusSummary.buyersByStatus.rejected.map((buyer) => (
-                                    <tr key={buyer._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                      <td className="py-4 pr-4">
-                                        <div className="flex items-center">
-                                          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 mr-3 flex-shrink-0">
-                                            <User className="h-5 w-5" />
+                                  {statusSummary.buyersByStatus.rejected.map(
+                                    (buyer) => (
+                                      <tr
+                                        key={buyer._id}
+                                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                                      >
+                                        <td className="py-4 pr-4">
+                                          <div className="flex items-center">
+                                            <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 mr-3 flex-shrink-0">
+                                              <User className="h-5 w-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="font-medium truncate">
+                                                {buyer.companyName &&
+                                                buyer.companyName !==
+                                                  "Company not available"
+                                                  ? buyer.companyName
+                                                  : "Anonymous Company"}
+                                              </p>
+                                            </div>
                                           </div>
-                                          <div className="min-w-0">
-                                            <p className="font-medium truncate">
-                                              {buyer.companyName && buyer.companyName !== "Company not available"
-                                                ? buyer.companyName
-                                                : "Anonymous Company"}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="py-4 pr-4">
-                                        {(() => {
-                                          const isMarketplaceDenial = !!statusSummary?.deal?.isPublic && buyer.decisionBy === 'seller';
-                                          if (isMarketplaceDenial) {
+                                        </td>
+                                        <td className="py-4 pr-4">
+                                          {(() => {
+                                            const isMarketplaceDenial =
+                                              !!statusSummary?.deal?.isPublic &&
+                                              buyer.decisionBy === "seller";
+                                            if (isMarketplaceDenial) {
+                                              return (
+                                                <span className="px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap bg-red-100 text-red-700">
+                                                  request denied
+                                                </span>
+                                              );
+                                            }
+                                            const label =
+                                              buyer.status || "rejected";
                                             return (
-                                              <span className="px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap bg-red-100 text-red-700">
-                                                request denied
+                                              <span
+                                                className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(label)}`}
+                                              >
+                                                {label}
                                               </span>
                                             );
-                                          }
-                                          const label = buyer.status || 'rejected';
-                                          return (
-                                            <span
-                                              className={`px-3 py-1 rounded-full text-xs capitalize whitespace-nowrap ${getStatusColor(label)}`}
-                                            >
-                                              {label}
-                                            </span>
-                                          );
-                                        })()}
-                                      </td>
-                                      <td className="py-4 text-sm whitespace-nowrap">{formatDate(buyer.invitedAt)}</td>
-                                      <td className="py-4 pr-4">
-                                        {(() => {
-                                          const isMarketplaceDenial = !!statusSummary?.deal?.isPublic && buyer.decisionBy === 'seller';
-                                          if (isMarketplaceDenial) {
-                                            return <span className="text-gray-500 text-sm">Denied by advisor</span>;
-                                          }
-                                          return <span className="text-gray-500 text-sm">Passed on deal</span>;
-                                        })()}
-                                      </td>
-                                    </tr>
-                                  ))}
+                                          })()}
+                                        </td>
+                                        <td className="hidden md:table-cell py-4 text-sm whitespace-nowrap">
+                                          {formatDate(buyer.invitedAt)}
+                                        </td>
+                                        <td className="py-4 pr-4">
+                                          {(() => {
+                                            const isMarketplaceDenial =
+                                              !!statusSummary?.deal?.isPublic &&
+                                              buyer.decisionBy === "seller";
+                                            if (isMarketplaceDenial) {
+                                              return (
+                                                <span className="text-gray-500 text-sm">
+                                                  Denied by advisor
+                                                </span>
+                                              );
+                                            }
+                                            return (
+                                              <span className="text-gray-500 text-sm">
+                                                Passed on deal
+                                              </span>
+                                            );
+                                          })()}
+                                        </td>
+                                      </tr>
+                                    ),
+                                  )}
                                 </tbody>
                               </table>
                             </div>
@@ -2227,7 +2487,11 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                   disabled={isPausingLOI}
                   className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
                 >
-                  {isPausingLOI ? <Loader2 className="h-4 w-4 animate-spin" /> : "No, not from CIM Amplify"}
+                  {isPausingLOI ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "No, not from CIM Amplify"
+                  )}
                 </Button>
               </div>
             </>
@@ -2257,12 +2521,26 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                         onClick={() => setSelectedLoiBuyer(buyer.buyerId)}
                       >
                         <div>
-                          <div className="font-medium text-sm">{buyer.buyerName || "Unknown Buyer"}</div>
-                          <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
+                          <div className="font-medium text-sm">
+                            {buyer.buyerName || "Unknown Buyer"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {buyer.companyName || "Unknown Company"}
+                          </div>
                         </div>
                         {selectedLoiBuyer === buyer.buyerId && (
-                          <svg className="h-5 w-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-5 w-5 text-teal-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </div>
@@ -2279,7 +2557,11 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                     className="w-full bg-teal-500 hover:bg-teal-600"
                     disabled={!selectedLoiBuyer || isPausingLOI}
                   >
-                    {isPausingLOI ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pause for LOI"}
+                    {isPausingLOI ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Pause for LOI"
+                    )}
                   </Button>
                   <Button
                     variant="outline"
@@ -2302,12 +2584,16 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           {currentDialogStep === 1 ? (
             <>
               <DialogHeader>
-                <DialogTitle className="text-center text-teal-500 text-lg font-medium">Did the deal sell?</DialogTitle>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">
+                  Did the deal sell?
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-6 mt-4">
                 <div className="flex gap-4">
                   <Button
-                    variant={offMarketData.dealSold === false ? "default" : "outline"}
+                    variant={
+                      offMarketData.dealSold === false ? "default" : "outline"
+                    }
                     onClick={() => handleDialogResponse("dealSold", false)}
                     disabled={isClosingDeal}
                     className={
@@ -2316,10 +2602,16 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                         : "flex-1 bg-white text-red-500 border border-red-500 hover:bg-red-50"
                     }
                   >
-                    {isClosingDeal ? <Loader2 className="h-4 w-4 animate-spin" /> : "No"}
+                    {isClosingDeal ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "No"
+                    )}
                   </Button>
                   <Button
-                    variant={offMarketData.dealSold === true ? "default" : "outline"}
+                    variant={
+                      offMarketData.dealSold === true ? "default" : "outline"
+                    }
                     onClick={() => handleDialogResponse("dealSold", true)}
                     className={
                       offMarketData.dealSold === true
@@ -2335,13 +2627,19 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           ) : currentDialogStep === 2 ? (
             <>
               <DialogHeader>
-                <DialogTitle className="text-center text-teal-500 text-lg font-medium">What was the transaction value?</DialogTitle>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">
+                  What was the transaction value?
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-6 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="transaction-value">Transaction Value ($)</Label>
+                  <Label htmlFor="transaction-value">
+                    Transaction Value ($)
+                  </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
                     <Input
                       id="transaction-value"
                       type="text"
@@ -2350,7 +2648,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                       onChange={(e) =>
                         setOffMarketData((prev) => ({
                           ...prev,
-                          transactionValue: formatTransactionValue(e.target.value),
+                          transactionValue: formatTransactionValue(
+                            e.target.value,
+                          ),
                         }))
                       }
                       className="pl-7"
@@ -2358,7 +2658,10 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <Button onClick={() => setCurrentDialogStep(3)} className="bg-teal-500 hover:bg-teal-600">
+                  <Button
+                    onClick={() => setCurrentDialogStep(3)}
+                    className="bg-teal-500 hover:bg-teal-600"
+                  >
                     Next
                   </Button>
                 </div>
@@ -2367,7 +2670,9 @@ const [showAllCountries, setShowAllCountries] = useState(false);
           ) : currentDialogStep === 3 ? (
             <>
               <DialogHeader>
-                <DialogTitle className="text-center text-teal-500 text-lg font-medium">Select the buyer</DialogTitle>
+                <DialogTitle className="text-center text-teal-500 text-lg font-medium">
+                  Select the buyer
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -2392,13 +2697,27 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                             <User className="h-5 w-5 text-gray-500" />
                           </div>
                           <div>
-                            <div className="font-medium text-sm">{buyer.buyerName || "Unknown Buyer"}</div>
-                            <div className="text-xs text-gray-500">{buyer.companyName || "Unknown Company"}</div>
+                            <div className="font-medium text-sm">
+                              {buyer.buyerName || "Unknown Buyer"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {buyer.companyName || "Unknown Company"}
+                            </div>
                           </div>
                         </div>
                         {selectedWinningBuyer === buyer.buyerId && (
-                          <svg className="h-5 w-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-5 w-5 text-teal-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </div>
@@ -2413,13 +2732,20 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                 <div className="flex flex-col gap-3 pt-2">
                   <Button
                     onClick={() => {
-                      setOffMarketData((prev) => ({ ...prev, buyerFromCIM: true }));
+                      setOffMarketData((prev) => ({
+                        ...prev,
+                        buyerFromCIM: true,
+                      }));
                       handleOffMarketSubmit();
                     }}
                     className="w-full bg-teal-500 hover:bg-teal-600"
                     disabled={!selectedWinningBuyer || isClosingDeal}
                   >
-                    {isClosingDeal ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit"}
+                    {isClosingDeal ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Submit"
+                    )}
                   </Button>
                   <Button
                     variant="outline"
@@ -2427,7 +2753,11 @@ const [showAllCountries, setShowAllCountries] = useState(false);
                     disabled={isClosingDeal}
                     className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
                   >
-                    {isClosingDeal ? <Loader2 className="h-4 w-4 animate-spin" /> : "The buyer did not come from CIM Amplify"}
+                    {isClosingDeal ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "The buyer did not come from CIM Amplify"
+                    )}
                   </Button>
                 </div>
               </div>

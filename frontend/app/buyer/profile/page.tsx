@@ -16,6 +16,7 @@ import {
   Phone,
   Globe,
   Building,
+  Bell,
   Save,
   X,
   Edit2,
@@ -37,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { Switch } from "@/components/ui/switch";
 import {
   useBuyerProfile,
   useUpdateBuyerProfile,
@@ -59,6 +61,9 @@ export default function BuyerProfilePage() {
     companyName: "",
     phoneNumber: "",
     website: "",
+    preferences: {
+      receiveDealEmails: true,
+    },
   });
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -74,6 +79,9 @@ export default function BuyerProfilePage() {
         companyName: profile.companyName || "",
         phoneNumber: profile.phoneNumber || "",
         website: profile.website || "",
+        preferences: {
+          receiveDealEmails: profile.preferences?.receiveDealEmails ?? true,
+        },
       });
     }
   }, [profile]);
@@ -115,6 +123,19 @@ export default function BuyerProfilePage() {
     }));
   };
 
+  const handlePreferenceChange = (
+    field: "receiveDealEmails",
+    value: boolean,
+  ) => {
+    setEditedProfile((prev) => ({
+      ...prev,
+      preferences: {
+        ...prev.preferences,
+        [field]: value,
+      },
+    }));
+  };
+
   const handleSaveProfile = async () => {
     try {
       await updateProfile.mutateAsync(editedProfile);
@@ -141,6 +162,9 @@ export default function BuyerProfilePage() {
         companyName: profile.companyName || "",
         phoneNumber: profile.phoneNumber || "",
         website: profile.website || "",
+        preferences: {
+          receiveDealEmails: profile.preferences?.receiveDealEmails ?? true,
+        },
       });
     }
     setIsEditing(false);
@@ -488,6 +512,34 @@ export default function BuyerProfilePage() {
                           )}
                         </p>
                       )}
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <Label className="text-gray-600 text-sm flex items-center gap-2">
+                              <Bell className="h-4 w-4" />
+                              Receive Deal Emails
+                            </Label>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Deal invites and marketplace notifications.
+                            </p>
+                          </div>
+                          {isEditing ? (
+                            <Switch
+                              checked={editedProfile.preferences.receiveDealEmails}
+                              onCheckedChange={(checked) =>
+                                handlePreferenceChange("receiveDealEmails", checked)
+                              }
+                            />
+                          ) : (
+                            <span className="text-xs font-medium text-gray-500">
+                              {profile?.preferences?.receiveDealEmails ? "On" : "Off"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

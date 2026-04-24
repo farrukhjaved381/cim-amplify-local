@@ -243,7 +243,7 @@ function DealCard({
         </Button>
         <Button
           variant="outline"
-          className="py-2.5 text-xs sm:text-sm font-semibold bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-800 whitespace-nowrap disabled:opacity-70 transition-all duration-200 rounded-xl shadow-sm hover:shadow"
+          className="py-2.5 text-xs sm:text-[11px] font-semibold bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300 hover:text-amber-800 whitespace-nowrap disabled:opacity-70 transition-all duration-200 rounded-xl shadow-sm hover:shadow"
           onClick={() => handlePauseForLOI(deal)}
           disabled={isPausingLOI}
           aria-label="Pause deal for Letter of Intent"
@@ -252,7 +252,7 @@ function DealCard({
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
             <>
-              <PauseCircle className="hidden xl:inline-block h-4 w-4 mr-1 flex-shrink-0" aria-hidden="true" />
+              <PauseCircle className="hidden xl:inline-block h-1 w-1  flex-shrink-0" aria-hidden="true" />
               <span>Pause for LOI</span>
             </>
           )}
@@ -1152,7 +1152,14 @@ export default function SellerDashboardPage() {
                       onClick={() => setSelectedWinningBuyer(buyer.buyerId)}
                     >
                       <div className="min-w-0">
-                        <div className="font-medium text-sm truncate">{buyer.buyerName || "Unknown Buyer"}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="font-medium text-sm truncate">{buyer.buyerName || "Unknown Buyer"}</div>
+                          {buyer.flaggedInactive && (
+                            <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                              Flagged
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500 truncate">{buyer.companyName || "Unknown Company"}</div>
                       </div>
                       {selectedWinningBuyer === buyer.buyerId && (
