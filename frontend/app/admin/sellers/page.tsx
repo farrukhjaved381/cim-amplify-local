@@ -42,6 +42,7 @@ interface Seller {
   loiDealsCount?: number;
   allDealsCount?: number;
   referralSource?: string;
+  signUpForSms?: boolean;
   profilePicture?: string | null;
   isEmailVerified?: boolean;
   isGoogleAccount?: boolean;
@@ -550,6 +551,9 @@ export default function SellersManagementDashboard() {
                       <th className="text-left py-3.5 px-4 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden md:table-cell">
                         Referral
                       </th>
+                      <th className="text-center py-3.5 px-3 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden md:table-cell">
+                        SMS
+                      </th>
                       <th className="text-center py-3.5 px-3 font-semibold text-gray-700 text-xs uppercase tracking-wider hidden lg:table-cell">
                         Active
                       </th>
@@ -595,7 +599,7 @@ export default function SellersManagementDashboard() {
                                 {seller.email || "N/A"}
                               </div>
                               {seller.isEmailVerified && (
-                                <CheckCircle className="h-3.5 w-3.5 text-green-500 flex-shrink-0" title="Verified" />
+                                <CheckCircle className="h-3.5 w-3.5 text-green-500 flex-shrink-0" aria-label="Verified" />
                               )}
                             </div>
                           </td>
@@ -621,6 +625,15 @@ export default function SellersManagementDashboard() {
                             <div className="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded-full inline-block truncate max-w-[100px]" title={seller.referralSource || "-"}>
                               {seller.referralSource || "-"}
                             </div>
+                          </td>
+                          <td className="py-3 px-3 text-center hidden md:table-cell">
+                            {seller.signUpForSms === undefined ? (
+                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded-full inline-block">-</span>
+                            ) : seller.signUpForSms ? (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">Yes</span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">No</span>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-center hidden lg:table-cell">
                             <button
@@ -1055,7 +1068,7 @@ export default function SellersManagementDashboard() {
                     <p className="text-sm font-medium text-gray-900 truncate">{selectedSeller.email || "N/A"}</p>
                   </div>
                   {selectedSeller.isEmailVerified && (
-                    <CheckCircle className="h-4 w-4 text-green-500" title="Email Verified" />
+                    <CheckCircle className="h-4 w-4 text-green-500" aria-label="Email Verified" />
                   )}
                 </div>
 
@@ -1091,6 +1104,16 @@ export default function SellersManagementDashboard() {
                   <div className="flex-1">
                     <p className="text-xs text-gray-500">Referral Source</p>
                     <p className="text-sm font-medium text-gray-900">{selectedSeller.referralSource || "N/A"}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500">Sign up for SMS</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedSeller.signUpForSms === undefined ? "-" : selectedSeller.signUpForSms ? "Yes" : "No"}
+                    </p>
                   </div>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import {
   IsEmail,
@@ -9,6 +10,8 @@ import {
   MinLength,
   validateSync,
 } from "class-validator";
+
+const envLogger = new Logger("EnvValidation");
 
 class EnvironmentVariables {
   @IsString()
@@ -81,7 +84,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
       .join("; ");
     // On Vercel, warn instead of crash — env vars come from dashboard
     if (process.env.VERCEL === '1') {
-      console.warn(`⚠️ Environment validation warning: ${details}`);
+      envLogger.warn(`Environment validation warning: ${details}`);
       return validatedConfig;
     }
     throw new Error(`Environment validation failed: ${details}`);

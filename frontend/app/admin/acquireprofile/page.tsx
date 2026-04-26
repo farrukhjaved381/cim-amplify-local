@@ -286,7 +286,7 @@ const fetchAdminProfile = async (id: string) => {
 
     // FIXED: Synchronize geography selections
     if (data.targetCriteria?.countries?.length > 0 && geoData) {
-      const newGeoSelection = { 
+      const newGeoSelection: { continents: Record<string, boolean>; regions: Record<string, boolean>; subRegions: Record<string, boolean> } = {
         continents: {},
         regions: {},
         subRegions: {}
@@ -317,7 +317,7 @@ const fetchAdminProfile = async (id: string) => {
 
     // FIXED: Synchronize industry selections
     if (data.targetCriteria?.industrySectors?.length > 0 && industryData) {
-      const newIndustrySelection = {
+      const newIndustrySelection: { sectors: Record<string, boolean>; industryGroups: Record<string, boolean>; industries: Record<string, boolean> } = {
         sectors: {},
         industryGroups: {},
         industries: {}
@@ -466,7 +466,7 @@ const fetchUserProfile = async () => {
 
     // FIXED: Update industry selections with proper state initialization
     if (profileData.targetCriteria?.industrySectors?.length > 0 && industryData) {
-      const newIndustrySelection = {
+      const newIndustrySelection: { sectors: Record<string, boolean>; industryGroups: Record<string, boolean>; industries: Record<string, boolean> } = {
         sectors: {},
         industryGroups: {},
         industries: {}
@@ -509,7 +509,7 @@ const fetchUserProfile = async () => {
     website: "",
     contacts: [{ name: "", email: "", phone: "" }],
     companyType: "",
-    capitalEntity: undefined, // Default value
+    capitalEntity: "",
     dealsCompletedLast5Years: undefined,
     averageDealSize: undefined,
     preferences: {

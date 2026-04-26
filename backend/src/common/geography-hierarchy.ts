@@ -257,8 +257,9 @@ export function expandCountryOrRegion(selected: string): string[] {
   expanded.add(selected);
 
   // If it's a top-level region (continent), return all subregions
-  if (geographyHierarchy[selected]) {
-    geographyHierarchy[selected].forEach((value) => expanded.add(value));
+  const hierarchy = geographyHierarchy as Record<string, string[]>;
+  if (hierarchy[selected]) {
+    hierarchy[selected].forEach((value: string) => expanded.add(value));
   }
 
   if (selected === "United States") {

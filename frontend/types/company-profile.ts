@@ -30,6 +30,8 @@ export interface Agreements {
   termsAndConditionsAccepted: boolean
   ndaAccepted: boolean
   feeAgreementAccepted: boolean
+  /** ISO timestamp set when feeAgreementAccepted flips to true. */
+  agreementsAcceptedAt?: string
 }
 
 export interface CompanyProfile {

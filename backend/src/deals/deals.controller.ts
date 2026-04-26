@@ -187,7 +187,7 @@ export class DealsController {
       }
 
       // File uploads disabled - just create empty documents array
-      const documents = []
+      const documents: any[] = []
 
       // Merge seller and documents into the DTO
       const dealWithSellerAndDocuments: CreateDealDto = {
@@ -972,6 +972,18 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
   @ApiOperation({ summary: "Handle deal action from email link (no login required)" })
   @ApiParam({ name: "token", description: "Unique action token from the email" })
   @ApiQuery({ name: "action", enum: ["activate", "pass", "loi", "off-market", "flag-inactive"], description: "The action to perform" })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: "object",
+      properties: {
+        buyerFromCIM: { type: "boolean", description: "Whether the deal closed/paused with a CIM Amplify buyer" },
+        winningBuyerId: { type: "string", description: "Selected buyer for off-market close (only when buyerFromCIM is true)" },
+        loiBuyerId: { type: "string", description: "Selected buyer for LOI pause (only when buyerFromCIM is true)" },
+        finalSalePrice: { type: "number", description: "Final sale price (off-market close only)" },
+      },
+    },
+  })
   @ApiResponse({ status: 200, description: "Action completed successfully" })
   @ApiResponse({ status: 400, description: "Invalid action or expired token" })
   @ApiResponse({ status: 404, description: "Token not found" })
@@ -980,6 +992,12 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
     @Param("token") token: string,
     @Query("action") action: 'activate' | 'pass' | 'loi' | 'off-market' | 'flag-inactive',
     @Request() req: any,
+    @Body() body: {
+      buyerFromCIM?: boolean
+      winningBuyerId?: string
+      loiBuyerId?: string
+      finalSalePrice?: number
+    } = {},
   ) {
     if (!["activate", "pass", "loi", "off-market", "flag-inactive"].includes(action)) {
       throw new BadRequestException("Invalid action. Must be one of 'activate', 'pass', 'loi', 'off-market', or 'flag-inactive'.")
@@ -988,7 +1006,37 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
     const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
 
-    return this.dealsService.handleEmailAction(token, action, ip, userAgent)
+    return this.dealsService.handleEmailAction(token, action, ip, userAgent, body || {})
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Get("email-action/:token/buyers")
+  @ApiOperation({ summary: "List buyers eligible for LOI / Off Market selection from an email action token (no login required)" })
+  @ApiParam({ name: "token", description: "Unique action token from the email" })
+  @ApiResponse({ status: 200, description: "List of ever-active buyers for the deal" })
+  @ApiResponse({ status: 400, description: "Invalid or unsupported token" })
+  @ApiResponse({ status: 404, description: "Token not found" })
+  async listBuyersForEmailAction(
+    @Param("token") token: string,
+    @Request() req: any,
+  ) {
+    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    return this.dealsService.getEverActiveBuyersByActionToken(token, ip)
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Get("email-action/:token/status")
+  @ApiOperation({ summary: "Check whether an email action token has already been consumed (no login required)" })
+  @ApiParam({ name: "token", description: "Unique action token from the email" })
+  @ApiResponse({ status: 200, description: "Token status (used / unused) and previously-taken action" })
+  @ApiResponse({ status: 400, description: "Invalid or expired token" })
+  @ApiResponse({ status: 404, description: "Token not found" })
+  async getEmailActionTokenStatus(
+    @Param("token") token: string,
+    @Request() req: any,
+  ) {
+    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    return this.dealsService.getEmailActionTokenStatus(token, ip)
   }
 
 }

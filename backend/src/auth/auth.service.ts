@@ -599,17 +599,25 @@ async resetPasswordBuyer(dto: ResetPasswordDto) {
   const { token, newPassword } = dto
   const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex')
 
-  const buyer = await this.buyerModel.findOne({
-    resetPasswordToken: hashedToken,
-    resetPasswordExpires: { $gt: new Date() },
-  }).exec()
+  // Atomically claim the token: clear it on the same query that finds it.
+  // Two simultaneous requests with the same token can no longer both succeed
+  // — the second one gets null back and exits before the password is changed.
+  const buyer = await this.buyerModel.findOneAndUpdate(
+    {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    },
+    {
+      $set: {
+        resetPasswordToken: '',
+        resetPasswordExpires: new Date(0),
+      },
+    },
+  ).exec()
 
   if (!buyer) throw new BadRequestException('Invalid or expired token')
 
-  const salt = await bcrypt.genSalt()
-  buyer.password = await bcrypt.hash(newPassword, salt)
-  buyer.resetPasswordToken = ''
-  buyer.resetPasswordExpires = new Date(0)
+  buyer.password = await bcrypt.hash(newPassword, 12)
   await buyer.save()
 
   return 'Password has been updated successfully'
@@ -638,17 +646,23 @@ async resetPasswordSeller(dto: ResetPasswordDto) {
   const { token, newPassword } = dto
   const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex')
 
-  const seller = await this.sellerModel.findOne({
-    resetPasswordToken: hashedToken,
-    resetPasswordExpires: { $gt: new Date() },
-  }).exec()
+  // Atomically claim the token (see buyer flow above for rationale).
+  const seller = await this.sellerModel.findOneAndUpdate(
+    {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    },
+    {
+      $set: {
+        resetPasswordToken: '',
+        resetPasswordExpires: new Date(0),
+      },
+    },
+  ).exec()
 
   if (!seller) throw new BadRequestException('Invalid or expired token')
 
-  const salt = await bcrypt.genSalt()
-  seller.password = await bcrypt.hash(newPassword, salt)
-  seller.resetPasswordToken = ''
-  seller.resetPasswordExpires = new Date(0)
+  seller.password = await bcrypt.hash(newPassword, 12)
   await seller.save()
 
   return 'Password has been updated successfully'

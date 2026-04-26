@@ -69,6 +69,9 @@ interface Deal {
   closedWithBuyerCompany?: string;
   closedWithBuyerEmail?: string;
   closedWithCimAmplify?: boolean;
+  loiWithBuyer?: string;
+  loiWithBuyerCompany?: string;
+  loiWithBuyerEmail?: string;
   wasLOIDeal?: boolean;
   businessModel?: BusinessModel;
   managementPreferences?: string;
@@ -195,6 +198,14 @@ const hasCimAmplifyBuyer = (deal: Deal): boolean => {
     normalizeId((deal as any).closedWithBuyer) ||
     (deal as any).closedWithBuyerCompany ||
     (deal as any).closedWithBuyerEmail
+  );
+};
+
+const hasLoiCimAmplifyBuyer = (deal: Deal): boolean => {
+  return Boolean(
+    normalizeId((deal as any).loiWithBuyer) ||
+    (deal as any).loiWithBuyerCompany ||
+    (deal as any).loiWithBuyerEmail
   );
 };
 
@@ -2264,6 +2275,46 @@ export default function DealManagementDashboard() {
                       </div>
 
                       <div className="px-4 py-3">
+                        {/* LOI Information - mirrors Off Market sale info, without transaction value */}
+                        <div className="mb-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg">
+                          <h4 className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            LOI Information
+                          </h4>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Date Paused for LOI:</span>
+                              <span className="font-medium text-gray-700">
+                                {deal.timeline?.updatedAt
+                                  ? new Date(deal.timeline.updatedAt).toLocaleDateString()
+                                  : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Buyer From CIM Amplify:</span>
+                              <span className={`font-medium ${hasLoiCimAmplifyBuyer(deal) ? "text-green-600" : "text-gray-600"}`}>
+                                {hasLoiCimAmplifyBuyer(deal) ? "Yes" : "No"}
+                              </span>
+                            </div>
+                            {deal.loiWithBuyerCompany && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Buyer Company:</span>
+                                <span className="font-medium text-gray-700 truncate ml-1" title={deal.loiWithBuyerCompany}>
+                                  {deal.loiWithBuyerCompany}
+                                </span>
+                              </div>
+                            )}
+                            {deal.loiWithBuyerEmail && (
+                              <div className="flex col-span-2">
+                                <span className="text-gray-500 shrink-0">Buyer Email:</span>
+                                <span className="font-medium text-gray-700 truncate ml-2" title={deal.loiWithBuyerEmail}>
+                                  {deal.loiWithBuyerEmail}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Status Badges */}
                         {deal.statusSummary && (
                           <div className="flex flex-wrap gap-1.5 mb-3">

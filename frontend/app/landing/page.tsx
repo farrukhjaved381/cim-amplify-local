@@ -28,8 +28,8 @@ import { ga4Events } from "@/lib/ga4";
 
 export default function Component() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  const [isVisible, setIsVisible] = useState({});
-  const [expandedFAQ, setExpandedFAQ] = useState(null);
+  const [isVisible, setIsVisible] = useState<Record<string, boolean>>({});
+  const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const router = useRouter();
 
@@ -286,7 +286,7 @@ export default function Component() {
     );
   };
 
-  const toggleFAQ = (index) => {
+  const toggleFAQ = (index: number) => {
     setExpandedFAQ(expandedFAQ === index ? null : index);
   };
 

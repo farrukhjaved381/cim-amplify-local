@@ -57,6 +57,32 @@ const getFirstName = (fullName?: string | null): string => {
 export class DealsService {
   private readonly logger = new Logger(DealsService.name);
 
+  // Email-action token signatures rely on JWT_SECRET. We refuse to operate
+  // with the legacy 'fallback-secret' in production: a known constant secret
+  // would let anyone forge HMAC signatures and mint valid action tokens.
+  // In non-production environments we fall back with a loud warning so local
+  // dev still works, but production must always have a real secret set.
+  private static cachedHmacSecret: string | null = null;
+  private getHmacSecret(): string {
+    if (DealsService.cachedHmacSecret) return DealsService.cachedHmacSecret;
+    const configured = process.env.JWT_SECRET;
+    if (configured && configured.length >= 16) {
+      DealsService.cachedHmacSecret = configured;
+      return configured;
+    }
+    if (process.env.NODE_ENV === 'production') {
+      throw new InternalServerErrorException('Server misconfigured: JWT_SECRET is missing or too short.');
+    }
+    if (!configured) {
+      this.logger.warn('JWT_SECRET is not set. Using insecure fallback for email-action tokens. SET JWT_SECRET BEFORE DEPLOYING.');
+    } else {
+      this.logger.warn('JWT_SECRET is shorter than 16 characters. Using as-is in dev only. SET A STRONG SECRET BEFORE DEPLOYING.');
+    }
+    const dev = configured || 'fallback-secret';
+    DealsService.cachedHmacSecret = dev;
+    return dev;
+  }
+
   private formatError(error: unknown): string {
     if (error instanceof Error) {
       return error.stack || error.message;
@@ -237,7 +263,7 @@ export class DealsService {
 
     try {
       const rawToken = crypto.randomBytes(32).toString('hex');
-      const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+      const hmacSecret = this.getHmacSecret();
       const signature = crypto.createHmac('sha256', hmacSecret)
         .update(`${rawToken}:${dealId}:${buyerId}`)
         .digest('hex');
@@ -264,7 +290,7 @@ export class DealsService {
     try {
       const rawToken = crypto.randomBytes(32).toString('hex');
       const signature = crypto
-        .createHmac('sha256', process.env.JWT_SECRET || 'fallback-secret')
+        .createHmac('sha256', this.getHmacSecret())
         .update(`${rawToken}:${dealId}:${sellerId}`)
         .digest('hex');
 
@@ -293,7 +319,7 @@ export class DealsService {
     try {
       const rawToken = crypto.randomBytes(32).toString('hex');
       const signature = crypto
-        .createHmac('sha256', process.env.JWT_SECRET || 'fallback-secret')
+        .createHmac('sha256', this.getHmacSecret())
         .update(`${rawToken}:${dealId}:${sellerId}:${buyerId}`)
         .digest('hex');
 
@@ -864,7 +890,7 @@ export class DealsService {
 
           try {
             const rawToken = crypto.randomBytes(32).toString('hex');
-            const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+            const hmacSecret = this.getHmacSecret();
             const dealIdStr = (deal._id as Types.ObjectId).toString();
             const signature = crypto.createHmac('sha256', hmacSecret)
               .update(`${rawToken}:${dealIdStr}:${buyerId}`)
@@ -2096,7 +2122,7 @@ export class DealsService {
 
             try {
               const rawToken = crypto.randomBytes(32).toString('hex');
-              const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+              const hmacSecret = this.getHmacSecret();
               const signature = crypto.createHmac('sha256', hmacSecret)
                 .update(`${rawToken}:${dealIdStr}:${buyerId}`)
                 .digest('hex');
@@ -4449,31 +4475,32 @@ export class DealsService {
         }
       }
 
-      // Fetch active buyers info
-      const activeBuyers: { fullName: string; companyName: string; email: string }[] = [];
-      for (const buyerId of activeBuyerIds) {
-        const buyer = await this.buyerModel.findById(buyerId).exec();
-        if (buyer) {
-          activeBuyers.push({
-            fullName: buyer.fullName,
-            companyName: buyer.companyName,
-            email: buyer.email,
-          });
-        }
+      // Single batched fetch for both active and pending buyers — avoids the
+      // previous N+1 (one findById per buyer id, ~200 queries on a 100-buyer
+      // deal). Build a Map keyed by buyer _id, then group results.
+      const allBuyerIds = [...activeBuyerIds, ...pendingBuyerIds];
+      const buyerDocs = allBuyerIds.length > 0
+        ? await this.buyerModel
+            .find({ _id: { $in: allBuyerIds } })
+            .select('fullName companyName email')
+            .lean()
+            .exec()
+        : [];
+      const buyerById = new Map<string, { fullName: string; companyName: string; email: string }>();
+      for (const b of buyerDocs) {
+        buyerById.set(String(b._id), {
+          fullName: (b as any).fullName,
+          companyName: (b as any).companyName,
+          email: (b as any).email,
+        });
       }
 
-      // Fetch pending buyers info
-      const pendingBuyers: { fullName: string; companyName: string; email: string }[] = [];
-      for (const buyerId of pendingBuyerIds) {
-        const buyer = await this.buyerModel.findById(buyerId).exec();
-        if (buyer) {
-          pendingBuyers.push({
-            fullName: buyer.fullName,
-            companyName: buyer.companyName,
-            email: buyer.email,
-          });
-        }
-      }
+      const activeBuyers = activeBuyerIds
+        .map((id) => buyerById.get(String(id)))
+        .filter((b): b is { fullName: string; companyName: string; email: string } => !!b);
+      const pendingBuyers = pendingBuyerIds
+        .map((id) => buyerById.get(String(id)))
+        .filter((b): b is { fullName: string; companyName: string; email: string } => !!b);
 
       // Build active buyers list HTML for project owner
       const activeBuyersHtml = activeBuyers.length > 0
@@ -4776,15 +4803,11 @@ export class DealsService {
   }
 
   /**
-   * Handle a deal action from an email link using a token (no login required).
-   * Validates the token, performs the action, and marks the token as used.
+   * Validate a deal-action email token without consuming it.
+   * Used by public endpoints that need to read deal data scoped to a token
+   * (for example, fetching the buyer list before submitting an action).
    */
-  async handleEmailAction(
-    token: string,
-    action: 'activate' | 'pass' | 'loi' | 'off-market' | 'flag-inactive',
-    ip?: string,
-    userAgent?: string,
-  ): Promise<{ success: boolean; message: string; dealTitle?: string }> {
+  private async validateEmailActionToken(token: string, ip?: string): Promise<DealActionTokenDocument> {
     const actionToken = await this.dealActionTokenModel.findOne({ token }).exec();
 
     if (!actionToken) {
@@ -4792,8 +4815,7 @@ export class DealsService {
       throw new NotFoundException('This link is invalid or has expired.');
     }
 
-    // Verify HMAC signature to ensure token data hasn't been tampered with
-    const hmacSecret = process.env.JWT_SECRET || 'fallback-secret';
+    const hmacSecret = this.getHmacSecret();
     const recipientId = actionToken.recipientRole === 'seller'
       ? (actionToken.sellerId || '')
       : (actionToken.buyerId || '');
@@ -4813,20 +4835,146 @@ export class DealsService {
       throw new BadRequestException('This link has expired. Please log in to your dashboard to take action.');
     }
 
+    return actionToken;
+  }
+
+  /**
+   * Public lookup of ever-active buyers for the deal referenced by an email
+   * action token. Used by the seller-action page to populate the buyer
+   * selection list for LOI / Off Market without requiring login.
+   */
+  async getEverActiveBuyersByActionToken(token: string, ip?: string): Promise<any[]> {
+    const actionToken = await this.validateEmailActionToken(token, ip);
+
+    if (actionToken.recipientRole !== 'seller') {
+      throw new BadRequestException('This link does not allow buyer selection.');
+    }
+
     if (actionToken.used) {
-      const previousAction = actionToken.actionTaken === 'active'
-        ? 'moved to Active'
-        : actionToken.actionTaken === 'loi'
-          ? 'paused for LOI'
-          : actionToken.actionTaken === 'completed'
-            ? 'taken off market'
-            : actionToken.recipientRole === 'seller' && action === 'flag-inactive'
-              ? 'already flagged inactive'
-            : 'passed on';
+      return [];
+    }
+
+    return this.getEverActiveBuyers(actionToken.dealId);
+  }
+
+  /**
+   * Build the human-readable "already done" message for a used action token.
+   * Centralised so the GET /status endpoint and the POST handler agree, and
+   * so we can correctly disambiguate flag-inactive tokens from off-market
+   * ones — both used to be stored with actionTaken='completed', so we fall
+   * back to inspecting the token shape (buyerId presence on a seller token
+   * means it's a buyer-flag token).
+   */
+  private describePreviousAction(actionToken: DealActionTokenDocument): string {
+    const isLegacyFlagInactive =
+      actionToken.actionTaken === 'completed' &&
+      actionToken.recipientRole === 'seller' &&
+      !!actionToken.buyerId;
+
+    if (actionToken.actionTaken === 'flag-inactive' || isLegacyFlagInactive) {
+      return 'flagged this buyer as inactive on';
+    }
+    if (actionToken.actionTaken === 'active') return 'moved to Active';
+    if (actionToken.actionTaken === 'loi') return 'paused for LOI';
+    if (actionToken.actionTaken === 'completed') return 'taken off market';
+    if (actionToken.actionTaken === 'rejected') return 'passed on';
+    // Unknown / null — generic fallback.
+    return 'taken action on';
+  }
+
+  private buildAlreadyDoneMessage(actionToken: DealActionTokenDocument): string {
+    const verb = this.describePreviousAction(actionToken);
+    if (verb === 'flagged this buyer as inactive on') {
+      return 'You have already flagged this buyer as inactive on this deal.';
+    }
+    if (verb === 'taken action on') {
+      return 'You have already taken action on this deal.';
+    }
+    return `You have already ${verb} this deal.`;
+  }
+
+  /**
+   * Public token status lookup so the seller-action page can detect, on load,
+   * that a previously-used token should immediately show "already done"
+   * instead of re-prompting the user with the action dialog.
+   */
+  async getEmailActionTokenStatus(
+    token: string,
+    ip?: string,
+  ): Promise<{ used: boolean; actionTaken?: string; recipientRole?: string; message?: string }> {
+    const actionToken = await this.validateEmailActionToken(token, ip);
+
+    if (!actionToken.used) {
+      return { used: false, recipientRole: actionToken.recipientRole };
+    }
+
+    return {
+      used: true,
+      actionTaken: actionToken.actionTaken || undefined,
+      recipientRole: actionToken.recipientRole,
+      message: this.buildAlreadyDoneMessage(actionToken),
+    };
+  }
+
+  /**
+   * Handle a deal action from an email link using a token (no login required).
+   * Validates the token, performs the action, and marks the token as used.
+   */
+  async handleEmailAction(
+    token: string,
+    action: 'activate' | 'pass' | 'loi' | 'off-market' | 'flag-inactive',
+    ip?: string,
+    userAgent?: string,
+    payload: {
+      buyerFromCIM?: boolean;
+      winningBuyerId?: string;
+      loiBuyerId?: string;
+      finalSalePrice?: number;
+    } = {},
+  ): Promise<{ success: boolean; message: string; dealTitle?: string }> {
+    const actionToken = await this.validateEmailActionToken(token, ip);
+
+    if (actionToken.used) {
       return {
         success: true,
-        message: `You have already ${previousAction} this deal.`,
+        message: this.buildAlreadyDoneMessage(actionToken),
       };
+    }
+
+    // Defensive payload validation. Email-action endpoints are public (no auth)
+    // so we cannot trust client-supplied fields beyond the HMAC-signed token.
+    const buyerFromCIMRaw = payload.buyerFromCIM;
+    if (buyerFromCIMRaw !== undefined && typeof buyerFromCIMRaw !== 'boolean') {
+      throw new BadRequestException('Invalid buyerFromCIM value.');
+    }
+    const buyerFromCIM = buyerFromCIMRaw === true;
+
+    let validatedFinalSalePrice: number | undefined;
+    if (payload.finalSalePrice !== undefined && payload.finalSalePrice !== null) {
+      const price = Number(payload.finalSalePrice);
+      // Cap at 1 trillion USD to prevent overflow / nonsense values.
+      if (!Number.isFinite(price) || price < 0 || price > 1_000_000_000_000) {
+        throw new BadRequestException('Invalid final sale price.');
+      }
+      validatedFinalSalePrice = price;
+    }
+
+    const candidateBuyerId = buyerFromCIM
+      ? (action === 'loi' ? payload.loiBuyerId : action === 'off-market' ? payload.winningBuyerId : undefined)
+      : undefined;
+    let validatedBuyerId: string | undefined;
+    if (candidateBuyerId !== undefined) {
+      if (typeof candidateBuyerId !== 'string' || !Types.ObjectId.isValid(candidateBuyerId)) {
+        throw new BadRequestException('Invalid buyer id.');
+      }
+      // Ensure the buyer was actually associated with this deal — prevents a
+      // valid-token holder from attributing the close to an arbitrary buyer.
+      const dealForBuyerCheck = await this.dealModel.findById(actionToken.dealId).select('everActiveBuyers').lean().exec();
+      const everActive = ((dealForBuyerCheck as any)?.everActiveBuyers || []).map((id: any) => String(id));
+      if (!everActive.includes(candidateBuyerId)) {
+        throw new BadRequestException('Selected buyer is not associated with this deal.');
+      }
+      validatedBuyerId = candidateBuyerId;
     }
 
     try {
@@ -4839,10 +4987,18 @@ export class DealsService {
         }
 
         if (action === 'loi') {
-          result = await this.moveDealToLOI(actionToken.dealId, actionToken.sellerId, 'seller');
+          result = await this.moveDealToLOI(actionToken.dealId, actionToken.sellerId, 'seller', validatedBuyerId);
           statusMessage = 'Deal paused for LOI via email link';
         } else if (action === 'off-market') {
-          result = await this.closeDealseller(actionToken.dealId, actionToken.sellerId, undefined, 'Action taken via email link', undefined, 'seller');
+          result = await this.closeDealseller(
+            actionToken.dealId,
+            actionToken.sellerId,
+            validatedFinalSalePrice,
+            'Action taken via email link',
+            validatedBuyerId,
+            'seller',
+            buyerFromCIMRaw === undefined ? undefined : buyerFromCIM,
+          );
           statusMessage = 'Deal taken off market via email link';
         } else if (action === 'flag-inactive') {
           if (!actionToken.buyerId) {
@@ -4871,7 +5027,11 @@ export class DealsService {
       actionToken.used = true;
       actionToken.actionTaken =
         actionToken.recipientRole === 'seller'
-          ? (action === 'loi' ? 'loi' : 'completed')
+          ? (action === 'loi'
+              ? 'loi'
+              : action === 'flag-inactive'
+                ? 'flag-inactive'
+                : 'completed')
           : (action === 'activate' ? 'active' : 'rejected');
       actionToken.usedAt = new Date();
       actionToken.usedFromIp = ip || null;
@@ -4879,7 +5039,10 @@ export class DealsService {
       await actionToken.save();
 
       const dealTitle = result?.deal?.title || 'the deal';
-      this.logger.log(`Email action completed: ${actionToken.recipientRole}=${recipientId}, deal=${actionToken.dealId}, action=${action}, IP=${ip || 'unknown'}`);
+      const logRecipientId = actionToken.recipientRole === 'seller'
+        ? (actionToken.sellerId || '')
+        : (actionToken.buyerId || '');
+      this.logger.log(`Email action completed: ${actionToken.recipientRole}=${logRecipientId}, deal=${actionToken.dealId}, action=${action}, IP=${ip || 'unknown'}`);
 
       return {
         success: true,

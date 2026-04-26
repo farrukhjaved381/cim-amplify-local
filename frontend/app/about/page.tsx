@@ -12,6 +12,10 @@ import { Linkedin } from "lucide-react";
 import Header from "@/components/ui/auth-header";
 import Footer from "@/components/ui/auth-footer";
 
+// Cubic-bezier easing as a strict 4-tuple — framer-motion's Easing type
+// rejects a plain number[]. Defining once avoids `as` casts at every call site.
+const SMOOTH_EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
+
 export default function HomePage() {
   const router = useRouter();
   const ref = useRef(null);
@@ -46,7 +50,7 @@ export default function HomePage() {
       y: 0,
       transition: {
         duration: 0.8, // Increased from 0.6 for slower animation
-        ease: [0.4, 0, 0.2, 1], // Smoother easing
+        ease: SMOOTH_EASE,
       },
     },
   };
@@ -259,7 +263,7 @@ export default function HomePage() {
         <motion.div
             initial={{ scale: 1.2, opacity: 0 }}
             animate={{ scale: 1, opacity: 0.8 }}
-            transition={{ duration: 2, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ duration: 2, ease: SMOOTH_EASE }}
         >
             <Image
                 src="/map.png"
@@ -277,7 +281,7 @@ export default function HomePage() {
             className="h-[500px] mx-auto relative flex items-center justify-center"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1.5, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ duration: 1.5, ease: SMOOTH_EASE }}
         >
             <Image
                 src="/pic6.png"
@@ -718,7 +722,7 @@ From childhood ventures like newspaper routes and selling books to successfully 
           <motion.div
             initial={{ scale: 1.2, opacity: 0 }}
             animate={{ scale: 1, opacity: 0.8 }}
-            transition={{ duration: 2, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ duration: 2, ease: SMOOTH_EASE }}
             className="w-full h-full flex items-center justify-center"
           >
             <Image

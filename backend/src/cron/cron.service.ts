@@ -24,6 +24,12 @@ import {
 import { EmailVerification, EmailVerificationDocument } from '../auth/schemas/email-verification.schema';
 import { CompanyProfile, CompanyProfileDocument } from '../company-profile/schemas/company-profile.schema';
 import { getFrontendUrl } from '../common/frontend-url';
+import pLimit from 'p-limit';
+
+// Concurrency cap for cron email blasts. 20 keeps SMTP providers happy and
+// Mongo connection pool comfortable while still cutting a 1000-recipient
+// monthly send from ~17 minutes (sequential) to ~1 minute.
+const EMAIL_CONCURRENCY = 20;
 
 const getFirstName = (fullName?: string | null): string => {
   const trimmed = fullName?.trim();
@@ -155,8 +161,8 @@ export class CronService {
   @Cron('0 8 1 * *')
   async handleMonthlyBuyerReport() {
     this.logger.log('Running monthly buyer report cron job');
-    const buyers = await this.buyerModel.find({ isEmailVerified: true }).exec();
     const frontendUrl = getFrontendUrl();
+    const BUYER_BATCH = 500;
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -181,7 +187,23 @@ export class CronService {
       return Math.max(0, Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)));
     };
 
-    for (const buyer of buyers) {
+    // Stream buyers in batches of BUYER_BATCH so we don't pin the entire
+    // buyer collection in memory and don't hold a single connection open for
+    // tens of minutes on a large dataset. Inside each batch, send up to
+    // EMAIL_CONCURRENCY reports in parallel.
+    const limit = pLimit(EMAIL_CONCURRENCY);
+    let buyerSkip = 0;
+    while (true) {
+      const buyers = await this.buyerModel
+        .find({ isEmailVerified: true })
+        .sort({ _id: 1 })
+        .skip(buyerSkip)
+        .limit(BUYER_BATCH)
+        .exec();
+      if (buyers.length === 0) break;
+      buyerSkip += buyers.length;
+
+      await Promise.all(buyers.map((buyer) => limit(async () => {
       try {
         const buyerId = buyer._id.toString();
         const [activeDeals, pendingDeals] = await Promise.all([
@@ -190,7 +212,7 @@ export class CronService {
         ]);
 
         // Only send if buyer has at least one active or pending deal
-        if (activeDeals.length === 0 && pendingDeals.length === 0) continue;
+        if (activeDeals.length === 0 && pendingDeals.length === 0) return;
 
         const subject = `Your CIM Amplify Monthly Deal Report — ${monthYear}`;
 
@@ -259,6 +281,7 @@ export class CronService {
       } catch (error) {
         this.logger.error(`Monthly buyer report failed for ${buyer.email}`, this.formatError(error));
       }
+      })));
     }
   }
 
@@ -269,8 +292,8 @@ export class CronService {
   @Cron('0 9 1 * *')
   async handleMonthlySellerReport() {
     this.logger.log('Running monthly seller/advisor report cron job');
-    const sellers = await this.sellerModel.find({ isEmailVerified: true }).exec();
     const frontendUrl = getFrontendUrl();
+    const SELLER_BATCH = 500;
 
     // Report covers the previous month
     const now = new Date();
@@ -296,7 +319,19 @@ export class CronService {
       createdAt: { $gte: monthStart, $lte: monthEnd },
     }).exec();
 
-    for (const seller of sellers) {
+    const sellerLimit = pLimit(EMAIL_CONCURRENCY);
+    let sellerSkip = 0;
+    while (true) {
+      const sellers = await this.sellerModel
+        .find({ isEmailVerified: true })
+        .sort({ _id: 1 })
+        .skip(sellerSkip)
+        .limit(SELLER_BATCH)
+        .exec();
+      if (sellers.length === 0) break;
+      sellerSkip += sellers.length;
+
+      await Promise.all(sellers.map((seller) => sellerLimit(async () => {
       try {
         const sellerId = seller._id.toString();
         const [activeDeals, loiDeals] = await Promise.all([
@@ -314,6 +349,41 @@ export class CronService {
         let totalBuyerInterest = 0;
         let totalMovements = 0;
         const reportDeals: ReportDeal[] = [];
+
+        // First pass: collect every buyer id we will need to render this
+        // seller's report. One Mongo round-trip covers all their deals
+        // instead of one findById per buyer per deal (was O(deals × buyers)).
+        const buyerIdsNeeded = new Set<string>();
+        for (const { deal } of allReportDeals) {
+          const invStatusObj = deal.invitationStatus instanceof Map
+            ? Object.fromEntries(deal.invitationStatus)
+            : (deal.invitationStatus || {});
+          for (const [buyerId, entry] of Object.entries(invStatusObj)) {
+            if (!entry || typeof entry !== 'object') continue;
+            const e = entry as any;
+            const isActive = e.response === 'accepted';
+            const respondedDate = e.respondedAt ? new Date(e.respondedAt) : null;
+            const inMonth = !!respondedDate && respondedDate >= monthStart && respondedDate <= monthEnd;
+            if (isActive || inMonth) {
+              buyerIdsNeeded.add(buyerId);
+            }
+          }
+        }
+
+        const buyerDocs = buyerIdsNeeded.size > 0
+          ? await this.buyerModel
+              .find({ _id: { $in: Array.from(buyerIdsNeeded) } })
+              .select('fullName companyName')
+              .lean()
+              .exec()
+          : [];
+        const buyerById = new Map<string, { fullName?: string; companyName?: string }>();
+        for (const b of buyerDocs) {
+          buyerById.set(String(b._id), {
+            fullName: (b as any).fullName,
+            companyName: (b as any).companyName,
+          });
+        }
 
         for (const { deal, status } of allReportDeals) {
           const invStatusObj = deal.invitationStatus instanceof Map
@@ -336,23 +406,18 @@ export class CronService {
 
           totalBuyerInterest += activeBuyerEntries.length;
 
-          // Resolve buyer names for active buyers
-          const activeBuyers: ReportBuyer[] = [];
-          for (const { buyerId, entry } of activeBuyerEntries) {
-            try {
-              const buyer = await this.buyerModel.findById(buyerId).select('fullName companyName').lean().exec();
-              activeBuyers.push({
-                buyerId,
-                fullName: (buyer as any)?.fullName || 'Unknown Buyer',
-                companyName: (buyer as any)?.companyName || '',
-                interestedSince: formatDate(entry.respondedAt),
-              });
-            } catch {
-              activeBuyers.push({ buyerId, fullName: 'Unknown Buyer', companyName: '', interestedSince: formatDate(entry.respondedAt) });
-            }
-          }
+          // Resolve buyer names for active buyers (from the prefetched map)
+          const activeBuyers: ReportBuyer[] = activeBuyerEntries.map(({ buyerId, entry }) => {
+            const b = buyerById.get(String(buyerId));
+            return {
+              buyerId,
+              fullName: b?.fullName || 'Unknown Buyer',
+              companyName: b?.companyName || '',
+              interestedSince: formatDate(entry.respondedAt),
+            };
+          });
 
-          // Gather movements this month
+          // Gather movements this month (also using the prefetched map)
           const movements: BuyerMovement[] = [];
           for (const [buyerId, entry] of Object.entries(invStatusObj)) {
             if (!entry || typeof entry !== 'object') continue;
@@ -361,7 +426,6 @@ export class CronService {
             const respondedDate = new Date(e.respondedAt);
             if (respondedDate < monthStart || respondedDate > monthEnd) continue;
 
-            // Determine from/to labels
             const prevStatus = e.previousStatus || 'pending';
             const currentResponse = e.response;
             let fromLabel = 'Pending';
@@ -373,27 +437,16 @@ export class CronService {
             if (currentResponse === 'accepted') toLabel = 'Active';
             else if (currentResponse === 'rejected') toLabel = 'Passed';
 
-            // Skip if no actual change
             if (fromLabel === toLabel) continue;
 
-            try {
-              const buyer = await this.buyerModel.findById(buyerId).select('fullName companyName').lean().exec();
-              movements.push({
-                buyerName: (buyer as any)?.fullName || 'Unknown Buyer',
-                buyerCompany: (buyer as any)?.companyName || '',
-                fromStatus: fromLabel,
-                toStatus: toLabel,
-                date: formatDate(respondedDate),
-              });
-            } catch {
-              movements.push({
-                buyerName: 'Unknown Buyer',
-                buyerCompany: '',
-                fromStatus: fromLabel,
-                toStatus: toLabel,
-                date: formatDate(respondedDate),
-              });
-            }
+            const b = buyerById.get(String(buyerId));
+            movements.push({
+              buyerName: b?.fullName || 'Unknown Buyer',
+              buyerCompany: b?.companyName || '',
+              fromStatus: fromLabel,
+              toStatus: toLabel,
+              date: formatDate(respondedDate),
+            });
           }
 
           totalMovements += movements.length;
@@ -432,15 +485,27 @@ export class CronService {
       } catch (error) {
         this.logger.error(`Monthly advisor report failed for ${seller.email}`, this.formatError(error));
       }
+      })));
     }
   }
 
   @Cron(CronExpression.EVERY_6_MONTHS)
   async handleSemiAnnualBuyerReminder() {
     this.logger.log('Running semi-annual buyer reminder cron job');
-    const buyers = await this.buyerModel.find().exec();
+    const BUYER_BATCH = 500;
+    const reminderLimit = pLimit(EMAIL_CONCURRENCY);
+    let buyerSkip = 0;
+    while (true) {
+      const buyers = await this.buyerModel
+        .find()
+        .sort({ _id: 1 })
+        .skip(buyerSkip)
+        .limit(BUYER_BATCH)
+        .exec();
+      if (buyers.length === 0) break;
+      buyerSkip += buyers.length;
 
-    for (const buyer of buyers) {
+      await Promise.all(buyers.map((buyer) => reminderLimit(async () => {
       try {
         const subject = 'Please Make Sure Your CIM Amplify Target Criteria is Up to Date';
         const emailContent = `
@@ -459,6 +524,7 @@ export class CronService {
       } catch (error) {
         this.logger.error(`Semi-annual reminder failed for buyer ${buyer.email}`, this.formatError(error));
       }
+      })));
     }
   }
 
@@ -486,14 +552,23 @@ export class CronService {
     const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
     const fourDaysAgo = new Date(now.getTime() - (4 * 24 * 60 * 60 * 1000));
 
-    // Find deals with accepted invitations from ~3 days ago that haven't been followed up
-    const deals = await this.dealModel.find({
-      status: { $nin: ['completed'] },
-    }).exec();
-
+    // Stream deals in batches so a large catalog doesn't pin the connection
+    // pool or memory for the duration of the cron.
+    const DEAL_BATCH = 500;
+    let dealSkip = 0;
     let followUpsSent = 0;
 
-    for (const deal of deals) {
+    while (true) {
+      const deals = await this.dealModel
+        .find({ status: { $nin: ['completed'] } })
+        .sort({ _id: 1 })
+        .skip(dealSkip)
+        .limit(DEAL_BATCH)
+        .exec();
+      if (deals.length === 0) break;
+      dealSkip += deals.length;
+
+      for (const deal of deals) {
       const invitationStatusObj = deal.invitationStatus instanceof Map
         ? Object.fromEntries(deal.invitationStatus)
         : (deal.invitationStatus || {});
@@ -602,6 +677,7 @@ export class CronService {
         } catch (error) {
           this.logger.error(`Introduction follow-up failed for deal ${deal._id}, buyer ${buyerId}`, this.formatError(error));
         }
+      }
       }
     }
 

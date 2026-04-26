@@ -28,7 +28,7 @@ export class DealActionToken {
   used: boolean
 
   @Prop({ type: String, default: null })
-  actionTaken: 'active' | 'rejected' | 'loi' | 'completed' | null
+  actionTaken: 'active' | 'rejected' | 'loi' | 'completed' | 'flag-inactive' | null
 
   @Prop({ type: Date, default: null })
   usedAt: Date | null

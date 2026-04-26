@@ -32,21 +32,25 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { AdminProtectedRoute } from "@/components/admin/protected-route";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Area,
-  AreaChart,
-} from "recharts";
+
+// recharts is ~95 KB minified. Lazy-loading the wrapper keeps it out of the
+// initial admin bundle; charts render on the client a beat after first paint.
+// recharts ships class components whose prop types don't satisfy next/dynamic's
+// ComponentType<P> generic, so each dynamic() is typed via the generic param.
+const BarChart = dynamic<any>(() => import("recharts").then((m) => m.BarChart as any), { ssr: false });
+const Bar = dynamic<any>(() => import("recharts").then((m) => m.Bar as any), { ssr: false });
+const XAxis = dynamic<any>(() => import("recharts").then((m) => m.XAxis as any), { ssr: false });
+const YAxis = dynamic<any>(() => import("recharts").then((m) => m.YAxis as any), { ssr: false });
+const CartesianGrid = dynamic<any>(() => import("recharts").then((m) => m.CartesianGrid as any), { ssr: false });
+const Tooltip = dynamic<any>(() => import("recharts").then((m) => m.Tooltip as any), { ssr: false });
+const ResponsiveContainer = dynamic<any>(() => import("recharts").then((m) => m.ResponsiveContainer as any), { ssr: false });
+const PieChart = dynamic<any>(() => import("recharts").then((m) => m.PieChart as any), { ssr: false });
+const Pie = dynamic<any>(() => import("recharts").then((m) => m.Pie as any), { ssr: false });
+const Cell = dynamic<any>(() => import("recharts").then((m) => m.Cell as any), { ssr: false });
+const Area = dynamic<any>(() => import("recharts").then((m) => m.Area as any), { ssr: false });
+const AreaChart = dynamic<any>(() => import("recharts").then((m) => m.AreaChart as any), { ssr: false });
 
 // Types
 interface DashboardStats {

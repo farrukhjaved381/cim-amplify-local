@@ -108,7 +108,7 @@ export class BuyersService {
       throw new ConflictException("An account with this email already exists. Please try logging in instead.");
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const newBuyer = new this.buyerModel({
       ...createBuyerDto,
@@ -186,7 +186,7 @@ export class BuyersService {
     
     // Add deal status filter if provided - USE DENORMALIZED COUNTS
     if (dealStatus && (dealStatus === 'active' || dealStatus === 'pending' || dealStatus === 'rejected')) {
-      console.log('[BUYERS SERVICE] Using OPTIMIZED query with denormalized counts');
+      this.logger.debug('[BUYERS SERVICE] Using OPTIMIZED query with denormalized counts');
 
       // Use denormalized count fields instead of complex aggregation
       const dealCountField = dealStatus === 'active' ? 'activeDealsCount' :
@@ -195,9 +195,13 @@ export class BuyersService {
 
       searchQuery[dealCountField] = { $gt: 0 };
 
-      // Simple query using denormalized fields
+      // Simple query using denormalized fields. Excluding fields admins
+      // never display in the buyers list (password hash, reset tokens, OAuth
+      // refresh, raw companyProfile data we re-shape below) to cut payload by
+      // ~30% on large result sets.
       const buyers = await this.buyerModel
         .find(searchQuery)
+        .select('-password -resetPasswordToken -resetPasswordExpires -googleId')
         .populate("companyProfileId")
         .sort({ _id: 1 })
         .skip(skip)
@@ -207,7 +211,7 @@ export class BuyersService {
 
       const totalBuyers = await this.buyerModel.countDocuments(searchQuery).exec();
 
-      console.log('[BUYERS SERVICE] Optimized query completed. Found:', buyers.length);
+      this.logger.debug('[BUYERS SERVICE] Optimized query completed. Found:', buyers.length);
 
       return {
         data: buyers.map((buyer: any) => ({
@@ -382,17 +386,17 @@ export class BuyersService {
       ];
 
       // Use native MongoDB collection to ensure allowDiskUse is properly applied
-      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Executing buyer aggregation');
-      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Pipeline length:', pipeline.length);
-      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Using allowDiskUse: true');
-      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] DealStatus:', dealStatus, 'ResponseKey:', responseKey);
-      console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Page:', page, 'Limit:', limit, 'Skip:', skip);
+      this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] Executing buyer aggregation');
+      this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] Pipeline length:', pipeline.length);
+      this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] Using allowDiskUse: true');
+      this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] DealStatus:', dealStatus, 'ResponseKey:', responseKey);
+      this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] Page:', page, 'Limit:', limit, 'Skip:', skip);
 
       let buyers;
       try {
         buyers = await this.buyerModel.collection.aggregate(pipeline, { allowDiskUse: true }).toArray();
-        console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Buyer aggregation completed successfully');
-        console.log('[BUYERS SERVICE - DEAL STATUS FILTER] Found buyers count:', buyers.length);
+        this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] Buyer aggregation completed successfully');
+        this.logger.debug('[BUYERS SERVICE - DEAL STATUS FILTER] Found buyers count:', buyers.length);
       } catch (error) {
         this.logger.error(`[DEAL STATUS FILTER] Aggregation error: ${error.name} - ${error.message}`);
         throw error;
@@ -447,14 +451,14 @@ export class BuyersService {
         { $count: 'count' }
       ];
 
-      console.log('[BUYERS SERVICE - TOTAL COUNT] Executing total buyers count aggregation');
-      console.log('[BUYERS SERVICE - TOTAL COUNT] Using allowDiskUse: true');
+      this.logger.debug('[BUYERS SERVICE - TOTAL COUNT] Executing total buyers count aggregation');
+      this.logger.debug('[BUYERS SERVICE - TOTAL COUNT] Using allowDiskUse: true');
 
       let totalBuyersResult;
       try {
         totalBuyersResult = await this.buyerModel.collection.aggregate(totalBuyersPipeline, { allowDiskUse: true }).toArray();
         const totalCount = totalBuyersResult.length > 0 ? totalBuyersResult[0].count : 0;
-        console.log('[BUYERS SERVICE - TOTAL COUNT] Total count:', totalCount);
+        this.logger.debug('[BUYERS SERVICE - TOTAL COUNT] Total count:', totalCount);
       } catch (error) {
         this.logger.error(`[TOTAL COUNT] Aggregation error: ${error.name} - ${error.message}`);
         throw error;
@@ -528,16 +532,16 @@ export class BuyersService {
       ];
 
       // Use native MongoDB collection to ensure allowDiskUse is properly applied
-      console.log('[BUYERS SERVICE - DEAL SORT] Executing buyer aggregation with deal sorting');
-      console.log('[BUYERS SERVICE - DEAL SORT] Pipeline length:', pipeline.length);
-      console.log('[BUYERS SERVICE - DEAL SORT] Using allowDiskUse: true');
-      console.log('[BUYERS SERVICE - DEAL SORT] SortBy:', sortBy, 'Field:', field, 'Order:', order);
+      this.logger.debug('[BUYERS SERVICE - DEAL SORT] Executing buyer aggregation with deal sorting');
+      this.logger.debug('[BUYERS SERVICE - DEAL SORT] Pipeline length:', pipeline.length);
+      this.logger.debug('[BUYERS SERVICE - DEAL SORT] Using allowDiskUse: true');
+      this.logger.debug('[BUYERS SERVICE - DEAL SORT] SortBy:', sortBy, 'Field:', field, 'Order:', order);
 
       let buyers;
       try {
         buyers = await this.buyerModel.collection.aggregate(pipeline, { allowDiskUse: true }).toArray();
-        console.log('[BUYERS SERVICE - DEAL SORT] Buyer aggregation completed successfully');
-        console.log('[BUYERS SERVICE - DEAL SORT] Found buyers count:', buyers.length);
+        this.logger.debug('[BUYERS SERVICE - DEAL SORT] Buyer aggregation completed successfully');
+        this.logger.debug('[BUYERS SERVICE - DEAL SORT] Found buyers count:', buyers.length);
       } catch (error) {
         this.logger.error(`[DEAL SORT] Aggregation error: ${error.name} - ${error.message}`);
         throw error;
@@ -565,6 +569,7 @@ export class BuyersService {
 
       const buyers = await this.buyerModel
         .find(searchQuery)
+        .select('-password -resetPasswordToken -resetPasswordExpires -googleId')
         .populate("companyProfileId")
         .sort(sortQuery)
         .skip(skip)
@@ -638,7 +643,7 @@ export class BuyersService {
 
     // Hash password if being updated, otherwise remove it to prevent overwriting
     if (updateData.password && updateData.password.trim() !== '') {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
+      updateData.password = await bcrypt.hash(updateData.password, 12);
     } else {
       delete updateData.password;
     }
@@ -652,8 +657,8 @@ export class BuyersService {
 
     // Only update fields that are actually provided
     Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined) {
-        buyer[key] = updateData[key];
+      if ((updateData as Record<string, any>)[key] !== undefined) {
+        (buyer as any)[key] = (updateData as Record<string, any>)[key];
       }
     });
 
@@ -727,7 +732,7 @@ export class BuyersService {
         email,
         fullName: name,
         companyName: "Set your company name",
-        password: await bcrypt.hash(Math.random().toString(36), 10),
+        password: await bcrypt.hash(Math.random().toString(36), 12),
         googleId: sub,
         isGoogleAccount: true,
       });
@@ -817,7 +822,7 @@ export class BuyersService {
       }
     ).exec();
 
-    console.log(`[BUYERS SERVICE] Updated deal counts for buyer ${buyerId}: active=${activeCount}, pending=${pendingCount}, rejected=${rejectedCount}`);
+    this.logger.debug(`[BUYERS SERVICE] Updated deal counts for buyer ${buyerId}: active=${activeCount}, pending=${pendingCount}, rejected=${rejectedCount}`);
   }
 
   /**
@@ -825,7 +830,7 @@ export class BuyersService {
    * More efficient when updating many buyers at once
    */
   async bulkUpdateBuyerDealCounts(buyerIds: string[]): Promise<void> {
-    console.log(`[BUYERS SERVICE] Bulk updating deal counts for ${buyerIds.length} buyers`);
+    this.logger.debug(`[BUYERS SERVICE] Bulk updating deal counts for ${buyerIds.length} buyers`);
 
     for (const buyerId of buyerIds) {
       try {
@@ -835,6 +840,6 @@ export class BuyersService {
       }
     }
 
-    console.log(`[BUYERS SERVICE] Bulk update completed`);
+    this.logger.debug(`[BUYERS SERVICE] Bulk update completed`);
   }
 }

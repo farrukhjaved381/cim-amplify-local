@@ -17,8 +17,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30 * 1000, // 30 seconds
-            gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
+            // 60s default keeps tab-to-tab navigation snappy without serving
+            // genuinely stale data. Per-hook overrides (e.g. profile pages,
+            // 5min) can extend further where data really doesn't change.
+            staleTime: 60 * 1000,
+            gcTime: 10 * 60 * 1000, // hold in cache 10min after last subscriber unmounts
             retry: (failureCount, error) => {
               const status = getHttpStatus(error);
               if (status && status >= 400 && status < 500) {
@@ -27,6 +30,9 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
               return failureCount < 2;
             },
             refetchOnWindowFocus: false,
+            // Don't fire a fresh request the instant the network reconnects;
+            // the staleTime guarantees a refresh on the next genuine read.
+            refetchOnReconnect: false,
           },
         },
       })

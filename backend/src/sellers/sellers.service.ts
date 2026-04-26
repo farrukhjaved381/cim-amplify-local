@@ -34,7 +34,7 @@ export class SellersService {
         throw new ConflictException('An account with this email already exists. Please try logging in instead.');
       }
       // Hash the password before saving
-      const hashedPassword = await bcrypt.hash(createSellerDto.password, 10);
+      const hashedPassword = await bcrypt.hash(createSellerDto.password, 12);
       const createdSeller = new this.sellerModel({
         ...createSellerDto,
         email: normalizedEmail,

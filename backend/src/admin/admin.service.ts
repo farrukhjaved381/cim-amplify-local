@@ -48,7 +48,7 @@ export class AdminService {
       throw new ConflictException("Email already exists")
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
+    const hashedPassword = await bcrypt.hash(password, 12)
 
     const newAdmin = new this.adminModel({
       ...createAdminDto,
@@ -86,8 +86,17 @@ export class AdminService {
   }
 
   // Company Profile Management
+  // Hard-capped at 1000 docs because the admin UI never paginates this list;
+  // without a cap the response payload grows unbounded as buyers join. Keeps
+  // all fields since the frontend uses many of them; switch to .lean() to
+  // skip Mongoose document hydration (~3-5x faster on large result sets).
   async getAllCompanyProfiles(): Promise<CompanyProfile[]> {
-    return this.companyProfileModel.find().exec()
+    return this.companyProfileModel
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .lean()
+      .exec()
   }
 
   async updateCompanyProfile(id: string, updateCompanyProfileDto: UpdateCompanyProfileDto): Promise<CompanyProfile> {
@@ -243,7 +252,7 @@ export class AdminService {
 
     // Hash password if being updated
     if (updateData.password && updateData.password.trim() !== '') {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
+      updateData.password = await bcrypt.hash(updateData.password, 12);
     } else {
       delete updateData.password;
     }

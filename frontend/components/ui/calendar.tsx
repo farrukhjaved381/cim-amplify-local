@@ -43,8 +43,12 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        // react-day-picker v9 unified IconLeft/IconRight into a single Chevron
+        // component with an `orientation` prop. Branch on that here.
+        Chevron: ({ orientation }: { orientation?: 'left' | 'right' | 'up' | 'down' }) =>
+          orientation === 'right'
+            ? <ChevronRight className="h-4 w-4" />
+            : <ChevronLeft className="h-4 w-4" />,
       }}
       {...props}
     />

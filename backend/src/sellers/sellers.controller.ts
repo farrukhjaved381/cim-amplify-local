@@ -88,7 +88,7 @@ export class SellersController {
   @UseGuards(SellerGoogleAuthGuard)
   @ApiOperation({ summary: "Google OAuth callback for sellers" })
   @ApiResponse({ status: 302, description: "Redirects to frontend with token" })
-  async googleAuthCallback(@Request() req, @Res() res: Response) {
+  async googleAuthCallback(@Request() req: any, @Res() res: Response) {
     try {
       if (!req.user) {
         this.logger.warn("No user found in request after Google authentication");

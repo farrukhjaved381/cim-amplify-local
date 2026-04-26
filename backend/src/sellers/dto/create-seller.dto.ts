@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from "class-validator";
 
 const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/;
 
@@ -79,5 +79,10 @@ export class RegisterSellerDto {
   @IsString()
   @IsOptional()
   referralSource?: string;
+
+  @ApiProperty({ example: true, description: "Whether the seller opted in to receive SMS messages" })
+  @IsBoolean()
+  @IsOptional()
+  signUpForSms?: boolean;
 }
 

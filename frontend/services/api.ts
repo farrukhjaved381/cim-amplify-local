@@ -229,6 +229,11 @@ export const sellerRegister = async (userData: {
   email: string
   password: string
   companyName: string
+  title?: string
+  phoneNumber?: string
+  website?: string
+  referralSource?: string
+  signUpForSms?: boolean
 }) => {
   const response = await api.post("/sellers/register", userData)
   return response.data
@@ -298,6 +303,8 @@ export const register = async (userData: {
   companyName: string
   phone: string
   website: string
+  referralSource?: string
+  signUpForSms?: boolean
 }) => {
   const response = await api.post("/buyers/register", userData)
   return response.data

@@ -79,6 +79,10 @@ export class Buyer {
   @Prop({ required: false, default: "" })
   referralSource: string
 
+  @ApiProperty({ description: "Whether the buyer opted in to receive SMS messages" })
+  @Prop({ required: false })
+  signUpForSms?: boolean
+
   @ApiProperty({
     description: "Buyer email preferences",
     default: {

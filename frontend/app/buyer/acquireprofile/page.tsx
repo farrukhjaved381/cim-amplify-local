@@ -80,6 +80,8 @@ interface CompanyProfile {
     description: string;
   };
   agreements: {
+    termsAndConditionsAccepted: boolean;
+    ndaAccepted: boolean;
     feeAgreementAccepted: boolean;
   };
   selectedCurrency: string;
@@ -191,6 +193,8 @@ export default function AcquireProfilePage() {
       description: "",
     },
     agreements: {
+      termsAndConditionsAccepted: false,
+      ndaAccepted: false,
       feeAgreementAccepted: false,
     },
     selectedCurrency: "USD",
@@ -907,7 +911,7 @@ const validateField = (field: string, value: any): string | null => {
     
   
     
-    const element = document.getElementById(elementId);
+    const element = document.getElementById(elementId) as HTMLInputElement | null;
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       // Focus the element after a short delay
@@ -2087,7 +2091,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                               );
                             }
                           }}
-                          required
                         />
                       </div>
                       {fieldErrors["targetCriteria.ebitdaMax"] && (
@@ -2190,7 +2193,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                               );
                             }
                           }}
-                          required
                         />
                       </div>
                       {fieldErrors["targetCriteria.transactionSizeMax"] && (

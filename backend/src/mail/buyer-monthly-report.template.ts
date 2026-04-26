@@ -260,7 +260,6 @@ export function buyerMonthlyReportTemplate(data: BuyerReportData): string {
     <!-- Login CTA -->
     <div style="margin-top:16px;text-align:center;padding:16px;border:0.5px dashed #ccc;border-radius:10px;">
       <div><a href="${data.frontendUrl}/buyer/deals" style="display:inline-block;font-size:13px;font-weight:500;background:${C.tealPrimary};color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;">Log in to your buyer dashboard</a></div>
-      <div style="font-size:11px;color:${C.textMuted};margin-top:6px;">${esc(data.frontendUrl)}/buyer/deals</div>
     </div>
   `;
 

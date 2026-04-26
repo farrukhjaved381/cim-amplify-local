@@ -26,6 +26,7 @@ interface RegisterFormData {
   phoneNumber: string;
   website: string;
   referralSource: string;
+  signUpForSms: boolean;
 }
 
 const REFERRAL_SOURCES = [
@@ -51,6 +52,7 @@ export default function SellerRegisterPage() {
     phoneNumber: "",
     website: "",
     referralSource: "",
+    signUpForSms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -163,6 +165,7 @@ export default function SellerRegisterPage() {
         phoneNumber: formData.phoneNumber,
         website: formData.website,
         referralSource: formData.referralSource,
+        signUpForSms: formData.signUpForSms,
       });
 
       // Store token and user info if returned from registration
@@ -496,6 +499,28 @@ export default function SellerRegisterPage() {
                     {errors.referralSource}
                   </p>
                 )}
+              </div>
+
+              {/* Sign up for SMS */}
+              <div className="space-y-1.5">
+                <label htmlFor="signUpForSms" className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    id="signUpForSms"
+                    name="signUpForSms"
+                    type="checkbox"
+                    checked={formData.signUpForSms}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, signUpForSms: e.target.checked }))
+                    }
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    <span className="font-medium">Sign up for SMS</span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      You agree to receive automated transactional messages. Message frequency may vary. Standard message and data rates may apply. Reply STOP to opt out, HELP for assistance. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+                    </span>
+                  </span>
+                </label>
               </div>
 
               {/* Password Field */}

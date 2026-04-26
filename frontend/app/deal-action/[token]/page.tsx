@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 
@@ -19,6 +19,11 @@ export default function DealActionPage() {
   const [showCloseHint, setShowCloseHint] = useState(false);
   const [awaitingConfirm, setAwaitingConfirm] = useState(action === 'flag-inactive' && role === 'seller');
 
+  // Guards against React StrictMode double-invoke and any other re-render races,
+  // which previously caused a brief "error/warning" modal flash before the real
+  // success modal appeared on the buyer monthly report links.
+  const requestInFlightRef = useRef(false);
+
   const tryCloseTab = () => {
     window.close();
     setTimeout(() => {
@@ -33,7 +38,7 @@ export default function DealActionPage() {
       return;
     }
 
-    if (!action || !['activate', 'pass', 'loi', 'off-market', 'flag-inactive'].includes(action)) {
+    if (!['activate', 'pass', 'loi', 'off-market', 'flag-inactive'].includes(action)) {
       setState('error');
       setMessage('Invalid action. The link may be malformed.');
       return;
@@ -47,11 +52,17 @@ export default function DealActionPage() {
       return;
     }
 
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+
+    const controller = new AbortController();
+
     const performAction = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const response = await fetch(`${apiUrl}/deals/email-action/${token}?action=${action}`, {
           method: 'POST',
+          signal: controller.signal,
         });
 
         const data = await response.json();
@@ -68,24 +79,41 @@ export default function DealActionPage() {
           setState('error');
           setMessage(data.message || 'Something went wrong. Please try logging in to your dashboard.');
         }
-      } catch {
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         setState('error');
         setMessage('Unable to connect to the server. Please try again later or log in to your dashboard.');
       }
     };
 
     performAction();
-  }, [token, action]);
+
+    return () => {
+      controller.abort();
+    };
+  }, [token, action, role]);
+
+  // Per-second auto-close countdown so the user can see it ticking down.
+  const [closeCountdown, setCloseCountdown] = useState<number | null>(null);
 
   useEffect(() => {
     if (state !== 'success' && state !== 'already_done') return;
     if (action === 'flag-inactive' && role === 'seller') return;
 
-    const closeTimer = setTimeout(() => {
-      tryCloseTab();
-    }, 5000);
+    setCloseCountdown(5);
+    const interval = window.setInterval(() => {
+      setCloseCountdown((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          window.clearInterval(interval);
+          tryCloseTab();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-    return () => clearTimeout(closeTimer);
+    return () => window.clearInterval(interval);
   }, [state]);
 
   const isActivate = action === 'activate' || action === 'loi';
@@ -202,6 +230,13 @@ export default function DealActionPage() {
                 : message}
             </p>
 
+            {/* Auto-close countdown */}
+            {(state === 'success' || state === 'already_done') && closeCountdown !== null && closeCountdown > 0 && !isFlagFlow && (
+              <p className="text-xs text-gray-500 mb-4">
+                This tab will close automatically in {closeCountdown} second{closeCountdown === 1 ? '' : 's'}...
+              </p>
+            )}
+
             {/* Action buttons */}
             {state !== 'loading' && !awaitingConfirm && !isFlagFlow && (
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -210,7 +245,7 @@ export default function DealActionPage() {
                   className="inline-block w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-white font-medium text-sm transition-colors hover:opacity-90"
                   style={{ backgroundColor: '#3AAFA9' }}
                 >
-                  Go to {isSellerAction ? 'Dashboard' : 'Dashboard'}
+                  Go to Dashboard
                 </a>
                 <button
                   type="button"

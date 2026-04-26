@@ -1,6 +1,6 @@
 import "./shims"
 import { NestFactory } from "@nestjs/core"
-import { ValidationPipe } from "@nestjs/common"
+import { Logger, ValidationPipe } from "@nestjs/common"
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger"
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { join } from 'path'
@@ -10,6 +10,7 @@ import * as express from "express"
 import helmet from "helmet"
 import { GlobalExceptionFilter } from "./common/filters/http-exception.filter"
 
+const bootstrapLogger = new Logger("Bootstrap");
 let cachedApp: NestExpressApplication;
 
 async function bootstrap() {
@@ -25,7 +26,7 @@ async function bootstrap() {
     uploadDirs.forEach(dir => {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
-        console.log(`📁 Created directory: ${dir}`);
+        bootstrapLogger.log(`Created directory: ${dir}`);
       }
     });
 
@@ -75,7 +76,12 @@ async function bootstrap() {
     exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
   })
 
+  // Swagger UI ships inline bootstrap scripts; we relax the CSP only on its
+  // route by registering a route-scoped helmet middleware *before* the global
+  // one. styleSrc keeps 'unsafe-inline' globally since most CSS-in-JS
+  // libraries (Tailwind plugins, framer-motion, etc.) emit inline styles.
   app.use(
+    '/api-docs',
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
       contentSecurityPolicy: {
@@ -83,6 +89,26 @@ async function bootstrap() {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "https:"],
+        },
+      },
+      referrerPolicy: { policy: 'no-referrer' },
+      frameguard: { action: 'deny' },
+    }),
+  )
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          // No 'unsafe-inline' on scripts — the React build emits no inline
+          // <script> tags, so removing it closes a real XSS escalation path.
+          scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
           imgSrc: ["'self'", "data:", "https:"],
           connectSrc: ["'self'", "https:"],
@@ -145,8 +171,8 @@ async function bootstrap() {
   // Only listen on port if not in Vercel environment
   if (process.env.VERCEL !== '1') {
     await app.listen(port);
-    console.log(`🚀 Backend server running on http://localhost:${port}`);
-    console.log(`📚 Swagger docs available at http://localhost:${port}/api-docs`);
+    bootstrapLogger.log(`Backend server running on http://localhost:${port}`);
+    bootstrapLogger.log(`Swagger docs available at http://localhost:${port}/api-docs`);
   } else {
     await app.init();
   }
@@ -159,13 +185,13 @@ async function bootstrap() {
 // This ensures the server starts when running npm run start:dev or npm run start
 if (process.env.VERCEL !== '1' && require.main === module) {
   bootstrap().catch((error) => {
-    console.error('❌ Error starting server:', error);
+    bootstrapLogger.error('Error starting server', error instanceof Error ? error.stack : String(error));
     process.exit(1);
   });
 }
 
 // Vercel serverless handler
-export default async (req, res) => {
+export default async (req: any, res: any) => {
   const app = await bootstrap();
   const server = app.getHttpAdapter().getInstance();
   return server(req, res);

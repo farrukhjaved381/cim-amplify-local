@@ -36,7 +36,10 @@ export class TeamService {
   ) {}
 
   private generateTemporaryPassword(): string {
-    return crypto.randomBytes(6).toString("base64url") // ~8 char readable password
+    // 16 bytes = 128 bits of entropy, ~22 chars in base64url. The previous
+    // 6-byte (48-bit) value was small enough that an offline attacker with
+    // the bcrypt hash could brute-force it in hours.
+    return crypto.randomBytes(16).toString("base64url")
   }
 
   private validatePermissions(ownerType: "seller" | "buyer", permissions: string[]): void {
@@ -186,7 +189,7 @@ export class TeamService {
     await this.checkEmailUniqueness(dto.email)
 
     const tempPassword = this.generateTemporaryPassword()
-    const hashedPassword = await bcrypt.hash(tempPassword, 10)
+    const hashedPassword = await bcrypt.hash(tempPassword, 12)
 
     const member = await this.teamMemberModel.create({
       fullName: dto.fullName,
@@ -266,7 +269,7 @@ export class TeamService {
     if (!member) throw new NotFoundException("Team member not found")
 
     const tempPassword = this.generateTemporaryPassword()
-    member.password = await bcrypt.hash(tempPassword, 10)
+    member.password = await bcrypt.hash(tempPassword, 12)
     member.isTemporaryPassword = true
     await member.save()
 
@@ -320,7 +323,7 @@ export class TeamService {
       }
     }
 
-    member.password = await bcrypt.hash(dto.newPassword, 10)
+    member.password = await bcrypt.hash(dto.newPassword, 12)
     member.isTemporaryPassword = false
     await member.save()
 

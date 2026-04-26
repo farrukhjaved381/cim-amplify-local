@@ -97,6 +97,10 @@ export class Seller {
   @Prop({ required: false, default: "" })
   referralSource: string
 
+  @ApiProperty({ description: "Whether the seller opted in to receive SMS messages" })
+  @Prop({ required: false })
+  signUpForSms?: boolean
+
   // Add any additional fields needed
 
   // Ensure Mongoose methods are properly typed

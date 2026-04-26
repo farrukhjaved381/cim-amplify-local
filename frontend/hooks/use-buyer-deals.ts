@@ -498,8 +498,8 @@ export function useBuyerDeals() {
   return useQuery({
     queryKey: ["buyer-deals"],
     queryFn: fetchAllDeals,
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     retry: (failureCount, error) => {
       if (error.message === "UNAUTHORIZED") return false;
       return failureCount < 2;
@@ -514,7 +514,7 @@ export function useBuyerDealsByStatus(status: "pending" | "active" | "passed") {
   return useQuery({
     queryKey: ["buyer-deals", status],
     queryFn: () => fetchDealsByStatus(status),
-    staleTime: 30 * 1000,
+    staleTime: 60 * 1000,
     retry: (failureCount, error) => {
       if (error.message === "UNAUTHORIZED") return false;
       return failureCount < 2;
@@ -529,7 +529,7 @@ export function useBuyerProfile() {
   return useQuery({
     queryKey: ["buyer-profile"],
     queryFn: fetchBuyerProfile,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     retry: (failureCount, error) => {
       if (error.message === "UNAUTHORIZED") return false;
       return failureCount < 2;
@@ -544,7 +544,7 @@ export function useCompanyProfile() {
   return useQuery({
     queryKey: ["company-profile"],
     queryFn: fetchCompanyProfile,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     retry: (failureCount, error) => {
       if (error.message === "UNAUTHORIZED") return false;
       return failureCount < 2;

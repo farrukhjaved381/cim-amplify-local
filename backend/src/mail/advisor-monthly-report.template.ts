@@ -289,11 +289,6 @@ export function advisorMonthlyReportTemplate(data: AdvisorReportData): string {
     <!-- Dashboard CTA -->
     <div style="margin-top:20px;text-align:center;padding:16px;border:0.5px dashed #ccc;border-radius:10px;">
       <div><a href="${data.frontendUrl}/seller/dashboard" style="display:inline-block;font-size:13px;font-weight:500;background:${C.tealPrimary};color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;">Go to Advisor Dashboard</a></div>
-      <div style="font-size:11px;color:${C.textMuted};margin-top:6px;">
-        <a href="${data.frontendUrl}/seller/seller-form" style="color:${C.tealPrimary};text-decoration:none;font-weight:500;">+ Add a New Deal</a>
-        &nbsp;&middot;&nbsp;
-        <a href="mailto:johnm@cimamplify.com" style="color:${C.tealPrimary};text-decoration:none;font-weight:500;">Contact Support</a>
-      </div>
     </div>
   `;
 
