@@ -917,24 +917,34 @@ export default function DealsPage() {
           {/* Tab Navigation */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex flex-wrap items-center gap-2">
-              {["pending", "active", "passed"].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${
-                    activeTab === tab
-                      ? 'bg-teal-500 text-white hover:bg-teal-600'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                    activeTab === tab ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {dealCounts[tab as keyof typeof dealCounts]}
-                  </span>
-                </button>
-              ))}
+              {["pending", "active", "passed"].map((tab) => {
+                const isLoadingCounts = loading || !initialLoadComplete;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+                      activeTab === tab
+                        ? 'bg-teal-500 text-white hover:bg-teal-600'
+                        : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    <span className={`ml-2 inline-flex items-center justify-center min-w-[24px] h-5 px-2 py-0.5 rounded-full text-xs ${
+                      activeTab === tab ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {isLoadingCounts ? (
+                        <span
+                          className="inline-block w-3 h-3 rounded-full bg-current opacity-40 animate-pulse"
+                          aria-label="Loading"
+                        />
+                      ) : (
+                        dealCounts[tab as keyof typeof dealCounts]
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {searchQuery && (

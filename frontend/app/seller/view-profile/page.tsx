@@ -12,9 +12,11 @@ import {
   Camera,
   Loader2,
   Menu,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,6 +43,9 @@ interface SellerProfile {
   website?: string;
   location?: string;
   profilePicture?: string;
+  preferences?: {
+    receiveDealEmails?: boolean;
+  };
 }
 
 // Define which fields are editable based on backend DTO
@@ -208,6 +213,12 @@ export default function ViewProfilePage() {
         phoneNumber: editValues.phoneNumber?.trim() || "",
         website: editValues.website?.trim() || "",
         title: editValues.title?.trim() || "",
+        preferences: {
+          receiveDealEmails:
+            editValues.preferences?.receiveDealEmails ??
+            profile?.preferences?.receiveDealEmails ??
+            true,
+        },
       };
 
       const response = await fetch("https://cim-backend.vercel.app/sellers/me", {
@@ -811,6 +822,46 @@ export default function ViewProfilePage() {
                           )}{" "}
                         </span>
                       )}
+                    </div>
+
+                    <div className="mt-2">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <Label className="text-gray-700 text-sm flex items-center gap-2">
+                              <Bell className="h-4 w-4" />
+                              Receive Deal Emails
+                            </Label>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Buyer interest and deal activity notifications.
+                            </p>
+                          </div>
+                          {editMode ? (
+                            <Switch
+                              checked={
+                                editValues.preferences?.receiveDealEmails ??
+                                profile?.preferences?.receiveDealEmails ??
+                                true
+                              }
+                              onCheckedChange={(checked) =>
+                                setEditValues((prev) => ({
+                                  ...prev,
+                                  preferences: {
+                                    ...(prev.preferences || {}),
+                                    receiveDealEmails: checked,
+                                  },
+                                }))
+                              }
+                            />
+                          ) : (
+                            <span className="text-xs font-medium text-gray-500">
+                              {(profile?.preferences?.receiveDealEmails ?? true)
+                                ? "On"
+                                : "Off"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="mt-4">

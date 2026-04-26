@@ -40,6 +40,9 @@ interface BuyerStatus {
   lastInteraction?: Date;
   totalInteractions?: number;
   interactions?: any[];
+  flaggedInactive?: boolean;
+  flaggedInactiveAt?: Date | string | null;
+  flaggedInactiveBy?: string | null;
 }
 
 interface BuyerEmailRecipient {
@@ -253,6 +256,129 @@ export class DealsService {
   }
 
 
+  /**
+   * Build the recipient list for seller-targeted deal emails. Mirrors
+   * `getBuyerEmailRecipients` on the buyer side:
+   *   1. Seller team members with `permissions: "emails"` and `isActive: true`
+   *      take precedence (team-first behaviour) so the owner doesn't get the
+   *      same email twice once their team is configured.
+   *   2. Otherwise falls back to the seller owner, gated by their
+   *      `preferences.receiveDealEmails` toggle.
+   */
+  private async getSellerEmailRecipients(
+    seller: { _id?: unknown; email?: string | null; fullName?: string; preferences?: { receiveDealEmails?: boolean } } | any,
+  ): Promise<BuyerEmailRecipient[]> {
+    if (!seller) return [];
+    const ownerId = seller._id ? String(seller._id) : '';
+
+    const ownerEmail =
+      typeof seller.email === 'string' && seller.email.trim().length > 0
+        ? seller.email.trim().toLowerCase()
+        : '';
+    const ownerName = (seller.fullName || '').trim() || 'User';
+
+    if (!ownerId) {
+      if (seller?.preferences?.receiveDealEmails === false) return [];
+      return ownerEmail ? [{ email: ownerEmail, fullName: ownerName }] : [];
+    }
+
+    const sellerRecord = (await this.sellerModel
+      .findById(ownerId, { preferences: 1, email: 1, fullName: 1 })
+      .lean()
+      .exec()) as any;
+    const allowOwnerDealEmails =
+      sellerRecord?.preferences?.receiveDealEmails !== false;
+
+    const activeMembers = await this.teamMemberModel
+      .find(
+        {
+          ownerId,
+          ownerType: 'seller',
+          isActive: true,
+          permissions: 'emails',
+        },
+        { email: 1, fullName: 1, permissions: 1 },
+      )
+      .lean()
+      .exec();
+
+    const normalizedTeamRecipients = activeMembers
+      .filter((member) => typeof member?.email === 'string' && member.email.trim().length > 0)
+      .map((member) => ({
+        email: member.email.trim().toLowerCase(),
+        fullName: (member.fullName || '').trim() || 'Team Member',
+      }));
+
+    const uniqueTeamRecipients = Array.from(
+      new Map(normalizedTeamRecipients.map((recipient) => [recipient.email, recipient])).values(),
+    );
+
+    if (uniqueTeamRecipients.length > 0) {
+      return uniqueTeamRecipients;
+    }
+
+    if (allowOwnerDealEmails && ownerEmail) {
+      return [{ email: ownerEmail, fullName: ownerName }];
+    }
+
+    return [];
+  }
+
+  /**
+   * Send a deal-related email to the seller (advisor) and any seller team
+   * members with the `emails` permission turned on. Honors the seller's
+   * `preferences.receiveDealEmails` toggle on the owner row and the
+   * team-first behaviour described in `getSellerEmailRecipients`.
+   *
+   * Pass the *inner* HTML content (no `genericEmailTemplate` wrapper) so
+   * each recipient gets a body addressed to them by name.
+   */
+  private async sendSellerDealEmail(
+    seller:
+      | {
+          _id?: unknown;
+          email?: string | null;
+          fullName?: string;
+          preferences?: { receiveDealEmails?: boolean };
+        }
+      | any
+      | null,
+    subject: string,
+    innerContent: string,
+    attachments: any[],
+    relatedDealId?: string,
+    bannerTitle?: string,
+  ): Promise<void> {
+    const recipients = await this.getSellerEmailRecipients(seller);
+    if (recipients.length === 0) {
+      if (seller?.email) {
+        this.logger.log(
+          `Skipping seller deal email to ${seller.email} (no eligible recipients)`,
+        );
+      }
+      return;
+    }
+
+    const title = bannerTitle ?? subject;
+    await Promise.allSettled(
+      recipients.map((recipient) => {
+        const htmlBody = genericEmailTemplate(
+          title,
+          getFirstName(recipient.fullName),
+          innerContent,
+        );
+        return this.mailService.sendEmailWithLogging(
+          recipient.email,
+          'seller',
+          subject,
+          htmlBody,
+          attachments,
+          relatedDealId,
+        );
+      }),
+    );
+  }
+
   /** Invalidate all admin caches after any deal/buyer/seller mutation */
   private invalidateAdminCaches(): void {
     cacheInvalidate('admin:', true);
@@ -429,22 +555,20 @@ export class DealsService {
       if (seller) {
         const subject = "Thank you for adding a new deal to CIM Amplify!";
         const emailContent = `
-          <p>Dear ${seller.fullName},</p>
           <p>We are truly excited to help you find a great buyer for your deal.</p>
           <p>We will let you know via email when your selected buyers are interested and want more information. You can also check your dashboard at any time to see buyer activity.</p>
           ${emailButton('Go to Dashboard', `${getFrontendUrl()}/seller/dashboard`)}
           <p>Please help us to keep the platform up to date by clicking the <b>Off Market button</b> when the deal is sold or paused. If sold to one of our introduced buyers we will be in touch to arrange payment of your reward!</p>
           <p>Finally, If your deal did not fetch any buyers, we are always adding new buyers that may match in the future. To watch for new matches simply click Activity on the deal card and then click on the <b>Invite More Buyers</b> button.</p>
         `;
-        const emailBody = genericEmailTemplate('CIM Amplify', seller.fullName, emailContent);
 
-        await this.mailService.sendEmailWithLogging(
-          seller.email,
-          'seller',
+        await this.sendSellerDealEmail(
+          seller,
           subject,
-          emailBody, // Use the formatted email body
+          emailContent,
           [ILLUSTRATION_ATTACHMENT], // attachments
           (savedDeal._id as Types.ObjectId).toString(), // relatedDealId
+          'CIM Amplify',
         );
       }
 
@@ -833,7 +957,7 @@ export class DealsService {
       if (seller && buyer) {
         // Email to Advisor (Seller)
         const advisorSubject = `${buyer.companyName} is interested in ${deal.title} on CIM Amplify`;
-        const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
+        const advisorContent = `
           <p>${buyer.fullName} at ${buyer.companyName} is interested in learning more about ${deal.title}.  If you attached an NDA to this deal it has already been sent to the buyer for execution.</p>
           <p>Here are the buyer's details, please reach out to them right away:</p>
           <p>
@@ -843,13 +967,12 @@ export class DealsService {
             ${buyer.phone}<br>
             ${(companyProfile as any)?.website || ''}
           </p>
-        `);
+        `;
 
-        await this.mailService.sendEmailWithLogging(
-          seller.email,
-          'seller',
+        await this.sendSellerDealEmail(
+          seller,
           advisorSubject,
-          advisorHtmlBody,
+          advisorContent,
           [ILLUSTRATION_ATTACHMENT],
           (deal._id as Types.ObjectId).toString(),
         );
@@ -2446,7 +2569,7 @@ export class DealsService {
         // Email to Advisor (Seller)
         if (seller && buyer) {
           const advisorSubject = `${buyer.companyName} is interested in ${dealDoc.title} on CIM Amplify`;
-          const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
+          const advisorContent = `
             <p>${buyer.fullName} at ${buyer.companyName} is interested in learning more about ${dealDoc.title}.  If you attached an NDA to this deal it has already been sent to the buyer for execution.</p>
             <p>Here are the buyer's details, please reach out to them right away:</p>
             <p>
@@ -2456,14 +2579,13 @@ export class DealsService {
               ${buyer.phone}<br>
               ${(companyProfile as any)?.website || ''}
             </p>
-          `);
+          `;
 
           try {
-            await this.mailService.sendEmailWithLogging(
-              seller.email,
-              'seller',
+            await this.sendSellerDealEmail(
+              seller,
               advisorSubject,
-              advisorHtmlBody,
+              advisorContent,
               [ILLUSTRATION_ATTACHMENT], // attachments
               (dealDoc._id as Types.ObjectId).toString(), // relatedDealId
             );
@@ -2890,6 +3012,9 @@ export class DealsService {
         .map(([buyerId, status]) => ({
           buyerId,
           response: status.response,
+          flaggedInactive: !!(status as any).flaggedInactive,
+          flaggedInactiveAt: (status as any).flaggedInactiveAt ?? null,
+          flaggedInactiveBy: (status as any).flaggedInactiveBy ?? null,
         }));
 
       const buyersByStatus: {
@@ -2909,7 +3034,7 @@ export class DealsService {
       const companyProfileModel = this.dealModel.db.model('CompanyProfile');
 
       // Process invitationStatus - this is the authoritative source for buyer counts
-      for (const { buyerId, response } of invitationStatusArray) {
+      for (const { buyerId, response, flaggedInactive, flaggedInactiveAt, flaggedInactiveBy } of invitationStatusArray) {
         const [buyer, companyProfile] = await Promise.all([
           this.buyerModel
             .findById(buyerId)
@@ -2937,6 +3062,9 @@ export class DealsService {
           buyerName: buyer.fullName || 'Unknown',
           buyerEmail: buyer.email || '',
           buyerCompany: companyName,
+          flaggedInactive,
+          flaggedInactiveAt,
+          flaggedInactiveBy,
         };
 
         buyerMap.set(buyerId, buyerData);
@@ -3135,15 +3263,14 @@ export class DealsService {
         const dealIdStr = (dealDoc._id instanceof Types.ObjectId) ? dealDoc._id.toHexString() : String(dealDoc._id);
         // Email to Advisor (Seller)
         const advisorSubject = `Thank you for using CIM Amplify!`;
-        const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
+        const advisorContent = `
           <p>Thank you so much for posting your deal on CIM Amplify! We will be in touch to send you your reward once we have contacted the buyer. This process should not take long but feel free to contact us anytime for an update.</p>
           <p>We hope that you will post with us again soon!</p>
-        `);
-        await this.mailService.sendEmailWithLogging(
-          seller.email,
-          'seller',
+        `;
+        await this.sendSellerDealEmail(
+          seller,
           advisorSubject,
-          advisorHtmlBody,
+          advisorContent,
           [ILLUSTRATION_ATTACHMENT], // attachments
           dealIdStr, // relatedDealId
         );
@@ -3188,16 +3315,15 @@ export class DealsService {
       const seller = await this.sellerModel.findById(userId).exec();
       if (seller) {
         const subject = `Thank you for using CIM Amplify!`;
-        const htmlBody = genericEmailTemplate(subject, getFirstName(seller.fullName), `
+        const content = `
           <p>Thank you so much for posting ${dealDoc.title} on CIM Amplify!</p>
           <p>We apologize deeply for not helping much with this deal! Fortunately we are adding new buyers daily and we hope that you will post with us again soon! Enjoy your gift card as our appreciation of your hard work.</p>
-        `);
+        `;
         const dealIdStr = (dealDoc._id instanceof Types.ObjectId) ? dealDoc._id.toHexString() : String(dealDoc._id);
-        await this.mailService.sendEmailWithLogging(
-          seller.email,
-          'seller',
+        await this.sendSellerDealEmail(
+          seller,
           subject,
-          htmlBody,
+          content,
           [ILLUSTRATION_ATTACHMENT], // attachments
           dealIdStr,
         );
@@ -4614,17 +4740,16 @@ export class DealsService {
       // Email to Advisor (Seller)
       if (seller) {
         const advisorSubject = `Your Deal Has Been Paused for LOI`;
-        const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
+        const advisorContent = `
           <p>Your deal <strong>${dealDoc.title}</strong> has been paused for Letter of Intent (LOI) negotiations.</p>
           <p>While your deal is paused, it will not be visible to new buyers on the marketplace. Existing active buyers have been notified about this status change.</p>
           <p>When you are ready to make the deal active again, you can revive it from your LOI Deals dashboard. If the deal does sell please click Off Market and let us know the details of the sale.</p>
           ${emailButton('View LOI Deals', `${getFrontendUrl()}/seller/loi-deals`)}
-        `);
-        await this.mailService.sendEmailWithLogging(
-          seller.email,
-          'seller',
+        `;
+        await this.sendSellerDealEmail(
+          seller,
           advisorSubject,
-          advisorHtmlBody,
+          advisorContent,
           [ILLUSTRATION_ATTACHMENT],
           dealIdStr,
         );
@@ -4797,17 +4922,16 @@ export class DealsService {
       // Email to Advisor (Seller)
       if (seller) {
         const advisorSubject = `Your Deal Is Now Active Again`;
-        const advisorHtmlBody = genericEmailTemplate(advisorSubject, getFirstName(seller.fullName), `
+        const advisorContent = `
           <p>Your deal <strong>${dealDoc.title}</strong> has been revived and is now active again on CIM Amplify.</p>
           <p>Your deal is now visible on the marketplace, and existing active and pending buyers have been notified that the deal is available again.</p>
           <p>You can manage your deal and view interested buyers from your dashboard.</p>
           ${emailButton('View Dashboard', `${getFrontendUrl()}/seller/dashboard`)}
-        `);
-        await this.mailService.sendEmailWithLogging(
-          seller.email,
-          'seller',
+        `;
+        await this.sendSellerDealEmail(
+          seller,
           advisorSubject,
-          advisorHtmlBody,
+          advisorContent,
           [ILLUSTRATION_ATTACHMENT],
           dealIdStr,
         );

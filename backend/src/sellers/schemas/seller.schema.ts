@@ -101,6 +101,24 @@ export class Seller {
   @Prop({ required: false })
   signUpForSms?: boolean
 
+  @ApiProperty({
+    description: "Seller email preferences",
+    default: {
+      receiveDealEmails: true,
+    },
+  })
+  @Prop({
+    type: {
+      receiveDealEmails: { type: Boolean, default: true },
+    },
+    default: {
+      receiveDealEmails: true,
+    },
+  })
+  preferences: {
+    receiveDealEmails: boolean
+  }
+
   // Add any additional fields needed
 
   // Ensure Mongoose methods are properly typed
