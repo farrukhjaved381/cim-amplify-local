@@ -989,8 +989,6 @@ export class DealsService {
             <p><b>T12 Revenue</b>: ${deal.financialDetails?.trailingRevenueAmount ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails.trailingRevenueAmount) : '$0'}</p>
             <p><b>T12 EBITDA</b>: ${deal.financialDetails?.trailingEBITDAAmount ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails.trailingEBITDAAmount) : '$0'}</p>
 
-            <p>This deal is already in your <b>Active</b> list. If you change your mind, you can pass on it below.</p>
-
             <!-- Action Buttons -->
             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0;">
               <tr>
@@ -1000,7 +998,8 @@ export class DealsService {
               </tr>
             </table>
 
-            <p>Head to your CIM Amplify dashboard under Active to see more details.</p>
+            <p>Many of our deals are exclusive first look for CIM Amplify Members only. Head to your CIM Amplify dashboard under Pending to see more details.</p>
+            <p>Please keep your dashboard up to date by responding to Pending deals promptly.</p>
             ${emailButton('View Dashboard', `${getFrontendUrl()}/buyer/deals`)}
           `;
 

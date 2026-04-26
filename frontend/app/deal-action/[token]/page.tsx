@@ -55,14 +55,11 @@ export default function DealActionPage() {
     if (requestInFlightRef.current) return;
     requestInFlightRef.current = true;
 
-    const controller = new AbortController();
-
     const performAction = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const response = await fetch(`${apiUrl}/deals/email-action/${token}?action=${action}`, {
           method: 'POST',
-          signal: controller.signal,
         });
 
         const data = await response.json();
@@ -79,18 +76,13 @@ export default function DealActionPage() {
           setState('error');
           setMessage(data.message || 'Something went wrong. Please try logging in to your dashboard.');
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch {
         setState('error');
         setMessage('Unable to connect to the server. Please try again later or log in to your dashboard.');
       }
     };
 
     performAction();
-
-    return () => {
-      controller.abort();
-    };
   }, [token, action, role]);
 
   // Per-second auto-close countdown so the user can see it ticking down.
