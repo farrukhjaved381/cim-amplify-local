@@ -16,6 +16,7 @@ import { genericEmailTemplate, emailButton } from '../mail/generic-email.templat
 import { ILLUSTRATION_ATTACHMENT } from '../mail/mail.service';
 import { getAdminNotificationEmail } from '../common/admin-notification-email';
 import { getFrontendUrl } from '../common/frontend-url';
+import { getBackendUrl } from '../common/backend-url';
 import { DealActionToken, DealActionTokenDocument } from './schemas/deal-action-token.schema';
 import { cached, cacheInvalidate } from '../common/memory-cache';
 import { TeamMember, TeamMemberDocument } from "../team/schemas/team-member.schema";
@@ -255,6 +256,76 @@ export class DealsService {
   /** Invalidate all admin caches after any deal/buyer/seller mutation */
   private invalidateAdminCaches(): void {
     cacheInvalidate('admin:', true);
+  }
+
+  /**
+   * Stateless HMAC-signed token used by the public NDA download link in
+   * introduction/invitation emails. Token format: `<payload>.<signature>`
+   * where payload is base64url JSON of `{ dealId, exp }` and signature is an
+   * HMAC-SHA256 over the payload using JWT_SECRET. No DB write required.
+   */
+  createNdaDownloadToken(dealId: string, ttlMs: number = 90 * 24 * 60 * 60 * 1000): string {
+    const exp = Date.now() + ttlMs;
+    const payload = Buffer.from(JSON.stringify({ dealId, exp })).toString('base64url');
+    const signature = crypto
+      .createHmac('sha256', this.getHmacSecret())
+      .update(payload)
+      .digest('base64url');
+    return `${payload}.${signature}`;
+  }
+
+  /**
+   * Public URL the email recipient clicks to download the NDA. Hits the
+   * backend directly (the file is served from the deal document, not the
+   * frontend).
+   */
+  buildNdaDownloadUrl(dealId: string): string {
+    const token = this.createNdaDownloadToken(dealId);
+    return `${getBackendUrl()}/deals/nda/${token}`;
+  }
+
+  async getNdaForDownload(token: string): Promise<{ buffer: Buffer; filename: string; mimetype: string }> {
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestException('Missing token');
+    }
+    const parts = token.split('.');
+    if (parts.length !== 2) {
+      throw new BadRequestException('Invalid token format');
+    }
+    const [payload, signature] = parts;
+    const expectedSignature = crypto
+      .createHmac('sha256', this.getHmacSecret())
+      .update(payload)
+      .digest('base64url');
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      throw new BadRequestException('Invalid token signature');
+    }
+    let parsed: { dealId?: string; exp?: number };
+    try {
+      parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    } catch {
+      throw new BadRequestException('Malformed token');
+    }
+    if (!parsed.dealId || typeof parsed.exp !== 'number') {
+      throw new BadRequestException('Malformed token');
+    }
+    if (parsed.exp < Date.now()) {
+      throw new BadRequestException('Token expired');
+    }
+    if (!Types.ObjectId.isValid(parsed.dealId)) {
+      throw new BadRequestException('Invalid deal id');
+    }
+    const deal = await this.dealModel.findById(parsed.dealId).exec();
+    if (!deal || !deal.ndaDocument || !deal.ndaDocument.base64Content) {
+      throw new NotFoundException('NDA not available for this deal');
+    }
+    return {
+      buffer: Buffer.from(deal.ndaDocument.base64Content, 'base64'),
+      filename: deal.ndaDocument.originalName || 'NDA',
+      mimetype: deal.ndaDocument.mimetype || 'application/octet-stream',
+    };
   }
 
   async createDealActionUrls(dealId: string, buyerId: string): Promise<{ activateUrl: string; passUrl: string }> {
@@ -787,6 +858,7 @@ export class DealsService {
         const buyerSubject = `CIM AMPLIFY INTRODUCTION FOR ${deal.title}`;
         const hasNda = deal.ndaDocument && deal.ndaDocument.base64Content;
         const ndaFileName = hasNda && deal.ndaDocument ? deal.ndaDocument.originalName : '';
+        const ndaDownloadUrl = hasNda ? this.buildNdaDownloadUrl((deal._id as Types.ObjectId).toString()) : '';
         const buyerEmailContent = `
           <p>Thank you for accepting an introduction to <strong>${deal.title}</strong>. We've notified the Advisor who will reach out to you directly:</p>
           <p style="margin: 16px 0; padding: 12px; background-color: #f5f5f5; border-radius: 8px;">
@@ -813,10 +885,11 @@ export class DealsService {
                         </td>
                         <td>
                           <strong style="color: #333; font-size: 14px;">${ndaFileName}</strong><br>
-                          <span style="color: #666; font-size: 12px;">Please download the attachment</span>
+                          <span style="color: #666; font-size: 12px;">Click below to download</span>
                         </td>
                       </tr>
                     </table>
+                    <a href="${ndaDownloadUrl}" target="_blank" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background-color: #3aafa9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px;">Download NDA</a>
                     <p style="margin: 12px 0 0 0; color: #333; font-size: 13px;">
                       <strong>Next steps:</strong> Fill out and sign the NDA, then send it directly to the Advisor at
                       <a href="mailto:${seller.email}" style="color: #3aafa9;">${seller.email}</a>
@@ -910,31 +983,24 @@ export class DealsService {
 
           const hasNda = deal.ndaDocument && deal.ndaDocument.base64Content;
           const ndaFileName = hasNda && deal.ndaDocument ? deal.ndaDocument.originalName : '';
+          const ndaDownloadUrl = hasNda ? this.buildNdaDownloadUrl((deal._id as Types.ObjectId).toString()) : '';
           const inviteEmailContent = `
             <p><b>Details:</b> ${deal.companyDescription}</p>
             <p><b>T12 Revenue</b>: ${deal.financialDetails?.trailingRevenueAmount ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails.trailingRevenueAmount) : '$0'}</p>
             <p><b>T12 EBITDA</b>: ${deal.financialDetails?.trailingEBITDAAmount ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(deal.financialDetails.trailingEBITDAAmount) : '$0'}</p>
 
+            <p>This deal is already in your <b>Active</b> list. If you change your mind, you can pass on it below.</p>
+
             <!-- Action Buttons -->
             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0;">
               <tr>
                 <td align="center">
-                  <table border="0" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td align="center" style="padding-right: 12px;">
-                        <a href="${activateUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #3AAFA9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Move to Active / Request Info</a>
-                      </td>
-                      <td align="center" style="padding-left: 12px;">
-                        <a href="${passUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #E35153; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Pass</a>
-                      </td>
-                    </tr>
-                  </table>
+                  <a href="${passUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #E35153; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">Pass</a>
                 </td>
               </tr>
             </table>
 
-            <p>Many of our deals are exclusive first look for CIM Amplify Members only. Head to your CIM Amplify dashboard under Pending to see more details.</p>
-            <p>Please keep your dashboard up to date by responding to Pending deals promptly.</p>
+            <p>Head to your CIM Amplify dashboard under Active to see more details.</p>
             ${emailButton('View Dashboard', `${getFrontendUrl()}/buyer/deals`)}
           `;
 
@@ -971,10 +1037,11 @@ export class DealsService {
                             </td>
                             <td>
                               <strong style="color: #333; font-size: 14px;">${ndaFileName}</strong><br>
-                              <span style="color: #666; font-size: 12px;">Please download the attachment</span>
+                              <span style="color: #666; font-size: 12px;">Click below to download</span>
                             </td>
                           </tr>
                         </table>
+                        <a href="${ndaDownloadUrl}" target="_blank" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background-color: #3aafa9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px;">Download NDA</a>
                         <p style="margin: 12px 0 0 0; color: #333; font-size: 13px;">
                           <strong>Next steps:</strong> Fill out and sign the NDA, then send it directly to the Advisor at
                           <a href="mailto:${seller.email}" style="color: #3aafa9;">${seller.email}</a>
@@ -2408,6 +2475,7 @@ export class DealsService {
           const buyerSubject = `CIM AMPLIFY INTRODUCTION FOR ${dealDoc.title}`;
           const hasNda = dealDoc.ndaDocument && dealDoc.ndaDocument.base64Content;
           const ndaFileName = hasNda && dealDoc.ndaDocument ? dealDoc.ndaDocument.originalName : '';
+          const ndaDownloadUrl = hasNda ? this.buildNdaDownloadUrl((dealDoc._id as Types.ObjectId).toString()) : '';
           const buyerEmailContent = `
             <p>Thank you for accepting an introduction to <strong>${dealDoc.title}</strong>. We've notified the Advisor who will reach out to you directly:</p>
             <p style="margin: 16px 0; padding: 12px; background-color: #f5f5f5; border-radius: 8px;">
@@ -2434,10 +2502,11 @@ export class DealsService {
                           </td>
                           <td>
                             <strong style="color: #333; font-size: 14px;">${ndaFileName}</strong><br>
-                            <span style="color: #666; font-size: 12px;">Please download the attachment</span>
+                            <span style="color: #666; font-size: 12px;">Click below to download</span>
                           </td>
                         </tr>
                       </table>
+                      <a href="${ndaDownloadUrl}" target="_blank" style="display: inline-block; margin-top: 12px; padding: 10px 20px; background-color: #3aafa9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px;">Download NDA</a>
                       <p style="margin: 12px 0 0 0; color: #333; font-size: 13px;">
                         <strong>Next steps:</strong> Fill out and sign the NDA, then send it directly to the Advisor at
                         <a href="mailto:${seller.email}" style="color: #3aafa9;">${seller.email}</a>

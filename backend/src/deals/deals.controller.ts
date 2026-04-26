@@ -1039,4 +1039,24 @@ async getSellerDealsByStatus(@Param('sellerId') sellerId: string, @Query('status
     return this.dealsService.getEmailActionTokenStatus(token, ip)
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @Get("nda/:token")
+  @ApiOperation({ summary: "Download the NDA document for a deal via a signed email link (no login required)" })
+  @ApiParam({ name: "token", description: "Signed NDA download token from an introduction or invitation email" })
+  @ApiResponse({ status: 200, description: "NDA file streamed as an attachment" })
+  @ApiResponse({ status: 400, description: "Invalid or expired token" })
+  @ApiResponse({ status: 404, description: "Deal or NDA not found" })
+  async downloadNdaByToken(
+    @Param("token") token: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename, mimetype } = await this.dealsService.getNdaForDownload(token);
+    const safeFilename = (filename || 'NDA').replace(/[\r\n"]/g, '');
+    res.setHeader('Content-Type', mimetype);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+    res.setHeader('Content-Length', buffer.length.toString());
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.end(buffer);
+  }
+
 }
