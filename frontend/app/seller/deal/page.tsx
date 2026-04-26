@@ -1697,9 +1697,9 @@ export default function DealDetailsPage() {
               <div>
                 {/* Buyer Status Summary */}
                 <div className="bg-white rounded-lg shadow mb-6">
-                  <div className="p-6 border-b border-gray-200">
+                  <div className="p-4 sm:p-6 border-b border-gray-200">
                     <div className="flex w-full flex-col-[0.8fr,1.2fr] sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <h3 className="text-lg max-w-lg  text-[#0D9488] font-medium">
+                      <h3 className="text-base sm:text-lg max-w-lg  text-[#0D9488] font-medium break-words">
                         {deal.title}
                       </h3>
                       {/* Action Buttons */}
@@ -1739,7 +1739,7 @@ export default function DealDetailsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6">
                     {loadingBuyers ? (
                       <div className="text-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3aafa9] mx-auto mb-4"></div>
@@ -1747,7 +1747,7 @@ export default function DealDetailsPage() {
                       </div>
                     ) : statusSummary ? (
                       <div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
                           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-gray-500 text-sm">
@@ -2358,7 +2358,7 @@ export default function DealDetailsPage() {
                                     <th className="hidden md:table-cell pb-3 font-medium text-gray-600">
                                       Date
                                     </th>
-                                    <th className="pb-3 font-medium text-gray-600">
+                                    <th className="hidden sm:table-cell pb-3 font-medium text-gray-600">
                                       Reason
                                     </th>
                                   </tr>
@@ -2412,7 +2412,7 @@ export default function DealDetailsPage() {
                                         <td className="hidden md:table-cell py-4 text-sm whitespace-nowrap">
                                           {formatDate(buyer.invitedAt)}
                                         </td>
-                                        <td className="py-4 pr-4">
+                                        <td className="hidden sm:table-cell py-4 pr-4">
                                           {(() => {
                                             const isMarketplaceDenial =
                                               !!statusSummary?.deal?.isPublic &&

@@ -106,6 +106,9 @@ interface Buyer {
     metadata?: any;
   }>;
   status: string;
+  flaggedInactive?: boolean;
+  flaggedInactiveAt?: string | null;
+  flaggedInactiveBy?: string | null;
 }
 
 interface BuyersActivity {
@@ -214,7 +217,9 @@ const BuyersActivityPopup: React.FC<{
   onClose: () => void;
   buyersActivity: BuyersActivity;
   dealTitle: string;
-}> = ({ isOpen, onClose, buyersActivity, dealTitle }) => {
+  loading?: boolean;
+  error?: string | null;
+}> = ({ isOpen, onClose, buyersActivity, dealTitle, loading = false, error = null }) => {
   const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
 
   if (!isOpen) return null;
@@ -291,22 +296,63 @@ const BuyersActivityPopup: React.FC<{
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 border-b border-gray-100">
           <div className="text-center p-2 bg-white rounded-lg border border-gray-100">
-            <p className="text-xl font-bold text-green-600">{buyersActivity.active?.length || 0}</p>
+            {loading ? (
+              <div className="h-7 w-6 mx-auto bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-xl font-bold text-green-600">{buyersActivity.active?.length || 0}</p>
+            )}
             <p className="text-xs text-gray-500">Active</p>
           </div>
           <div className="text-center p-2 bg-white rounded-lg border border-gray-100">
-            <p className="text-xl font-bold text-amber-600">{buyersActivity.pending?.length || 0}</p>
+            {loading ? (
+              <div className="h-7 w-6 mx-auto bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-xl font-bold text-amber-600">{buyersActivity.pending?.length || 0}</p>
+            )}
             <p className="text-xs text-gray-500">Pending</p>
           </div>
           <div className="text-center p-2 bg-white rounded-lg border border-gray-100">
-            <p className="text-xl font-bold text-red-600">{filteredRejectedBuyers.length}</p>
+            {loading ? (
+              <div className="h-7 w-6 mx-auto bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-xl font-bold text-red-600">{filteredRejectedBuyers.length}</p>
+            )}
             <p className="text-xs text-gray-500">Rejected</p>
           </div>
         </div>
 
         {/* Buyers List */}
         <div className="p-4 overflow-y-auto max-h-[calc(90vh-220px)]">
-          {allBuyers.length === 0 ? (
+          {loading ? (
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-100 rounded-lg"
+                >
+                  <div className="h-11 w-11 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-3.5 w-1/3 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 w-1/2 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-2.5 w-1/4 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                  <div className="h-6 w-16 rounded-full bg-gray-200 animate-pulse" />
+                </div>
+              ))}
+              <div className="flex items-center justify-center gap-2 pt-2 text-gray-500 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading buyer activity…
+              </div>
+            </div>
+          ) : error ? (
+            <div className="py-8 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
+                <X className="h-6 w-6 text-red-500" />
+              </div>
+              <p className="text-gray-700 font-medium">Could not load buyer activity</p>
+              <p className="text-gray-400 text-sm mt-1">{error}</p>
+            </div>
+          ) : allBuyers.length === 0 ? (
             <div className="py-8 text-center">
               <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
                 <Users className="h-6 w-6 text-gray-400" />
@@ -346,14 +392,28 @@ const BuyersActivityPopup: React.FC<{
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span
-                      className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                        buyer.status
-                      )}`}
-                    >
-                      {buyer.status.charAt(0).toUpperCase() +
-                        buyer.status.slice(1)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {buyer.flaggedInactive && (
+                        <span
+                          className="px-2 py-1 text-[11px] font-medium rounded-full bg-rose-100 text-rose-700 border border-rose-200"
+                          title={
+                            buyer.flaggedInactiveAt
+                              ? `Flagged inactive by advisor on ${new Date(buyer.flaggedInactiveAt).toLocaleDateString()}`
+                              : 'Flagged inactive by advisor'
+                          }
+                        >
+                          Flagged
+                        </span>
+                      )}
+                      <span
+                        className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                          buyer.status
+                        )}`}
+                      >
+                        {buyer.status.charAt(0).toUpperCase() +
+                          buyer.status.slice(1)}
+                      </span>
+                    </div>
                     {buyer.lastInteraction && (
                       <span className="text-xs text-gray-400">
                         {new Date(buyer.lastInteraction).toLocaleDateString()}
@@ -369,7 +429,9 @@ const BuyersActivityPopup: React.FC<{
         {/* Footer */}
         <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
           <span className="text-xs text-gray-400">
-            {allBuyers.length} {allBuyers.length === 1 ? "buyer" : "buyers"} total
+            {loading
+              ? "Loading…"
+              : `${allBuyers.length} ${allBuyers.length === 1 ? "buyer" : "buyers"} total`}
           </span>
           <Button variant="outline" size="sm" onClick={onClose}>
             Close
@@ -398,9 +460,23 @@ const BuyersActivityPopup: React.FC<{
                   <h3 className="font-semibold text-gray-800">
                     {selectedBuyer.buyerName || "Unknown"}
                   </h3>
-                  <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mt-0.5 ${getStatusColor(selectedBuyer.status)}`}>
-                    {selectedBuyer.status.charAt(0).toUpperCase() + selectedBuyer.status.slice(1)}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(selectedBuyer.status)}`}>
+                      {selectedBuyer.status.charAt(0).toUpperCase() + selectedBuyer.status.slice(1)}
+                    </span>
+                    {selectedBuyer.flaggedInactive && (
+                      <span
+                        className="inline-block px-2 py-0.5 text-[11px] font-medium rounded-full bg-rose-100 text-rose-700 border border-rose-200"
+                        title={
+                          selectedBuyer.flaggedInactiveAt
+                            ? `Flagged inactive by advisor on ${new Date(selectedBuyer.flaggedInactiveAt).toLocaleDateString()}`
+                            : 'Flagged inactive by advisor'
+                        }
+                      >
+                        Flagged
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
@@ -1072,6 +1148,7 @@ export default function DealManagementDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [showBuyersActivity, setShowBuyersActivity] = useState(false);
   const [selectedDealForActivity, setSelectedDealForActivity] = useState<Deal | null>(null);
   const [buyersActivity, setBuyersActivity] = useState<BuyersActivity>({
@@ -1715,6 +1792,7 @@ export default function DealManagementDashboard() {
       },
     });
     setActivityError(null);
+    setActivityLoading(true);
     setShowBuyersActivity(true);
     try {
       const token = sessionStorage.getItem('token');
@@ -1758,6 +1836,8 @@ export default function DealManagementDashboard() {
           totalRejected: 0,
         },
       });
+    } finally {
+      setActivityLoading(false);
     }
   };
 
@@ -2034,7 +2114,7 @@ export default function DealManagementDashboard() {
                         )}
 
                         {/* Two Column Layout - Seller & Financial side by side */}
-                        <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                           {/* Seller Information */}
                           <div className="bg-gray-50 rounded-lg p-2.5">
                             <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
@@ -2103,7 +2183,7 @@ export default function DealManagementDashboard() {
                         </div>
 
                         {/* Action Buttons - Enhanced styling */}
-                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
+                        <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
                             size="sm"
                             className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
@@ -2334,7 +2414,7 @@ export default function DealManagementDashboard() {
                         )}
 
                         {/* Two Column Layout - Seller & Financial */}
-                        <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                           {/* Seller Information */}
                           <div className="bg-gray-50 rounded-lg p-2.5">
                             <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
@@ -2399,7 +2479,7 @@ export default function DealManagementDashboard() {
                         </div>
 
                         {/* Action Buttons - Enhanced styling matching Active Deals */}
-                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
+                        <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
                             size="sm"
                             className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
@@ -2509,7 +2589,7 @@ export default function DealManagementDashboard() {
                 </div>
               )}
               {!offMarketPageLoading && (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 {currentOffMarketDeals.map((deal) => (
                   deal && (
                     <div
@@ -2625,7 +2705,7 @@ export default function DealManagementDashboard() {
                         )}
 
                         {/* Two Column Layout - Seller & Financial side by side */}
-                        <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                           {/* Seller Information */}
                           <div className="bg-gray-50 rounded-lg p-2.5">
                             <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
@@ -2694,7 +2774,7 @@ export default function DealManagementDashboard() {
                         </div>
 
                         {/* Action Buttons - Enhanced styling */}
-                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
+                        <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
                             size="sm"
                             className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
@@ -2859,7 +2939,7 @@ export default function DealManagementDashboard() {
                         )}
 
                         {/* Two Column Layout - Seller & Financial side by side */}
-                        <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                           {/* Seller Information */}
                           <div className="bg-gray-50 rounded-lg p-2.5">
                             <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Seller Information</h4>
@@ -2946,7 +3026,7 @@ export default function DealManagementDashboard() {
                         )}
 
                         {/* Action Buttons - Enhanced styling */}
-                        <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
+                        <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-gray-100">
                           <Button
                             size="sm"
                             className="bg-teal-500 hover:bg-teal-600 h-8 px-4 text-xs"
@@ -3065,6 +3145,8 @@ export default function DealManagementDashboard() {
           onClose={() => setShowBuyersActivity(false)}
           buyersActivity={buyersActivity}
           dealTitle={selectedDealForActivity?.title || ""}
+          loading={activityLoading}
+          error={activityError}
         />
 
       {editDeal && (

@@ -196,12 +196,12 @@ function DealCard({
       {/* Financial Section */}
       <div className="p-5 sm:p-6 bg-gradient-to-br from-gray-50/50 via-white to-teal-50/30">
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm min-w-0">
             <div className="flex items-center gap-1.5 mb-2">
               <TrendingUp className="w-3.5 h-3.5 text-teal-500" />
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">T12 Revenue</p>
             </div>
-            <p className="text-lg sm:text-xl font-bold text-gray-900 tabular-nums">
+            <p className="text-base lg:text-xl font-bold text-gray-900 tabular-nums break-words">
               {deal.financialDetails?.trailingRevenueAmount
                 ? formatCurrency(
                     deal.financialDetails.trailingRevenueAmount,
@@ -210,12 +210,12 @@ function DealCard({
                 : "N/A"}
             </p>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm min-w-0">
             <div className="flex items-center gap-1.5 mb-2">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">T12 EBITDA</p>
             </div>
-            <p className="text-lg sm:text-xl font-bold text-gray-900 tabular-nums">
+            <p className="text-base lg:text-xl font-bold text-gray-900 tabular-nums break-words">
               {deal.financialDetails?.trailingEBITDAAmount
                 ? formatCurrency(
                     deal.financialDetails.trailingEBITDAAmount,

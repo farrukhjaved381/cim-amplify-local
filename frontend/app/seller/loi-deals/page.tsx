@@ -160,9 +160,9 @@ function LOIDealCard({
 
         {/* Financial Info - Side by side boxes */}
         <div className="grid grid-cols-2 gap-2.5 sm:gap-4 mb-3 sm:mb-4">
-          <div className="border border-gray-100 rounded-lg sm:rounded-xl p-2.5 sm:p-3 bg-gray-50/50">
+          <div className="border border-gray-100 rounded-lg sm:rounded-xl p-2.5 sm:p-3 bg-gray-50/50 min-w-0">
             <p className="text-xs text-gray-500 mb-0.5 sm:mb-1">T12 Revenue</p>
-            <p className="text-sm sm:text-lg font-bold text-gray-900">
+            <p className="text-sm lg:text-lg font-bold text-gray-900 break-words">
               {deal.financialDetails?.trailingRevenueAmount
                 ? formatCurrency(
                     deal.financialDetails.trailingRevenueAmount,
@@ -171,9 +171,9 @@ function LOIDealCard({
                 : "N/A"}
             </p>
           </div>
-          <div className="border border-gray-100 rounded-lg sm:rounded-xl p-2.5 sm:p-3 bg-gray-50/50">
+          <div className="border border-gray-100 rounded-lg sm:rounded-xl p-2.5 sm:p-3 bg-gray-50/50 min-w-0">
             <p className="text-xs text-gray-500 mb-0.5 sm:mb-1">T12 EBITDA</p>
-            <p className="text-sm sm:text-lg font-bold text-gray-900">
+            <p className="text-sm lg:text-lg font-bold text-gray-900 break-words">
               {deal.financialDetails?.trailingEBITDAAmount
                 ? formatCurrency(
                     deal.financialDetails.trailingEBITDAAmount,
@@ -184,8 +184,8 @@ function LOIDealCard({
           </div>
         </div>
 
-        {/* Action Buttons - responsive grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {/* Action Buttons - 2-up at narrow widths so labels never collide */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -622,7 +622,7 @@ export default function LOIDealsPage() {
                 <p className="text-gray-500 text-sm sm:text-base max-w-sm mx-auto">When you pause a deal for Letter of Intent negotiations, it will appear here</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                 {filteredDeals.map((deal) => (
                   <LOIDealCard
                     key={deal._id}
