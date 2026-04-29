@@ -5,6 +5,7 @@ import type React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getSellerProfile } from "@/services/api";
+import { buildApiUrl } from "@/lib/api-config";
 import {
   Pencil,
   Eye,
@@ -221,7 +222,7 @@ export default function ViewProfilePage() {
         },
       };
 
-      const response = await fetch("https://cim-backend.vercel.app/sellers/me", {
+      const response = await fetch(buildApiUrl("/sellers/me"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -231,7 +232,7 @@ export default function ViewProfilePage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to update profile");
       }
 
@@ -292,7 +293,7 @@ export default function ViewProfilePage() {
         password: passwordData.newPassword,
       };
 
-      const response = await fetch("https://cim-backend.vercel.app/sellers/me", {
+      const response = await fetch(buildApiUrl("/sellers/me"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -302,7 +303,7 @@ export default function ViewProfilePage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to change password");
       }
 
