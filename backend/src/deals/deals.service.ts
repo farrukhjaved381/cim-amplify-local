@@ -227,6 +227,15 @@ export class DealsService {
       .lean()
       .exec();
 
+    const recipients: BuyerEmailRecipient[] = [];
+
+    if (allowOwnerDealEmails && buyer.email && buyer.email.trim().length > 0) {
+      recipients.push({
+        email: buyer.email.trim().toLowerCase(),
+        fullName: (buyer.fullName || "").trim() || "User",
+      });
+    }
+
     const normalizedTeamRecipients = activeMembers
       .filter((member) => typeof member?.email === "string" && member.email.trim().length > 0)
       .map((member) => ({
@@ -234,36 +243,18 @@ export class DealsService {
         fullName: (member.fullName || "").trim() || "Team Member",
       }));
 
-    const uniqueTeamRecipients = Array.from(
-      new Map(normalizedTeamRecipients.map((recipient) => [recipient.email, recipient])).values(),
-    );
+    recipients.push(...normalizedTeamRecipients);
 
-    // Team-first behavior: if buyer has team, send to team only (not owner).
-    if (uniqueTeamRecipients.length > 0) {
-      return uniqueTeamRecipients;
-    }
-
-    if (allowOwnerDealEmails && buyer.email && buyer.email.trim().length > 0) {
-      return [
-        {
-          email: buyer.email.trim().toLowerCase(),
-          fullName: (buyer.fullName || "").trim() || "User",
-        },
-      ];
-    }
-
-    return [];
+    return Array.from(new Map(recipients.map((recipient) => [recipient.email, recipient])).values());
   }
 
 
   /**
    * Build the recipient list for seller-targeted deal emails. Mirrors
    * `getBuyerEmailRecipients` on the buyer side:
-   *   1. Seller team members with `permissions: "emails"` and `isActive: true`
-   *      take precedence (team-first behaviour) so the owner doesn't get the
-   *      same email twice once their team is configured.
-   *   2. Otherwise falls back to the seller owner, gated by their
-   *      `preferences.receiveDealEmails` toggle.
+   *   1. Seller owner, gated by their `preferences.receiveDealEmails` toggle.
+   *   2. Seller team members with `permissions: "emails"` and `isActive: true`.
+   * Recipients are deduped by email address.
    */
   private async getSellerEmailRecipients(
     seller: { _id?: unknown; email?: string | null; fullName?: string; preferences?: { receiveDealEmails?: boolean } } | any,
@@ -302,6 +293,12 @@ export class DealsService {
       .lean()
       .exec();
 
+    const recipients: BuyerEmailRecipient[] = [];
+
+    if (allowOwnerDealEmails && ownerEmail) {
+      recipients.push({ email: ownerEmail, fullName: ownerName });
+    }
+
     const normalizedTeamRecipients = activeMembers
       .filter((member) => typeof member?.email === 'string' && member.email.trim().length > 0)
       .map((member) => ({
@@ -309,26 +306,15 @@ export class DealsService {
         fullName: (member.fullName || '').trim() || 'Team Member',
       }));
 
-    const uniqueTeamRecipients = Array.from(
-      new Map(normalizedTeamRecipients.map((recipient) => [recipient.email, recipient])).values(),
-    );
+    recipients.push(...normalizedTeamRecipients);
 
-    if (uniqueTeamRecipients.length > 0) {
-      return uniqueTeamRecipients;
-    }
-
-    if (allowOwnerDealEmails && ownerEmail) {
-      return [{ email: ownerEmail, fullName: ownerName }];
-    }
-
-    return [];
+    return Array.from(new Map(recipients.map((recipient) => [recipient.email, recipient])).values());
   }
 
   /**
    * Send a deal-related email to the seller (advisor) and any seller team
    * members with the `emails` permission turned on. Honors the seller's
-   * `preferences.receiveDealEmails` toggle on the owner row and the
-   * team-first behaviour described in `getSellerEmailRecipients`.
+   * `preferences.receiveDealEmails` toggle on the owner row.
    *
    * Pass the *inner* HTML content (no `genericEmailTemplate` wrapper) so
    * each recipient gets a body addressed to them by name.
@@ -4649,10 +4635,12 @@ export class DealsService {
     try {
       const dealIdStr = (dealDoc._id instanceof Types.ObjectId) ? dealDoc._id.toHexString() : String(dealDoc._id);
       const seller = await this.sellerModel.findById(dealDoc.seller).exec();
+      const isExternalLoiBuyer = !dealDoc.loiWithBuyer;
 
       // Get active and pending buyers (those with 'accepted' or 'pending' invitation status)
       const activeBuyerIds: string[] = [];
       const pendingBuyerIds: string[] = [];
+      const otherBuyerIds: string[] = [];
       if (dealDoc.invitationStatus) {
         const invitationStatusObj = dealDoc.invitationStatus instanceof Map
           ? Object.fromEntries(dealDoc.invitationStatus)
@@ -4664,6 +4652,8 @@ export class DealsService {
               activeBuyerIds.push(buyerId);
             } else if ((status as any).response === 'pending') {
               pendingBuyerIds.push(buyerId);
+            } else if (isExternalLoiBuyer) {
+              otherBuyerIds.push(buyerId);
             }
           }
         }
@@ -4672,7 +4662,7 @@ export class DealsService {
       // Single batched fetch for both active and pending buyers — avoids the
       // previous N+1 (one findById per buyer id, ~200 queries on a 100-buyer
       // deal). Build a Map keyed by buyer _id, then group results.
-      const allBuyerIds = [...activeBuyerIds, ...pendingBuyerIds];
+      const allBuyerIds = Array.from(new Set([...activeBuyerIds, ...pendingBuyerIds, ...otherBuyerIds]));
       const buyerDocs = allBuyerIds.length > 0
         ? await this.buyerModel
             .find({ _id: { $in: allBuyerIds } })
@@ -4695,6 +4685,9 @@ export class DealsService {
       const pendingBuyers = pendingBuyerIds
         .map((id) => buyerById.get(String(id)))
         .filter((b): b is { fullName: string; companyName: string; email: string } => !!b);
+      const otherBuyers = otherBuyerIds
+        .map((id) => buyerById.get(String(id)))
+        .filter((b): b is { fullName: string; companyName: string; email: string } => !!b);
 
       // Build active buyers list HTML for project owner
       const activeBuyersHtml = activeBuyers.length > 0
@@ -4711,6 +4704,14 @@ export class DealsService {
              ${pendingBuyers.map(b => `<li style="margin-bottom: 4px;"><strong>${b.fullName}</strong> - ${b.companyName} (${b.email})</li>`).join('')}
            </ul>`
         : `<p><strong>Pending Buyers:</strong> None</p>`;
+      const otherBuyersHtml = isExternalLoiBuyer
+        ? (otherBuyers.length > 0
+            ? `<p><strong>Other Notified Buyers (${otherBuyers.length}):</strong></p>
+               <ul style="margin: 8px 0; padding-left: 20px;">
+                 ${otherBuyers.map(b => `<li style="margin-bottom: 4px;"><strong>${b.fullName}</strong> - ${b.companyName} (${b.email})</li>`).join('')}
+               </ul>`
+            : `<p><strong>Other Notified Buyers:</strong> None</p>`)
+        : '';
 
       // Build LOI buyer info for project owner email
       const loiBuyerHtml = dealDoc.loiWithBuyer
@@ -4727,6 +4728,7 @@ export class DealsService {
         ${loiBuyerHtml}
         ${activeBuyersHtml}
         ${pendingBuyersHtml}
+        ${otherBuyersHtml}
       `);
       await this.mailService.sendEmailWithLogging(
         getAdminNotificationEmail(),
@@ -4790,6 +4792,26 @@ export class DealsService {
           [ILLUSTRATION_ATTACHMENT],
           dealIdStr,
         );
+      }
+
+      if (isExternalLoiBuyer) {
+        for (const buyer of otherBuyers) {
+          const buyerSubject = `Deal Update: ${dealDoc.title} - Paused for LOI`;
+          const buyerHtmlBody = genericEmailTemplate(buyerSubject, getFirstName(buyer.fullName), `
+            <p>The deal <strong>${dealDoc.title}</strong> has been paused by the advisor for Letter of Intent (LOI) negotiations.</p>
+            <p>This deal is not currently available while the advisor is in advanced discussions with a potential buyer. You will be notified if it becomes available again.</p>
+            <p>In the meantime, feel free to explore other opportunities on CIM Amplify.</p>
+            ${emailButton('Browse Marketplace', `${getFrontendUrl()}/buyer/marketplace`)}
+          `);
+          await this.mailService.sendEmailWithLogging(
+            buyer.email,
+            'buyer',
+            buyerSubject,
+            buyerHtmlBody,
+            [ILLUSTRATION_ATTACHMENT],
+            dealIdStr,
+          );
+        }
       }
     } catch (emailError) {
       this.logger.error(`Failed sending LOI pause emails for deal ${dealId}`, this.formatError(emailError));
