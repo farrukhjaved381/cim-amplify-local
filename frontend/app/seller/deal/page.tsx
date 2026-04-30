@@ -1876,7 +1876,7 @@ export default function DealDetailsPage() {
                                               buyer.flaggedInactive && buyer.status !== "accepted";
                                             const displayStatus =
                                               isCurrentlyFlagged
-                                                ? "flagged by advisor"
+                                                ? "buyer not active"
                                                 : isMarketplace &&
                                                     buyer.sellerApproved
                                                   ? "request accepted"
@@ -1899,7 +1899,7 @@ export default function DealDetailsPage() {
                                               buyer.flaggedInactive && buyer.status !== "accepted";
                                             return isCurrentlyFlagged ? (
                                               <span className="text-xs font-medium text-red-600">
-                                                Flagged by advisor
+                                                Buyer Not Active
                                               </span>
                                             ) : (
                                               <Button

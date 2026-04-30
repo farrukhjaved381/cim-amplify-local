@@ -100,8 +100,13 @@ export default function BuyerLoginPage() {
       sessionStorage.setItem("userId", cleanUserId);
       sessionStorage.setItem("userRole", "buyer");
 
-      // Step 3: Redirect to deals page
-      router.replace("/buyer/deals");
+      // Step 3: Redirect to the page the buyer originally requested
+      const storedReturnUrl = localStorage.getItem("buyerAuthReturnUrl");
+      const redirectPath = storedReturnUrl?.startsWith("/buyer/")
+        ? storedReturnUrl
+        : "/buyer/deals";
+      localStorage.removeItem("buyerAuthReturnUrl");
+      router.replace(redirectPath);
       return;
     }
 
@@ -110,7 +115,12 @@ export default function BuyerLoginPage() {
     const storedRole = sessionStorage.getItem("userRole");
 
     if (storedToken && storedRole === "buyer") {
-      router.push("/buyer/deals");
+      const storedReturnUrl = localStorage.getItem("buyerAuthReturnUrl");
+      const redirectPath = storedReturnUrl?.startsWith("/buyer/")
+        ? storedReturnUrl
+        : "/buyer/deals";
+      localStorage.removeItem("buyerAuthReturnUrl");
+      router.push(redirectPath);
     }
   }, [searchParams, router]);
 
@@ -194,9 +204,13 @@ export default function BuyerLoginPage() {
       });
 
       // Redirect: team members with temp password go to profile, otherwise deals
+      const storedReturnUrl = localStorage.getItem("buyerAuthReturnUrl");
       const redirectPath = isTeamMemberLogin && user.isTemporaryPassword
         ? "/buyer/member-profile"
+        : storedReturnUrl?.startsWith("/buyer/")
+        ? storedReturnUrl
         : "/buyer/deals"
+      localStorage.removeItem("buyerAuthReturnUrl");
 
       setTimeout(() => {
         router.push(redirectPath);

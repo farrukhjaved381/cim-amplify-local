@@ -1235,6 +1235,14 @@ const handleSubmit = async (e: React.FormEvent) => {
         variant: "default",
       });
       setTimeout(() => {
+        const storedReturnUrl = localStorage.getItem("buyerAuthReturnUrl");
+        if (storedReturnUrl?.startsWith("/buyer/")) {
+          const redirectUrl = new URL(storedReturnUrl, window.location.origin);
+          redirectUrl.searchParams.set("profileSubmitted", "true");
+          localStorage.removeItem("buyerAuthReturnUrl");
+          router.push(`${redirectUrl.pathname}${redirectUrl.search}`);
+          return;
+        }
         router.push("/buyer/deals?profileSubmitted=true");
       }, 1000);
     } catch (error: any) {

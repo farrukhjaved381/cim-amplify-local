@@ -441,6 +441,8 @@ export default function DealsPage() {
       if (storedToken) {
         setAuthToken(storedToken.trim());
       } else {
+        const currentPath = `${window.location.pathname}${window.location.search}`;
+        localStorage.setItem("buyerAuthReturnUrl", currentPath);
         router.push("/buyer/login");
         return false;
       }
@@ -512,6 +514,32 @@ export default function DealsPage() {
       handleEmailAction(emailAction, emailDealId);
     }
   }, [isInitialized, searchParams]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const requestedTab = searchParams?.get("tab");
+    const requestedDealId = searchParams?.get("dealId");
+    const validTabs = ["pending", "active", "passed"];
+
+    if (requestedTab && validTabs.includes(requestedTab)) {
+      setActiveTab(requestedTab);
+    } else if (requestedDealId && deals.length > 0) {
+      const matchedDeal = deals.find((deal) => deal.id === requestedDealId);
+      if (matchedDeal) setActiveTab(matchedDeal.status);
+    }
+
+    if (!requestedDealId || loading) return;
+
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(`deal-${requestedDealId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 150);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [isInitialized, searchParams, deals, loading]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -1008,6 +1036,7 @@ export default function DealsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredDeals.map((deal) => {
                 const isCurrentlyFlagged = deal.flaggedInactive && deal.invitationResponse !== "accepted";
+                const isLinkedDeal = searchParams?.get("dealId") === deal.id;
                 const sellerIdStr = typeof deal.sellerId === "string" ? deal.sellerId : undefined;
                 const sellerInfo = sellerIdStr && sellerInfoMap[sellerIdStr]
                   ? sellerInfoMap[sellerIdStr]
@@ -1016,8 +1045,11 @@ export default function DealsPage() {
                 return (
                   <div
                     key={deal.id}
+                    id={`deal-${deal.id}`}
                     className={`bg-white rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-xl ${
-                      isCurrentlyFlagged
+                      isLinkedDeal
+                        ? "border-teal-400 ring-2 ring-teal-200 shadow-xl"
+                        : isCurrentlyFlagged
                         ? "border-red-200 bg-gradient-to-br from-red-50/60 to-white"
                         : deal.isLoi
                         ? "border-amber-200 bg-gradient-to-br from-amber-50/50 to-white"
@@ -1040,7 +1072,7 @@ export default function DealsPage() {
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4 text-red-600" />
                           <p className="text-sm font-medium text-red-800">
-                            You are flagged for this deal
+                           The advisor indicated you are inactive on this deal. Reactivate to re-engage.
                           </p>
                         </div>
                       </div>
