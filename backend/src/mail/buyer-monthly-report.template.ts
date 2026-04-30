@@ -44,17 +44,18 @@ const C = {
   borderLight: '#e8e8e4',
   bgBody: '#f4f4f2',
   bgRow: '#f8f8f6',
-  activeBg: 'rgba(43,122,120,0.04)',
+  activeBg: '#f4fbfa',
   loiPillBg: '#FAECE7',
   loiPillText: '#993C1D',
-  urgencyBg: 'rgba(186,117,23,0.08)',
-  urgencyBorder: 'rgba(186,117,23,0.4)',
+  urgencyBg: '#fbf5ec',
+  urgencyBorder: '#d8b47b',
   urgencyBold: '#854F0B',
   ageFresh: '#0F6E56',
   ageWarm: '#854F0B',
   ageOld: '#993C1D',
   badgeNewBg: '#DEF2F1',
   badgeNewText: '#0F6E56',
+  danger: '#dc2626',
 };
 
 function esc(s: string): string {
@@ -80,25 +81,25 @@ function renderActiveDealsTable(deals: BuyerReportDeal[], frontendUrl: string): 
   if (deals.length === 0) return '';
 
   const rows = deals.map(d => {
-    const rowBg = d.isLoi ? 'rgba(240,153,123,0.05)' : C.activeBg;
-    const activateUrl = d.activateUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=activate`;
+    const rowBg = d.isLoi ? '#fef7f4' : C.activeBg;
+    const activateUrl = d.activateUrl || `${frontendUrl}/buyer/deals?tab=pending&dealId=${encodeURIComponent(d.dealId)}`;
     const passUrl = d.passUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=pass`;
 
     const actionCell = d.isLoi
-      ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
-      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;">
-          <a href="${passUrl}" target="_blank" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
+      ? `<td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
+      : `<td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};text-align:right;">
+          <a href="${passUrl}" target="_blank" style="font-size:11px;line-height:14px;font-weight:500;color:${C.danger};border:1px solid ${C.danger};border-radius:6px;padding:5px 0;text-decoration:none;display:inline-block;width:58px;text-align:center;">Pass</a>
         </td>`;
 
     return `<tr>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};vertical-align:middle;">
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};vertical-align:middle;word-break:break-word;">
         <div style="font-weight:500;font-size:13px;color:${C.textDark};">${esc(d.title)}${d.isLoi ? ` ${loiPill()}` : ''}</div>
         <div style="font-size:11px;color:${C.textMuted};margin-top:2px;">${esc(d.location)}</div>
       </td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};color:${C.textMuted};font-size:12px;">${esc(d.industry)}</td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.revenue)}</td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.ebitda)}</td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.textMuted};">${esc(d.dateSince)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};color:${C.textMuted};font-size:12px;word-break:break-word;">${esc(d.industry)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:12px;word-break:break-word;">${esc(d.revenue)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:12px;word-break:break-word;">${esc(d.ebitda)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.textMuted};word-break:break-word;">${esc(d.dateSince)}</td>
       ${actionCell}
     </tr>`;
   }).join('');
@@ -110,15 +111,15 @@ function renderActiveDealsTable(deals: BuyerReportDeal[], frontendUrl: string): 
         <td style="text-align:right;"><span style="font-size:11px;color:${C.textMuted};">${deals.length} active</span></td>
       </tr></table>
       <div style="height:8px;border-bottom:0.5px solid ${C.border};margin-bottom:10px;"></div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <table width="100%" style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;">
         <thead>
           <tr style="background:${C.bgRow};">
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Deal</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Industry</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Revenue</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">EBITDA</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Active since</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:right;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Action</th>
+            <th width="28%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Deal</th>
+            <th width="17%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Industry</th>
+            <th width="14%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Revenue</th>
+            <th width="14%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">EBITDA</th>
+            <th width="15%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Active since</th>
+            <th width="12%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:right;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Action</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -138,27 +139,28 @@ function renderPendingDealsTable(
   if (deals.length === 0) return '';
 
   const rows = deals.map(d => {
-    const rowBg = d.isLoi ? 'rgba(240,153,123,0.03)' : C.white;
+    const rowBg = d.isLoi ? '#fff9f6' : C.white;
     const ageClr = ageColor(d.daysWaiting);
-    const activateUrl = d.activateUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=activate`;
+    const activateUrl = d.activateUrl || `${frontendUrl}/buyer/deals?tab=pending&dealId=${encodeURIComponent(d.dealId)}`;
     const passUrl = d.passUrl || `${frontendUrl}/buyer/deals?dealId=${encodeURIComponent(d.dealId)}&action=pass`;
 
     const actionCell = d.isLoi
-      ? `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
-      : `<td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};text-align:right;">
-          <a href="${activateUrl}" target="_blank" style="font-size:11px;font-weight:500;background:${C.tealPrimary};color:#fff;border:none;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;margin-right:4px;">Active</a>
-          <a href="${passUrl}" target="_blank" style="font-size:11px;font-weight:500;color:#666;border:0.5px solid #ccc;border-radius:6px;padding:5px 10px;text-decoration:none;display:inline-block;">Pass</a>
+      ? `<td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:11px;color:${C.loiPillText};font-style:italic;text-align:right;">Under LOI</td>`
+      : `<td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};text-align:right;">
+          <a href="${activateUrl}" target="_blank" style="font-size:11px;line-height:14px;font-weight:500;background:${C.tealPrimary};color:#fff;border:1px solid ${C.tealPrimary};border-radius:6px;padding:5px 0;text-decoration:none;display:inline-block;width:58px;text-align:center;">Active</a><br>
+          <span style="display:block;height:6px;line-height:6px;font-size:6px;">&nbsp;</span>
+          <a href="${passUrl}" target="_blank" style="font-size:11px;line-height:14px;font-weight:500;color:${C.danger};border:1px solid ${C.danger};border-radius:6px;padding:5px 0;text-decoration:none;display:inline-block;width:58px;text-align:center;">Pass</a>
         </td>`;
 
     return `<tr>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};vertical-align:middle;">
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};vertical-align:middle;word-break:break-word;">
         <div style="font-weight:500;font-size:13px;color:${C.textDark};">${esc(d.title)}${d.isLoi ? ` ${loiPill()}` : ''}</div>
         <div style="font-size:11px;color:${C.textMuted};margin-top:2px;">${esc(d.location)}</div>
       </td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};color:${C.textMuted};font-size:12px;">${esc(d.industry)}</td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.revenue)}</td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};font-size:12px;">${esc(d.ebitda)}</td>
-      <td style="padding:10px 10px;border-bottom:0.5px solid ${C.borderLight};background:${rowBg};"><span style="font-size:11px;color:${ageClr};font-weight:500;">${ageLabel(d.daysWaiting)}</span></td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};color:${C.textMuted};font-size:12px;word-break:break-word;">${esc(d.industry)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:12px;word-break:break-word;">${esc(d.revenue)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};font-size:12px;word-break:break-word;">${esc(d.ebitda)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid ${C.borderLight};background:${rowBg};word-break:break-word;"><span style="font-size:11px;color:${ageClr};font-weight:500;">${ageLabel(d.daysWaiting)}</span></td>
       ${actionCell}
     </tr>`;
   }).join('');
@@ -182,15 +184,15 @@ function renderPendingDealsTable(
       </tr></table>
       <div style="height:8px;border-bottom:0.5px solid ${C.border};margin-bottom:10px;"></div>
       ${urgencyBar}
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <table width="100%" style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;">
         <thead>
           <tr style="background:${C.bgRow};">
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Deal</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Industry</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Revenue</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">EBITDA</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Waiting for You</th>
-            <th style="font-size:11px;font-weight:500;color:${C.textMuted};text-align:right;padding:6px 10px;border-top:0.5px solid ${C.border};border-bottom:0.5px solid ${C.border};">Actions</th>
+            <th width="28%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Deal</th>
+            <th width="17%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Industry</th>
+            <th width="14%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Revenue</th>
+            <th width="14%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">EBITDA</th>
+            <th width="15%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:left;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Waiting</th>
+            <th width="12%" style="font-size:10px;font-weight:500;color:${C.textMuted};text-align:right;padding:6px 6px;border-top:1px solid ${C.border};border-bottom:1px solid ${C.border};">Actions</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -226,17 +228,18 @@ export function buyerMonthlyReportTemplate(data: BuyerReportData): string {
     <p style="font-size:13px;color:${C.textMuted};margin-bottom:4px;">${esc(data.buyerCompany)} &middot; ${esc(data.monthYear)} &middot; Generated ${esc(data.generatedDate)}</p>
 
     <!-- Stats -->
-    <table style="width:100%;border-collapse:separate;border-spacing:10px 0;margin:16px 0;">
+    <table width="100%" style="width:100%;border-collapse:collapse;margin:16px 0;">
       <tr>
-        <td style="width:50%;background:${C.navy};border-radius:8px;padding:12px 14px;">
+        <td width="49%" style="width:49%;background:${C.navy};border-radius:8px;padding:12px 14px;">
           <div style="font-size:11px;color:${C.tealSecondary};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Pending deals</div>
           <div style="font-size:24px;font-weight:500;color:${C.tealLight};">${data.pendingCount}</div>
-          <div style="font-size:11px;color:rgba(222,242,241,0.5);margin-top:2px;">+${data.newThisMonthCount} new this month</div>
+          <div style="font-size:11px;color:#8eb5b3;margin-top:2px;">+${data.newThisMonthCount} new this month</div>
         </td>
-        <td style="width:50%;background:${C.navy};border-radius:8px;padding:12px 14px;">
+        <td width="2%" style="width:2%;font-size:1px;line-height:1px;">&nbsp;</td>
+        <td width="49%" style="width:49%;background:${C.navy};border-radius:8px;padding:12px 14px;">
           <div style="font-size:11px;color:${C.tealSecondary};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Active (interested)</div>
           <div style="font-size:24px;font-weight:500;color:${C.tealLight};">${data.activeCount}</div>
-          <div style="font-size:11px;color:rgba(222,242,241,0.5);margin-top:2px;">In progress</div>
+          <div style="font-size:11px;color:#8eb5b3;margin-top:2px;">In progress</div>
         </td>
       </tr>
     </table>

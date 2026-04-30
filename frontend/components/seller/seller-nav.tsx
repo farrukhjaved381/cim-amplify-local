@@ -133,7 +133,11 @@ export function SellerNav({ activePage, onNavigate, onLogout }: SellerNavProps) 
               key={item.key}
               variant="secondary"
               className="w-full justify-start gap-3 font-semibold bg-gradient-to-r from-teal-50 to-teal-100 text-teal-700 hover:from-teal-100 hover:to-teal-150 border border-teal-200/50 shadow-sm rounded-xl transition-all duration-200"
-              onClick={onNavigate}
+              onClick={() => {
+                triggerNavigationProgress()
+                onNavigate?.()
+                router.push(item.path)
+              }}
             >
               <div className="p-1.5 bg-teal-500 rounded-lg">
                 {item.icon}

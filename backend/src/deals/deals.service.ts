@@ -56,6 +56,13 @@ const getFirstName = (fullName?: string | null): string => {
   if (!trimmed) return "User";
   return trimmed.split(/\s+/)[0] || "User";
 };
+const escapeHtml = (value?: string | null): string =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 @Injectable()
 export class DealsService {
@@ -544,7 +551,7 @@ export class DealsService {
           <p>We are truly excited to help you find a great buyer for your deal.</p>
           <p>We will let you know via email when your selected buyers are interested and want more information. You can also check your dashboard at any time to see buyer activity.</p>
           ${emailButton('Go to Dashboard', `${getFrontendUrl()}/seller/dashboard`)}
-          <p>Please help us to keep the platform up to date by clicking the <b>Off Market button</b> when the deal is sold or paused. If sold to one of our introduced buyers we will be in touch to arrange payment of your reward!</p>
+          <p>Please help us to keep the platform up to date by clicking the <b>Off Market button</b> when the deal is sold or paused When the deal is <b> Under LOI button</b>. If sold to one of our introduced buyers we will be in touch to arrange payment of your reward!</p>
           <p>Finally, If your deal did not fetch any buyers, we are always adding new buyers that may match in the future. To watch for new matches simply click Activity on the deal card and then click on the <b>Invite More Buyers</b> button.</p>
         `;
 
@@ -1049,24 +1056,24 @@ export class DealsService {
           );
         }
 
-        // Also send the matching-style invite email to the buyer owner/team
-        // without changing the existing introduction email.
-        const inviteSubject = `YOU ARE INVITED TO PARTICIPATE IN A ${deal.title} DEAL`;
-        const ownerEmail = (buyer.email || '').trim().toLowerCase();
-        const inviteRecipients = ownerEmail
-          ? Array.from(
-              new Map(
-                [
-                  ...recipients,
-                  { email: ownerEmail, fullName: (buyer.fullName || '').trim() || 'User' },
-                ].map((recipient) => [recipient.email, recipient]),
-              ).values(),
-            )
-          : recipients;
+        const sendMarketplaceInviteEmail = false;
+        if (sendMarketplaceInviteEmail) {
+          const inviteSubject = `YOU ARE INVITED TO PARTICIPATE IN A ${deal.title} DEAL`;
+          const ownerEmail = (buyer.email || '').trim().toLowerCase();
+          const inviteRecipients = ownerEmail
+            ? Array.from(
+                new Map(
+                  [
+                    ...recipients,
+                    { email: ownerEmail, fullName: (buyer.fullName || '').trim() || 'User' },
+                  ].map((recipient) => [recipient.email, recipient]),
+                ).values(),
+              )
+            : recipients;
 
-        if (inviteRecipients.length === 0) {
-          this.logger.warn(`No invite recipients resolved for buyer ${buyerId} on deal ${(deal._id as Types.ObjectId).toString()}`);
-        } else {
+          if (inviteRecipients.length === 0) {
+            this.logger.warn(`No invite recipients resolved for buyer ${buyerId} on deal ${(deal._id as Types.ObjectId).toString()}`);
+          } else {
           let activateUrl = `${getFrontendUrl()}/buyer/deals?action=activate&dealId=${(deal._id as Types.ObjectId).toString()}`;
           let passUrl = `${getFrontendUrl()}/buyer/deals?action=pass&dealId=${(deal._id as Types.ObjectId).toString()}`;
 
@@ -1170,6 +1177,7 @@ export class DealsService {
               );
             }),
           );
+          }
         }
       }
     } catch (emailError) {
@@ -3645,7 +3653,56 @@ export class DealsService {
 
     deal.invitationStatus.set(String(buyerId), updatedStatus);
     deal.markModified('invitationStatus');
-    return await deal.save();
+    const savedDeal = await deal.save();
+
+    try {
+      const [seller, buyer] = await Promise.all([
+        this.sellerModel.findById(deal.seller).exec(),
+        this.buyerModel.findById(buyerId).exec(),
+      ]);
+
+      if (seller && buyer) {
+        const advisorCompany = seller.companyName || seller.fullName || 'The Advisor';
+        const dealTitle = savedDeal.title || 'this deal';
+        const dashboardUrl = `${getFrontendUrl()}/buyer/deals?tab=passed&dealId=${encodeURIComponent(dealId)}`;
+        const subject = `${advisorCompany} marked you as inactive on ${dealTitle}`;
+        const recipients = await this.getBuyerEmailRecipients(buyer as any);
+
+        if (recipients.length === 0) {
+          this.logger.warn(`No buyer recipients resolved for flagged-inactive email: buyer=${buyerId}, deal=${dealId}`);
+        } else {
+          await Promise.allSettled(
+            recipients.map((recipient) => {
+              const firstName = getFirstName(recipient.fullName);
+              const htmlBody = genericEmailTemplate(
+                subject,
+                firstName,
+                `
+                  <p>Dear ${escapeHtml(firstName)},</p>
+                  <p>${escapeHtml(advisorCompany)} marked you as inactive on ${escapeHtml(dealTitle)} which means you have not communicated further on this deal. We have moved this deal to your Passed folder. If this is an error, you can click on Reactivate on this deal from your Passed dashboard.</p>
+                  ${emailButton('Open Passed Dashboard', dashboardUrl)}
+                  <p>Feel free to reply to this email if you need further assistance.</p>
+                `,
+                true,
+              );
+
+              return this.mailService.sendEmailWithLogging(
+                recipient.email,
+                'buyer',
+                subject,
+                htmlBody,
+                [ILLUSTRATION_ATTACHMENT],
+                dealId,
+              );
+            }),
+          );
+        }
+      }
+    } catch (emailError) {
+      this.logger.error(`Failed to send flagged-inactive email to buyer ${buyerId} for deal ${dealId}`, this.formatError(emailError));
+    }
+
+    return savedDeal;
   }
 
   async getAllCompletedDeals(): Promise<Deal[]> {
@@ -5266,7 +5323,7 @@ export class DealsService {
             : action === 'flag-inactive'
               ? 'Buyer has been flagged inactive.'
               : 'Deal has been taken off market.')
-          : 'We have notified the Advisor to send you more information.',
+          : '',
         dealTitle,
       };
     } catch (error) {

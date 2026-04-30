@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -30,6 +30,7 @@ export function BuyerProtectedRoute({ children }: { children: React.ReactNode })
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { forceLogout, isLoading: authLoading } = useAuth()
 
   // Reset auth state on pathname change to prevent flash of unauthorized content
@@ -49,6 +50,10 @@ export function BuyerProtectedRoute({ children }: { children: React.ReactNode })
 
         // No token - redirect to login
         if (!token) {
+          if (pathname) {
+            const query = searchParams?.toString()
+            localStorage.setItem("buyerAuthReturnUrl", `${pathname}${query ? `?${query}` : ""}`)
+          }
           router.push("/buyer/login")
           return
         }
@@ -110,7 +115,7 @@ export function BuyerProtectedRoute({ children }: { children: React.ReactNode })
     }
 
     checkAuthentication()
-  }, [router, authLoading, forceLogout, pathname])
+  }, [router, authLoading, forceLogout, pathname, searchParams])
 
   // Show loading state
   if (isAuthenticated === null || authLoading) {

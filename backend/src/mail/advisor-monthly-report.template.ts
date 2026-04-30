@@ -253,11 +253,11 @@ export function advisorMonthlyReportTemplate(data: AdvisorReportData): string {
     <div style="background:${C.tealPrimary};border-radius:8px;padding:16px;margin:16px 0;">
       <table style="width:100%;">
         <tr>
-          <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.18);width:33%;">
+          <td style="text-align:center;border-right:1px solid #5f9795;width:33%;">
             <div style="font-size:28px;font-weight:600;color:#fff;line-height:1;">${data.activeDealsCount}</div>
             <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Active Deals</div>
           </td>
-          <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.18);width:34%;">
+          <td style="text-align:center;border-right:1px solid #5f9795;width:34%;">
             <div style="font-size:28px;font-weight:600;color:#fff;line-height:1;">${data.totalBuyerInterest}</div>
             <div style="font-size:11px;color:${C.tealLight};margin-top:3px;text-transform:uppercase;letter-spacing:0.1em;">Buyer Interest</div>
           </td>
