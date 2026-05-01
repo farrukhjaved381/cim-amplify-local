@@ -4692,12 +4692,9 @@ export class DealsService {
     try {
       const dealIdStr = (dealDoc._id instanceof Types.ObjectId) ? dealDoc._id.toHexString() : String(dealDoc._id);
       const seller = await this.sellerModel.findById(dealDoc.seller).exec();
-      const isExternalLoiBuyer = !dealDoc.loiWithBuyer;
-
       // Get active and pending buyers (those with 'accepted' or 'pending' invitation status)
       const activeBuyerIds: string[] = [];
       const pendingBuyerIds: string[] = [];
-      const otherBuyerIds: string[] = [];
       if (dealDoc.invitationStatus) {
         const invitationStatusObj = dealDoc.invitationStatus instanceof Map
           ? Object.fromEntries(dealDoc.invitationStatus)
@@ -4709,8 +4706,6 @@ export class DealsService {
               activeBuyerIds.push(buyerId);
             } else if ((status as any).response === 'pending') {
               pendingBuyerIds.push(buyerId);
-            } else if (isExternalLoiBuyer) {
-              otherBuyerIds.push(buyerId);
             }
           }
         }
@@ -4719,7 +4714,7 @@ export class DealsService {
       // Single batched fetch for both active and pending buyers — avoids the
       // previous N+1 (one findById per buyer id, ~200 queries on a 100-buyer
       // deal). Build a Map keyed by buyer _id, then group results.
-      const allBuyerIds = Array.from(new Set([...activeBuyerIds, ...pendingBuyerIds, ...otherBuyerIds]));
+      const allBuyerIds = Array.from(new Set([...activeBuyerIds, ...pendingBuyerIds]));
       const buyerDocs = allBuyerIds.length > 0
         ? await this.buyerModel
             .find({ _id: { $in: allBuyerIds } })
@@ -4742,10 +4737,6 @@ export class DealsService {
       const pendingBuyers = pendingBuyerIds
         .map((id) => buyerById.get(String(id)))
         .filter((b): b is { fullName: string; companyName: string; email: string } => !!b);
-      const otherBuyers = otherBuyerIds
-        .map((id) => buyerById.get(String(id)))
-        .filter((b): b is { fullName: string; companyName: string; email: string } => !!b);
-
       // Build active buyers list HTML for project owner
       const activeBuyersHtml = activeBuyers.length > 0
         ? `<p><strong>Active Buyers (${activeBuyers.length}):</strong></p>
@@ -4761,15 +4752,6 @@ export class DealsService {
              ${pendingBuyers.map(b => `<li style="margin-bottom: 4px;"><strong>${b.fullName}</strong> - ${b.companyName} (${b.email})</li>`).join('')}
            </ul>`
         : `<p><strong>Pending Buyers:</strong> None</p>`;
-      const otherBuyersHtml = isExternalLoiBuyer
-        ? (otherBuyers.length > 0
-            ? `<p><strong>Other Notified Buyers (${otherBuyers.length}):</strong></p>
-               <ul style="margin: 8px 0; padding-left: 20px;">
-                 ${otherBuyers.map(b => `<li style="margin-bottom: 4px;"><strong>${b.fullName}</strong> - ${b.companyName} (${b.email})</li>`).join('')}
-               </ul>`
-            : `<p><strong>Other Notified Buyers:</strong> None</p>`)
-        : '';
-
       // Build LOI buyer info for project owner email
       const loiBuyerHtml = dealDoc.loiWithBuyer
         ? `<p><strong>LOI Buyer (CIM Amplify):</strong> ${dealDoc.loiWithBuyerCompany || 'N/A'} (${dealDoc.loiWithBuyerEmail || 'N/A'})</p>`
@@ -4785,7 +4767,6 @@ export class DealsService {
         ${loiBuyerHtml}
         ${activeBuyersHtml}
         ${pendingBuyersHtml}
-        ${otherBuyersHtml}
       `);
       await this.mailService.sendEmailWithLogging(
         getAdminNotificationEmail(),
@@ -4849,26 +4830,6 @@ export class DealsService {
           [ILLUSTRATION_ATTACHMENT],
           dealIdStr,
         );
-      }
-
-      if (isExternalLoiBuyer) {
-        for (const buyer of otherBuyers) {
-          const buyerSubject = `Deal Update: ${dealDoc.title} - Paused for LOI`;
-          const buyerHtmlBody = genericEmailTemplate(buyerSubject, getFirstName(buyer.fullName), `
-            <p>The deal <strong>${dealDoc.title}</strong> has been paused by the advisor for Letter of Intent (LOI) negotiations.</p>
-            <p>This deal is not currently available while the advisor is in advanced discussions with a potential buyer. You will be notified if it becomes available again.</p>
-            <p>In the meantime, feel free to explore other opportunities on CIM Amplify.</p>
-            ${emailButton('Browse Marketplace', `${getFrontendUrl()}/buyer/marketplace`)}
-          `);
-          await this.mailService.sendEmailWithLogging(
-            buyer.email,
-            'buyer',
-            buyerSubject,
-            buyerHtmlBody,
-            [ILLUSTRATION_ATTACHMENT],
-            dealIdStr,
-          );
-        }
       }
     } catch (emailError) {
       this.logger.error(`Failed sending LOI pause emails for deal ${dealId}`, this.formatError(emailError));
