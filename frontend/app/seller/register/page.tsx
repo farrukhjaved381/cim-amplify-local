@@ -517,7 +517,7 @@ export default function SellerRegisterPage() {
                   <span className="text-sm text-gray-700">
                     <span className="font-medium">Sign up for SMS</span>
                     <span className="block text-xs text-gray-500 mt-0.5">
-                      You agree to receive automated transactional messages. Message frequency may vary. Standard message and data rates may apply. Reply STOP to opt out, HELP for assistance. Your mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+You agree to receive automated transactional messages including 4 digit identity verification and, if appropriate, new deal invitations.  Text and data rates may apply.  Reply  STOP to end or HELP for help.
                     </span>
                   </span>
                 </label>
